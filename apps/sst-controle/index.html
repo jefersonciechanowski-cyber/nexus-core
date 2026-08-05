@@ -2549,8 +2549,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(name) name.textContent=user.name||'Usuário Demo';
   if(role) role.textContent=user.roleLabel||user.role||'Demonstração';
   const logout=document.getElementById('demoLogout');
-  if(logout) logout.addEventListener('click',()=>{sessionStorage.removeItem('nexus_demo_session');location.replace('login.html');});
-});
+
+if(logout) {
+  logout.addEventListener('click', async () => {
+    try {
+      if(window.NexusAuth) {
+        await window.NexusAuth.logout();
+      } else {
+        sessionStorage.removeItem('nexus_demo_session');
+      }
+    } finally {
+      location.replace('login.html');
+    }
+  });
+}
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-auth.js"></script>
 </body>
 </html>
