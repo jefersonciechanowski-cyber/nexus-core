@@ -1,10 +1,274 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071015"><title>Acesso Demo | SST Controle</title><style>
-:root{--bg:#071015;--surface:#0d181e;--surface2:#111f27;--line:#293941;--gold:#d9a62d;--text:#f2eee4;--muted:#929da5;--danger:#d56662}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);background:radial-gradient(circle at 78% 5%,rgba(32,78,92,.2),transparent 30%),linear-gradient(145deg,#050b0f,#0a151b)}.wrap{width:min(980px,100%);display:grid;grid-template-columns:1.05fr .95fr;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:rgba(8,16,20,.92)}.brand{padding:48px;background:radial-gradient(circle at 40% 18%,rgba(217,166,45,.12),transparent 34%),linear-gradient(180deg,#0c171c,#081116)}.mark{width:72px;height:72px;border:1px solid rgba(217,166,45,.45);display:grid;place-items:center;font-weight:800;font-size:28px;color:var(--gold);clip-path:polygon(25% 6%,75% 6%,100% 50%,75% 94%,25% 94%,0 50%)}h1{font-size:34px;margin:24px 0 8px}.gold{color:var(--gold)}.muted{color:var(--muted);line-height:1.6}.login{padding:42px}.login h2{margin:0 0 6px}.field{margin-top:16px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px}input{width:100%;padding:12px 13px;border-radius:8px;border:1px solid var(--line);background:#091318;color:var(--text);outline:none}input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(217,166,45,.1)}button{width:100%;margin-top:20px;padding:12px;border-radius:8px;border:1px solid var(--gold);background:linear-gradient(180deg,#e1b23f,#c98f22);color:#181207;font-weight:800;cursor:pointer}.error{min-height:20px;color:#ef8f8b;font-size:12px;margin-top:10px}.accounts{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}.account{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}.account strong{display:block;margin-bottom:3px}@media(max-width:760px){.wrap{grid-template-columns:1fr}.brand{padding:30px}.login{padding:30px}h1{font-size:28px}}</style></head><body><main class="wrap"><section class="brand"><div class="mark">NC</div><h1>NEXUS <span class="gold">CORE</span></h1><p class="muted">Ambiente de demonstração do SST Controle. Esta etapa valida a experiência, os módulos e os perfis de acesso antes da conexão definitiva com o Supabase.</p></section><section class="login"><h2>Acessar demonstração</h2><p class="muted">Use uma das contas abaixo.</p><div class="field"><label for="email">E-mail</label><input id="email" autocomplete="username" value="admin.demo@nexuscore.local"></div><div class="field"><label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" value="NexusDemo#2026"></div><button id="login" type="button">Entrar no SST Controle</button><div class="error" id="error" aria-live="polite"></div><div class="accounts"><div class="account"><strong>Administrador Nexus</strong>admin.demo@nexuscore.local · NexusDemo#2026</div><div class="account"><strong>Técnico de SST</strong>tecnico.demo@empresa-alfa.local · SstDemo#2026</div><div class="account"><strong>Diretor</strong>diretor.demo@empresa-alfa.local · DiretorDemo#2026</div></div></section></main><script>
-const users=[
- {email:'admin.demo@nexuscore.local',password:'NexusDemo#2026',name:'Jeferson Alves',role:'nexus_admin',roleLabel:'Administrador Nexus'},
- {email:'tecnico.demo@empresa-alfa.local',password:'SstDemo#2026',name:'Claudemir',role:'sst_technician',roleLabel:'Técnico de SST'},
- {email:'diretor.demo@empresa-alfa.local',password:'DiretorDemo#2026',name:'Diretor Demo',role:'director',roleLabel:'Diretor'}
-];
-function login(){const email=document.getElementById('email').value.trim().toLowerCase(),password=document.getElementById('password').value;const user=users.find(u=>u.email===email&&u.password===password);if(!user){document.getElementById('error').textContent='E-mail ou senha de demonstração inválidos.';return;}sessionStorage.setItem('nexus_demo_session',JSON.stringify({email:user.email,name:user.name,role:user.role,roleLabel:user.roleLabel,organizationId:'empresa-alfa-demo'}));location.href='index.html';}
-document.getElementById('login').addEventListener('click',login);document.addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-</script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071015">
+
+  <title>Acesso | SST Controle</title>
+
+  <style>
+    :root {
+      --bg: #071015;
+      --surface: #0d181e;
+      --line: #293941;
+      --gold: #d9a62d;
+      --text: #f2eee4;
+      --muted: #929da5;
+      --danger: #ef8f8b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 78% 5%, rgba(32, 78, 92, 0.2), transparent 30%),
+        linear-gradient(145deg, #050b0f, #0a151b);
+    }
+
+    .wrap {
+      width: min(980px, 100%);
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(8, 16, 20, 0.92);
+    }
+
+    .brand {
+      padding: 48px;
+      background:
+        radial-gradient(circle at 40% 18%, rgba(217, 166, 45, 0.12), transparent 34%),
+        linear-gradient(180deg, #0c171c, #081116);
+    }
+
+    .mark {
+      width: 72px;
+      height: 72px;
+      border: 1px solid rgba(217, 166, 45, 0.45);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 28px;
+      color: var(--gold);
+      clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
+    }
+
+    h1 {
+      font-size: 34px;
+      margin: 24px 0 8px;
+    }
+
+    .gold {
+      color: var(--gold);
+    }
+
+    .muted {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .login {
+      padding: 42px;
+    }
+
+    .login h2 {
+      margin: 0 0 6px;
+    }
+
+    .field {
+      margin-top: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 13px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #091318;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(217, 166, 45, 0.1);
+    }
+
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--gold);
+      background: linear-gradient(180deg, #e1b23f, #c98f22);
+      color: #181207;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .error {
+      min-height: 20px;
+      color: var(--danger);
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    .security {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 760px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .brand,
+      .login {
+        padding: 30px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="wrap">
+    <section class="brand">
+      <div class="mark">NC</div>
+
+      <h1>
+        NEXUS <span class="gold">CORE</span>
+      </h1>
+
+      <p class="muted">
+        Acesse o SST Controle para centralizar exames, treinamentos,
+        EPIs, riscos, colaboradores e informações da operação.
+      </p>
+    </section>
+
+    <section class="login">
+      <h2>Acessar SST Controle</h2>
+
+      <p class="muted">
+        Entre com seu e-mail e senha.
+      </p>
+
+      <div class="field">
+        <label for="email">E-mail</label>
+
+        <input
+          id="email"
+          type="email"
+          autocomplete="username"
+          value="jefersonciechanowski@gmail.com"
+        >
+      </div>
+
+      <div class="field">
+        <label for="password">Senha</label>
+
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Digite sua senha"
+        >
+      </div>
+
+      <button id="login" type="button">
+        Entrar no SST Controle
+      </button>
+
+      <div class="error" id="error" aria-live="polite"></div>
+
+      <div class="security">
+        A autenticação agora é realizada pelo Supabase.
+        Seus dados e permissões são validados antes da entrada no sistema.
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-auth.js"></script>
+
+  <script>
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const loginButton = document.getElementById('login');
+    const errorElement = document.getElementById('error');
+
+    async function login() {
+      errorElement.textContent = '';
+      loginButton.disabled = true;
+      loginButton.textContent = 'Entrando...';
+
+      try {
+        await window.NexusAuth.login(
+          emailInput.value,
+          passwordInput.value
+        );
+
+        window.location.href = 'index.html';
+      } catch (error) {
+        errorElement.textContent =
+          error.message || 'Não foi possível realizar o acesso.';
+      } finally {
+        loginButton.disabled = false;
+        loginButton.textContent = 'Entrar no SST Controle';
+      }
+    }
+
+    loginButton.addEventListener('click', login);
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        login();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', async function () {
+      try {
+        const session = await window.NexusAuth.restoreSession();
+
+        if (session) {
+          window.location.href = 'index.html';
+        }
+      } catch (error) {
+        console.error('Não foi possível restaurar a sessão.', error);
+      }
+    });
+  </script>
+</body>
+</html>
