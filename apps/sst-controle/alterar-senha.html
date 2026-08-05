@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071015">
+
+  <title>Alterar Senha | SST Controle</title>
+
+  <style>
+    :root {
+      --background: #071015;
+      --surface: #0b171c;
+      --surface-secondary: #101e24;
+      --line: #293941;
+      --gold: #d9a62d;
+      --gold-light: #e8bb4a;
+      --text: #f2eee4;
+      --muted: #9ba8af;
+      --danger: #ef8f8b;
+      --success: #68c78d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(
+          circle at 78% 5%,
+          rgba(32, 78, 92, 0.20),
+          transparent 30%
+        ),
+        linear-gradient(145deg, #050b0f, #0a151b);
+    }
+
+    .page {
+      width: min(1020px, 100%);
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(8, 16, 20, 0.94);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.35);
+    }
+
+    .brand {
+      min-height: 590px;
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background:
+        radial-gradient(
+          circle at 35% 12%,
+          rgba(217, 166, 45, 0.12),
+          transparent 32%
+        ),
+        linear-gradient(180deg, #0c171c, #081116);
+    }
+
+    .logo-mark {
+      width: 76px;
+      height: 76px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(217, 166, 45, 0.5);
+      color: var(--gold);
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      clip-path:
+        polygon(
+          25% 6%,
+          75% 6%,
+          100% 50%,
+          75% 94%,
+          25% 94%,
+          0 50%
+        );
+    }
+
+    .brand-name {
+      margin-top: 26px;
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .brand-name span {
+      color: var(--gold);
+    }
+
+    .product-name {
+      margin-top: 12px;
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .brand-description {
+      max-width: 440px;
+      margin-top: 24px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 15px;
+    }
+
+    .brand-footer {
+      padding-top: 24px;
+      border-top: 1px solid rgba(217, 166, 45, 0.14);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .form-area {
+      padding: 48px 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: rgba(6, 15, 19, 0.82);
+    }
+
+    .form-area h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .account {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--gold);
+      border-radius: 9px;
+      background: var(--surface);
+    }
+
+    .account-label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .account-email {
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .field {
+      margin-top: 18px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      outline: none;
+      background: #091318;
+      color: var(--text);
+      font: inherit;
+    }
+
+    input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(217, 166, 45, 0.10);
+    }
+
+    .password-rule {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 13px;
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      cursor: pointer;
+      background:
+        linear-gradient(
+          180deg,
+          var(--gold-light),
+          #c98f22
+        );
+      color: #181207;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    button:hover {
+      filter: brightness(1.04);
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .message {
+      min-height: 22px;
+      margin-top: 14px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .message.error {
+      color: var(--danger);
+    }
+
+    .message.success {
+      color: var(--success);
+    }
+
+    .security {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 780px) {
+      body {
+        padding: 14px;
+      }
+
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .brand {
+        min-height: auto;
+        padding: 32px;
+      }
+
+      .brand-footer {
+        margin-top: 34px;
+      }
+
+      .form-area {
+        padding: 34px 30px;
+      }
+
+      .brand-name {
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section class="brand">
+      <div>
+        <div class="logo-mark">NC</div>
+
+        <div class="brand-name">
+          NEXUS <span>CORE</span>
+        </div>
+
+        <div class="product-name">
+          SST Controle
+        </div>
+
+        <p class="brand-description">
+          Segurança, controle e confiabilidade para a gestão de
+          Saúde e Segurança do Trabalho da sua empresa.
+        </p>
+      </div>
+
+      <div class="brand-footer">
+        Conectando gestão. Impulsionando crescimento.<br>
+        Nexus Core Tecnologia LTDA.
+      </div>
+    </section>
+
+    <section class="form-area">
+      <h1>Definir nova senha</h1>
+
+      <p class="subtitle">
+        Crie uma senha pessoal para acessar normalmente o SST Controle.
+      </p>
+
+      <div class="account">
+        <span class="account-label">Conta autenticada</span>
+
+        <span class="account-email" id="accountEmail">
+          Verificando sua sessão...
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="password">Nova senha</label>
+
+        <input
+          id="password"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Digite sua nova senha"
+        >
+
+        <div class="password-rule">
+          Utilize no mínimo 8 caracteres, combinando letras,
+          números e caracteres especiais.
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="confirmPassword">Confirmar nova senha</label>
+
+        <input
+          id="confirmPassword"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Digite novamente sua senha"
+        >
+      </div>
+
+      <button id="savePassword" type="button">
+        Salvar nova senha
+      </button>
+
+      <div
+        id="message"
+        class="message"
+        aria-live="polite"
+      ></div>
+
+      <div class="security">
+        Após a alteração, sua sessão será encerrada para que você
+        teste o acesso usando a nova senha.
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-auth.js"></script>
+
+  <script>
+    const passwordInput =
+      document.getElementById('password');
+
+    const confirmPasswordInput =
+      document.getElementById('confirmPassword');
+
+    const saveButton =
+      document.getElementById('savePassword');
+
+    const messageElement =
+      document.getElementById('message');
+
+    const accountEmail =
+      document.getElementById('accountEmail');
+
+    function showMessage(text, type) {
+      messageElement.textContent = text;
+      messageElement.className = 'message ' + type;
+    }
+
+    async function verifySession() {
+      try {
+        const client = window.NexusAuth.getClient();
+
+        const {
+          data,
+          error
+        } = await client.auth.getUser();
+
+        if (error || !data.user) {
+          throw new Error(
+            'Sua sessão expirou. Entre novamente no sistema.'
+          );
+        }
+
+        accountEmail.textContent =
+          data.user.email || 'Usuário autenticado';
+      } catch (error) {
+        accountEmail.textContent = 'Sessão não encontrada';
+
+        showMessage(
+          error.message || 'Não foi possível validar sua sessão.',
+          'error'
+        );
+
+        saveButton.disabled = true;
+
+        setTimeout(function () {
+          window.location.href = 'login.html';
+        }, 2500);
+      }
+    }
+
+    async function updatePassword() {
+      const password = passwordInput.value;
+      const confirmPassword = confirmPasswordInput.value;
+
+      showMessage('', '');
+
+      if (password.length < 8) {
+        showMessage(
+          'A nova senha precisa ter pelo menos 8 caracteres.',
+          'error'
+        );
+
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        showMessage(
+          'As duas senhas digitadas não são iguais.',
+          'error'
+        );
+
+        return;
+      }
+
+      saveButton.disabled = true;
+      saveButton.textContent = 'Salvando nova senha...';
+
+      try {
+        const client = window.NexusAuth.getClient();
+
+        const {
+          error
+        } = await client.auth.updateUser({
+          password: password
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        showMessage(
+          'Senha alterada com sucesso. Redirecionando para o login...',
+          'success'
+        );
+
+        passwordInput.value = '';
+        confirmPasswordInput.value = '';
+
+        setTimeout(async function () {
+          await window.NexusAuth.logout();
+          window.location.href = 'login.html';
+        }, 1800);
+      } catch (error) {
+        showMessage(
+          error.message || 'Não foi possível alterar sua senha.',
+          'error'
+        );
+
+        saveButton.disabled = false;
+        saveButton.textContent = 'Salvar nova senha';
+      }
+    }
+
+    saveButton.addEventListener('click', updatePassword);
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        updatePassword();
+      }
+    });
+
+    window.addEventListener(
+      'DOMContentLoaded',
+      verifySession
+    );
+  </script>
+</body>
+</html>
