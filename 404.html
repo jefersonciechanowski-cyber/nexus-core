@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Página não encontrada | Nexus Core</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #071015; color: #f2eee4; }
+    main { max-width: 34rem; padding: 2rem; text-align: center; }
+    a { color: #f0bd45; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <p>Página não encontrada. Redirecionando para a entrada da demonstração…</p>
+    <p><a id="home-link" href="index.html">Ir para a página inicial</a></p>
+  </main>
+  <script>
+    const target = location.protocol === 'file:'
+      ? new URL('index.html', document.baseURI).href
+      : location.pathname.startsWith('/nexus-core/')
+        ? '/nexus-core/index.html'
+        : '/index.html';
+    document.getElementById('home-link').href = target;
+    location.replace(target);
+  </script>
+</body>
+</html>
