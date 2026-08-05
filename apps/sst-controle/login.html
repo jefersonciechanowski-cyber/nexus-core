@@ -52,17 +52,12 @@
         linear-gradient(180deg, #0c171c, #081116);
     }
 
-    .mark {
-      width: 72px;
-      height: 72px;
-      border: 1px solid rgba(217, 166, 45, 0.45);
-      display: grid;
-      place-items: center;
-      font-weight: 800;
-      font-size: 28px;
-      color: var(--gold);
-      clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
-    }
+    .brand-logo {
+  display: block;
+  width: min(390px, 100%);
+  height: auto;
+  object-fit: contain;
+}
 
     h1 {
       font-size: 34px;
@@ -165,7 +160,11 @@
 <body>
   <main class="wrap">
     <section class="brand">
-      <div class="mark">NC</div>
+      <img
+  class="brand-logo"
+  src="logo-nexus-core.png"
+  alt="Nexus Core Industrial Trust"
+>
 
       <h1>
         NEXUS <span class="gold">CORE</span>
