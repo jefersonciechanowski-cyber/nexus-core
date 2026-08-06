@@ -2059,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function renderLists() {
-    $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
+   $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span><button type="button" class="ghost" onclick="deleteUnit('${u.id}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
     $('examList').innerHTML = state.exams.length ? state.exams.map(e => `<li><span><strong>${esc(e.name)}</strong></span> <small>Unidade: ${esc(e.unit)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
@@ -2076,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('trainingTypeList').innerHTML = state.trainingTypes.length ? state.trainingTypes.map(t => `<li><span><strong>${esc(t.name)}</strong>${t.code ? ` — ${esc(t.code)}` : ''}</span><small>Validade padrão: ${esc(t.validity)} dias | Certificado: ${esc(t.certificate)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
   }
 
-  $('unitForm').onsubmit = e => { e.preventDefault(); state.units.push({id: uid(), name: $('unitName').value.trim()}); e.target.reset(); save(); renderAll(); };
+  $('unitForm').onsubmit = e => { e.preventDefault(); };
   $('sectorForm').onsubmit = e => { e.preventDefault(); state.sectors.push({id: uid(), unitId: $('sectorUnit').value, name: $('sectorName').value.trim()}); e.target.reset(); save(); renderAll(); };
   $('employeeForm').onsubmit = e => { e.preventDefault(); const newEmployee={id: uid(), name: $('empName').value.trim(), unitId: $('empUnit').value, sectorId: $('empSector').value, shift: $('empShift').value, role: $('empRole').value.trim()}; state.employees.push(newEmployee); e.target.reset(); save(); renderAll(); showEmployeeRequirements(newEmployee.id); };
   $('examForm').onsubmit = e => { e.preventDefault(); state.exams.push({id: uid(), name: $('examName').value.trim(), unit: $('examUnit').value.trim()}); e.target.reset(); save(); renderAll(); };
@@ -2567,5 +2567,6 @@ if(logout) {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-auth.js"></script>
+<script src="supabase-units.js"></script>
 </body>
 </html>
