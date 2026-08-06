@@ -1621,26 +1621,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.exams = [{id:'ex1',name:'Audiometria',unit:'dB'},{id:'ex2',name:'Indicador Biológico',unit:'mg/L'}];
     state.parameters = [{examId:'ex1',good:25,attention:40},{examId:'ex2',good:10,attention:20}];
     state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
-    state.collections = [
-      {id:'c1',employeeId:'e1',examId:'ex1',year:String(new Date().getFullYear()),collection:'1',date:dateOffset(-60),value:44,status:'CRÍTICO'},
-      {id:'c2',employeeId:'e2',examId:'ex1',year:String(new Date().getFullYear()),collection:'1',date:dateOffset(-35),value:31,status:'ATENÇÃO'},
-      {id:'c3',employeeId:'e3',examId:'ex2',year:String(new Date().getFullYear()),collection:'1',date:dateOffset(-20),value:8,status:'BOM'},
-      {id:'c4',employeeId:'e4',examId:'ex2',year:String(new Date().getFullYear()),collection:'1',date:dateOffset(-10),value:12,status:'ATENÇÃO'}
-    ];
-    state.risks = [{id:'rk1',employeeId:'e1',type:'Quase-Acidente',severity:'Alta',date:dateOffset(-3),desc:'Queda de objeto em área de circulação.'},{id:'rk2',employeeId:'e2',type:'Falha de Procedimento',severity:'Média',date:dateOffset(-7),desc:'Guarda de proteção fora do padrão.'}];
     state.epis = [{id:'p1',name:'Luva de Proteção X',code:'CA-1020'},{id:'p2',name:'Protetor Auricular Y',code:'CA-2280'}];
     state.epiPurchases = [{id:'pc1',epiId:'p1',date:dateOffset(-120),quantity:50,supplier:'Protege Industrial',invoice:'NF-1001',technicalResponsible:'Claudemir Santos'},{id:'pc2',epiId:'p2',date:dateOffset(-120),quantity:40,supplier:'Protege Industrial',invoice:'NF-1002',technicalResponsible:'Claudemir Santos'}];
-    state.epiMovements = [{id:'pm1',employeeId:'e1',epiId:'p1',date:dateOffset(-20),status:'Entregue'},{id:'pm2',employeeId:'e2',epiId:'p1',date:dateOffset(-20),status:'Entregue'},{id:'pm3',employeeId:'e3',epiId:'p2',date:dateOffset(-52),status:'Entregue'}];
     state.trainingTypes = [{id:'t1',name:'NR-35 — Trabalho em Altura',code:'NR-35',validity:730,certificate:'Sim'},{id:'t2',name:'NR-06 — Uso de EPI',code:'NR-06',validity:365,certificate:'Sim'}];
-    state.trainingRecords = [{id:'tr1',employeeId:'e1',trainingTypeId:'t1',date:dateOffset(-760),due:dateOffset(-30),certificate:'CERT-001',instructor:'Centro Técnico'},{id:'tr2',employeeId:'e2',trainingTypeId:'t2',date:dateOffset(-350),due:dateOffset(15),certificate:'CERT-002',instructor:'Equipe Interna'}];
-    state.matrixRules = [
-      {id:'m1',unitId:'u1',sectorId:'s1',role:'Soldador',type:'Treinamento',itemId:'t1',itemName:'NR-35 — Trabalho em Altura',validity:730,effective:dateOffset(-1000),active:true},
-      {id:'m2',unitId:'u1',sectorId:'s1',role:'Soldador',type:'EPI',itemId:'p1',itemName:'Luva de Proteção X',validity:15,effective:dateOffset(-1000),active:true},
-      {id:'m3',unitId:'u1',sectorId:'s2',role:'Auxiliar de Manutenção',type:'EPI',itemId:'p1',itemName:'Luva de Proteção X',validity:30,effective:dateOffset(-1000),active:true},
-      {id:'m4',unitId:'u2',sectorId:'s3',role:'Operador de Expedição',type:'EPI',itemId:'p2',itemName:'Protetor Auricular Y',validity:60,effective:dateOffset(-1000),active:true},
-      {id:'m5',unitId:'u1',sectorId:'s2',role:'Auxiliar de Manutenção',type:'Treinamento',itemId:'t2',itemName:'NR-06 — Uso de EPI',validity:365,effective:dateOffset(-1000),active:true},
-      {id:'m6',unitId:'u2',sectorId:'s3',role:'Operador de Expedição',type:'Treinamento',itemId:'t2',itemName:'NR-06 — Uso de EPI',validity:365,effective:dateOffset(-1000),active:true}
-    ];
   }
 
   // Apply theme & font
@@ -1722,12 +1705,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function unit(id) { return state.units.find(u => u.id == id); }
   function epi(id) { return state.epis.find(e => e.id == id); }
   function trainingType(id) { return state.trainingTypes.find(t => t.id == id); }
+  function validMatrixRules() { return state.matrixRules.filter(rule => (!rule.unitId || unit(rule.unitId)) && (!rule.sectorId || sector(rule.sectorId))); }
   function addDaysISO(date, days) { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + Number(days || 0)); return d.toISOString().split('T')[0]; }
   function daysUntil(date) { if(!date) return -9999; const target = new Date(`${date}T12:00:00`); const now = new Date(); now.setHours(12,0,0,0); return Math.ceil((target - now) / 86400000); }
   function validityStatus(due) { const days = daysUntil(due); if(days < 0) return 'CRÍTICO'; if(days <= 30) return 'ATENÇÃO'; return 'BOM'; }
   function matchingMatrixRules(emp, type, itemId) {
     if(!emp) return [];
-    return state.matrixRules.filter(r => r.active !== false && r.type === type && (!itemId || String(r.itemId) === String(itemId)) && (!r.unitId || String(r.unitId) === String(emp.unitId)) && (!r.sectorId || String(r.sectorId) === String(emp.sectorId)) && (!r.role || String(r.role).toLowerCase() === String(emp.role || '').toLowerCase()) && (!r.effective || r.effective <= new Date().toISOString().split('T')[0])).sort((a,b) => ((b.unitId?1:0)+(b.sectorId?2:0)+(b.role?4:0))-((a.unitId?1:0)+(a.sectorId?2:0)+(a.role?4:0)));
+    return validMatrixRules().filter(r => r.active !== false && r.type === type && (!itemId || String(r.itemId) === String(itemId)) && (!r.unitId || String(r.unitId) === String(emp.unitId)) && (!r.sectorId || String(r.sectorId) === String(emp.sectorId)) && (!r.role || String(r.role).toLowerCase() === String(emp.role || '').toLowerCase()) && (!r.effective || r.effective <= new Date().toISOString().split('T')[0])).sort((a,b) => ((b.unitId?1:0)+(b.sectorId?2:0)+(b.role?4:0))-((a.unitId?1:0)+(a.sectorId?2:0)+(a.role?4:0)));
   }
   function epiValidity(employeeId, epiId) { const emp = employee(employeeId), rule = matchingMatrixRules(emp,'EPI',epiId)[0]; return Number(rule?.validity || 0); }
   function trainingValidity(employeeId, trainingTypeId) { const emp = employee(employeeId), rule = matchingMatrixRules(emp,'Treinamento',trainingTypeId)[0]; return Number(rule?.validity || trainingType(trainingTypeId)?.validity || 0); }
@@ -1743,8 +1727,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     state.trainingRecords.forEach(record => {
       const emp = employee(record.employeeId);
-      if(!rows.some(r => String(r.employee.id) === String(record.employeeId) && String(r.rule.itemId) === String(record.trainingTypeId))) {
-        rows.push({employee:emp, rule:{itemId:record.trainingTypeId,itemName:trainingType(record.trainingTypeId)?.name || 'Treinamento adicional'},record,status:validityStatus(record.due),missing:false});
+      if (!emp) return;
+
+      if (!rows.some(row =>
+        row.employee &&
+        String(row.employee.id) === String(record.employeeId) &&
+        String(row.rule.itemId) === String(record.trainingTypeId)
+      )) {
+        rows.push({
+          employee: emp,
+          rule: {
+            itemId: record.trainingTypeId,
+            itemName: trainingType(record.trainingTypeId)?.name || 'Treinamento adicional'
+          },
+          record,
+          status: validityStatus(record.due),
+          missing: false
+        });
       }
     });
     return rows;
@@ -1753,7 +1752,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function activeEpiMovements() {
     const latest = new Map();
     [...state.epiMovements].sort((a,b) => String(a.date).localeCompare(String(b.date))).forEach(m => latest.set(`${m.employeeId}|${m.epiId}`, m));
-    return [...latest.values()].filter(m => m.status === 'Entregue');
+    return [...latest.values()].filter(m => m.status === 'Entregue' && employee(m.employeeId));
   }
   function totalPurchased(epiId) { return state.epiPurchases.filter(p => String(p.epiId) === String(epiId)).reduce((sum,p) => sum + Number(p.quantity || 0), 0); }
   function currentStock(epiId) { return totalPurchased(epiId) - activeEpiMovements().filter(m => String(m.epiId) === String(epiId)).length; }
@@ -1766,7 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
     rules.forEach(rule => { const key = `${rule.type}|${rule.itemId || rule.itemName}`; if(!map.has(key)) map.set(key, rule); });
     return [...map.values()];
   }
-  function requirementsForEmployee(emp) { return emp ? uniqueRules(state.matrixRules.filter(r => matchingMatrixRules(emp,r.type,r.itemId)[0]?.id === r.id)) : []; }
+  function requirementsForEmployee(emp) { return emp ? uniqueRules(validMatrixRules().filter(r => matchingMatrixRules(emp,r.type,r.itemId)[0]?.id === r.id)) : []; }
   function requirementStatus(emp, rule) {
     if(rule.type === 'Treinamento') {
       const record = state.trainingRecords.filter(r => String(r.employeeId)===String(emp.id) && String(r.trainingTypeId)===String(rule.itemId)).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
@@ -1930,15 +1929,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardRoleOptions = [...new Set([
       ...employeeRoleOptions.map(role => role.name),
       ...state.employees.map(employee => employee.role),
-      ...state.matrixRules.map(rule => rule.role)
+      ...validMatrixRules().map(rule => rule.role)
     ].filter(Boolean))].sort().map(role => ({id: role, name: role}));
     renderSelect('empRole', employeeRoleOptions, 'Selecione a função');
     renderSelect('dashRole', dashboardRoleOptions, 'Todas as funções');
     
-    const years = [...new Set(state.collections.map(c => c.year).filter(Boolean))].sort((a,b) => b-a).map(year => ({id: String(year), name: String(year)}));
+    const validCollections = state.collections.filter(collection => employee(collection.employeeId));
+    const years = [...new Set(validCollections.map(c => c.year).filter(Boolean))].sort((a,b) => b-a).map(year => ({id: String(year), name: String(year)}));
     renderSelect('dashYear', years, 'Todos os anos');
     
-    const cols = [...new Set(state.collections.map(c => c.collection).filter(c => c !== '' && c != null))].sort((a,b) => a-b).map(value => ({id: String(value), name: `Coleta ${value}`}));
+    const cols = [...new Set(validCollections.map(c => c.collection).filter(c => c !== '' && c != null))].sort((a,b) => a-b).map(value => ({id: String(value), name: `Coleta ${value}`}));
     renderSelect('dashCollection', cols, 'Todas as coletas');
 
     updateReportTargets();
@@ -1993,7 +1993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(type === 'geral') {
       title = "Relatório Geral Completo";
       theadHTML = `<tr><th>Colaborador</th><th>Unidade / Setor</th><th>Turno</th><th>Exame</th><th>Data</th><th>Valor</th><th>Status</th></tr>`;
-      const data = state.collections;
+      const data = state.collections.filter(collection => employee(collection.employeeId));
       tbodyHTML = data.length ? data.map(c => {
         const emp = employee(c.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId), ex = exam(c.examId);
         return `<tr><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(emp?.shift || '—')}</td><td>${esc(ex?.name || '—')}</td><td>${esc(c.date || '—')}</td><td>${esc(c.value)}</td><td>${statusBadge(c.status)}</td></tr>`;
@@ -2002,7 +2002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if(type === 'riscos') {
       title = "Relatório Consolidado de Riscos e Incidentes";
       theadHTML = `<tr><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Descrição</th></tr>`;
-      const data = state.risks;
+      const data = state.risks.filter(risk => employee(risk.employeeId));
       tbodyHTML = data.length ? data.map(r => {
         const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
         return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${esc(r.desc)}</td></tr>`;
@@ -2016,7 +2016,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if(type === 'matriz') {
       title = "Relatório da Matriz de Controle";
       theadHTML = `<tr><th>Unidade</th><th>Setor</th><th>Função</th><th>Tipo</th><th>Requisito</th><th>Validade</th></tr>`;
-      tbodyHTML = state.matrixRules.length ? state.matrixRules.map(r => `<tr><td>${esc(unit(r.unitId)?.name || 'Todas')}</td><td>${esc(sector(r.sectorId)?.name || 'Todos')}</td><td>${esc(r.role || 'Todas')}</td><td>${esc(r.type)}</td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;padding:24px;">Nenhuma regra cadastrada.</td></tr>`;
+      const rules = validMatrixRules();
+      tbodyHTML = rules.length ? rules.map(r => `<tr><td>${esc(unit(r.unitId)?.name || 'Todas')}</td><td>${esc(sector(r.sectorId)?.name || 'Todos')}</td><td>${esc(r.role || 'Todas')}</td><td>${esc(r.type)}</td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;padding:24px;">Nenhuma regra cadastrada.</td></tr>`;
     } else if(type === 'epis') {
       title = "Relatório de EPIs e Trocas";
       theadHTML = `<tr><th>Colaborador</th><th>Unidade / Setor</th><th>EPI</th><th>Entrega</th><th>Prazo Aplicado</th><th>Próxima Troca</th><th>Status</th></tr>`;
@@ -2083,7 +2084,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Catálogo e estoque calculado pelas compras. O prazo nunca fica no EPI, somente na Matriz.
     $('epiList').innerHTML = state.epis.length ? state.epis.map(e => {
       const stock = currentStock(e.id), purchased = totalPurchased(e.id);
-      const rules = state.matrixRules.filter(r => r.type === 'EPI' && String(r.itemId) === String(e.id));
+      const rules = validMatrixRules().filter(r => r.type === 'EPI' && String(r.itemId) === String(e.id));
       return `<li><span><strong>${esc(e.name)}</strong> (CA: ${esc(e.code)})</span><small>Comprado: ${purchased} | Disponível: <strong>${stock}</strong> | ${rules.length} regra(s) de troca por setor na Matriz</small></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum EPI cadastrado.</span></li>';
     $('epiPurchaseList').innerHTML = state.epiPurchases.length ? [...state.epiPurchases].sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p => `<li><span><strong>${esc(epi(p.epiId)?.name || 'EPI')}</strong> — ${esc(p.quantity)} unidade(s)</span><small>${esc(p.date)} | ${esc(p.supplier || 'Fornecedor não informado')} | ${esc(p.invoice || 'Sem NF')} | Responsável: ${esc(p.technicalResponsible)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma compra registrada.</span></li>';
@@ -2140,7 +2141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function renderRiskTable() {
-    const data = state.risks;
+    const data = state.risks.filter(risk => employee(risk.employeeId));
     $('riskCount').textContent = `${data.length} registro${data.length === 1 ? '' : 's'} encontrado${data.length === 1 ? '' : 's'}`;
     $('riskTable').innerHTML = data.length ? data.sort((a,b) => String(b.date).localeCompare(String(a.date))).map(r => {
       const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
@@ -2162,7 +2163,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderCollectionTable() {
     const year = $('filterYear').value, coll = $('filterCollection').value;
-    let data = [...state.collections];
+    const validCollections = state.collections.filter(collection => employee(collection.employeeId));
+    let data = [...validCollections];
     if(year) data = data.filter(c => String(c.year) === year);
     if(coll) data = data.filter(c => String(c.collection) === coll);
     
@@ -2172,8 +2174,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum registro de coleta encontrado.</td></tr>`;
     
     const selectedYear = year, selectedColl = coll;
-    const years = [...new Set(state.collections.map(c => c.year))].sort((a,b) => b-a).map(v => ({id: String(v), name: String(v)}));
-    const cols = [...new Set(state.collections.map(c => c.collection))].sort((a,b) => a-b).map(v => ({id: String(v), name: `Coleta ${v}`}));
+    const years = [...new Set(validCollections.map(c => c.year))].sort((a,b) => b-a).map(v => ({id: String(v), name: String(v)}));
+    const cols = [...new Set(validCollections.map(c => c.collection))].sort((a,b) => a-b).map(v => ({id: String(v), name: `Coleta ${v}`}));
     renderSelect('filterYear', years, 'Todos os anos', selectedYear);
     renderSelect('filterCollection', cols, 'Todas as coletas', selectedColl);
   }
@@ -2186,6 +2188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const f = {unit:$('dashUnit').value, sector:$('dashSector').value, shift:$('dashShift').value, role:$('dashRole').value, exam:$('dashExam').value, status:$('dashStatus').value, year:$('dashYear').value, collection:$('dashCollection').value, start:$('dashDateStart').value, end:$('dashDateEnd').value};
     return state.collections.filter(c => {
       const emp = employee(c.employeeId);
+      if (!emp) return false;
       return (!f.unit || String(emp?.unitId) === f.unit) &&
              (!f.sector || String(emp?.sectorId) === f.sector) &&
              (!f.shift || emp?.shift === f.shift) &&
@@ -2213,6 +2216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Filtra as movimentações de EPI conforme os critérios selecionados
     const filteredMovements = state.epiMovements.filter(m => {
       const emp = employee(m.employeeId);
+      if (!emp) return false;
       return (!f.epiItem || String(m.epiId) === f.epiItem) &&
              (!f.unit || String(emp?.unitId) === f.unit) &&
              (!f.sector || String(emp?.sectorId) === f.sector) &&
@@ -2486,7 +2490,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function renderMatrixModule() {
     const unitId=$('matrixFilterUnit').value,sectorId=$('matrixFilterSector').value,type=$('matrixFilterType').value,role=$('matrixFilterRole').value.toLowerCase();
-    const rows=state.matrixRules.filter(r=>(!unitId||String(r.unitId)===unitId)&&(!sectorId||String(r.sectorId)===sectorId)&&(!type||r.type===type)&&(!role||String(r.role||'').toLowerCase().includes(role)));
+    const rows=validMatrixRules().filter(r=>(!unitId||String(r.unitId)===unitId)&&(!sectorId||String(r.sectorId)===sectorId)&&(!type||r.type===type)&&(!role||String(r.role||'').toLowerCase().includes(role)));
     $('matrixCount').textContent=`${rows.length} regra(s)`;
     $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(r.role||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" onclick="deleteMatrixRule('${r.id}')">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
   }
@@ -2503,7 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.trim();document.querySelector('[data-tab="dashboard"]').click();$('dashSearch').value=q;renderDashboard();}});
 
   $('exportCsv').onclick = () => {
-    const rows = [['Colaborador','Turno','Função','Setor','Exame','Data','Ano','Coleta','Valor','Status'], ...state.collections.map(c => {
+    const rows = [['Colaborador','Turno','Função','Setor','Exame','Data','Ano','Coleta','Valor','Status'], ...state.collections.filter(c => employee(c.employeeId)).map(c => {
       const emp = employee(c.employeeId);
       return [emp?.name || '', emp?.shift || '', emp?.role || '', sector(emp?.sectorId)?.name || '', exam(c.examId)?.name || '', c.date || '', c.year, c.collection, c.value, statusOf(c.status)];
     })];
@@ -2588,16 +2592,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(role) role.textContent=user.roleLabel||user.role||'Demonstração';
   const logout=document.getElementById('demoLogout');
 
-if(logout) {
+if (logout) {
   logout.addEventListener('click', async () => {
     try {
-      if(window.NexusAuth) {
+      if (window.NexusAuth) {
         await window.NexusAuth.logout();
       } else {
         sessionStorage.removeItem('nexus_demo_session');
       }
     } finally {
       location.replace('login.html');
+    }
   });
 }
 });
