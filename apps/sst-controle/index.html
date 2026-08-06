@@ -2533,7 +2533,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.showEmployeeRequirements = showEmployeeRequirements;
-  window.NEXUS_SST_APP = {config:APP_CONFIG,dataStore,getState:()=>state,save,session:{user:null,tenantId:APP_CONFIG.tenantId},setProvider(provider){APP_CONFIG.provider=provider;}};
+  window.NEXUS_SST_APP = {
+  config: APP_CONFIG,
+  dataStore,
+  getState: () => state,
+  save,
+  render: renderAll,
+  session: {
+    user: null,
+    tenantId: APP_CONFIG.tenantId
+  },
+  setProvider(provider) {
+    APP_CONFIG.provider = provider;
+  }
+};
   $('closeRequirements').onclick = () => $('requirementsModal').classList.add('hidden');
   $('mobileMenuButton').onclick = () => { document.querySelector('.sidebar').classList.add('open'); $('sidebarOverlay').classList.add('open'); };
   $('sidebarOverlay').onclick = () => { document.querySelector('.sidebar').classList.remove('open'); $('sidebarOverlay').classList.remove('open'); };
@@ -2560,9 +2573,9 @@ if(logout) {
       }
     } finally {
       location.replace('login.html');
-    }
   });
 }
+});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
