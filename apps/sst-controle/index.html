@@ -911,6 +911,7 @@
       <div class="subtabs">
         <button class="subtab active" data-subtab="reg-unidades" type="button">Unidades</button>
         <button class="subtab" data-subtab="reg-setores" type="button">Setores</button>
+        <button class="subtab" data-subtab="reg-funcoes" type="button">Funções</button>
         <button class="subtab" data-subtab="reg-colaboradores" type="button">Colaboradores</button>
         <button class="subtab" data-subtab="reg-exames" type="button">Exames</button>
         <button class="subtab" data-subtab="reg-treinamentos" type="button">Tipos de Treinamento</button>
@@ -961,7 +962,7 @@
               <option value="Noite">Noite</option>
               <option value="Administrativo">Administrativo</option>
             </select>
-            <input id="empRole" list="roleOptions" placeholder="Cargo / Função" required><datalist id="roleOptions"></datalist>
+            <select id="empRole" required></select>
             <div><button type="submit">Cadastrar Colaborador</button></div>
           </form>
           <div id="employeeRequirementPreview" class="requirements-preview">
@@ -971,6 +972,20 @@
         <div class="card-box">
           <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Colaboradores Cadastrados</h3>
           <ul id="employeeList" class="list"></ul>
+        </div>
+      </div>
+
+      <div id="reg-funcoes" class="subtab-content">
+        <div class="card-box">
+          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Nova Função</h3>
+          <form id="jobRoleForm" class="form">
+            <input id="jobRoleName" placeholder="Ex: Técnico de Segurança do Trabalho" required>
+            <div><button type="submit">Cadastrar Função</button></div>
+          </form>
+        </div>
+        <div class="card-box">
+          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Funções Cadastradas</h3>
+          <ul id="jobRoleList" class="list"></ul>
         </div>
       </div>
 
@@ -1566,9 +1581,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const state = {
     theme: localStorage.getItem('sst_ctrl_theme_v4') || 'nexus',
     font: localStorage.getItem('sst_ctrl_font_v4') || 'inter',
-    units: dataStore.get('sst_ctrl_units_v1', []),
-    sectors: dataStore.get('sst_ctrl_sectors_v1', []),
-    employees: dataStore.get('sst_ctrl_employees_v1', []),
+    units: [],
+    sectors: [],
+    jobRoles: [],
+    employees: [],
     exams: dataStore.get('sst_ctrl_exams_v1', []),
     parameters: dataStore.get('sst_ctrl_parameters_v1', []),
     occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
@@ -1600,16 +1616,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function dateOffset(days) {
     const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0];
   }
-  const completelyEmpty = ['units','sectors','employees','exams','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules'].every(k => !state[k].length);
+  const completelyEmpty = ['exams','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules'].every(k => !state[k].length);
   if(completelyEmpty) {
-    state.units = [{id:'u1',name:'Unidade Norte'},{id:'u2',name:'Unidade Sul'}];
-    state.sectors = [{id:'s1',unitId:'u1',name:'Produção'},{id:'s2',unitId:'u1',name:'Manutenção'},{id:'s3',unitId:'u2',name:'Expedição'},{id:'s4',unitId:'u2',name:'Administrativo'}];
-    state.employees = [
-      {id:'e1',name:'Carlos Henrique',unitId:'u1',sectorId:'s1',shift:'Manhã',role:'Soldador'},
-      {id:'e2',name:'Marcos Lima',unitId:'u1',sectorId:'s2',shift:'Tarde',role:'Auxiliar de Manutenção'},
-      {id:'e3',name:'André Souza',unitId:'u2',sectorId:'s3',shift:'Noite',role:'Operador de Expedição'},
-      {id:'e4',name:'Renata Alves',unitId:'u2',sectorId:'s4',shift:'Administrativo',role:'Analista'}
-    ];
     state.exams = [{id:'ex1',name:'Audiometria',unit:'dB'},{id:'ex2',name:'Indicador Biológico',unit:'mg/L'}];
     state.parameters = [{examId:'ex1',good:25,attention:40},{examId:'ex2',good:10,attention:20}];
     state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
@@ -1666,7 +1674,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['units','sectors','employees','exams','parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['exams','parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1790,7 +1798,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function statusBadgeClass(status) { const s=statusOf(status); return s==='BOM'?'badge-bom':s==='ATENÇÃO'?'badge-atencao':'badge-critico'; }
   function getContextLabel(emp) { return `${unit(emp.unitId)?.name || 'unidade não definida'} / ${sector(emp.sectorId)?.name || 'setor não definido'} / ${emp.role || 'função não definida'}`; }
   function renderEmployeeRequirementPreview() {
-    const emp = {id:null,unitId:$('empUnit').value,sectorId:$('empSector').value,role:$('empRole').value.trim()};
+    const selectedRole = state.jobRoles?.find(role => String(role.id) === String($('empRole').value));
+    const emp = {id:null,unitId:$('empUnit').value,sectorId:$('empSector').value,role:selectedRole?.name || $('empRole').value.trim()};
     $('employeeRequirementPreview').innerHTML = emp.unitId && emp.sectorId && emp.role ? requirementsHtml(emp,true) : '<div class="requirements-empty">Selecione unidade, setor e função para visualizar automaticamente os EPIs, treinamentos e demais requisitos da Matriz de Controle.</div>';
   }
   function showEmployeeRequirements(id) {
@@ -1917,9 +1926,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     renderOccurrenceTypeSelect();
 
-    const roles = [...new Set([...state.employees.map(e => e.role),...state.matrixRules.map(r => r.role)].filter(Boolean))].sort().map(role => ({id: role, name: role}));
+    const roles = state.jobRoles?.length ? state.jobRoles : [...new Set([...state.employees.map(e => e.role),...state.matrixRules.map(r => r.role)].filter(Boolean))].sort().map(role => ({id: role, name: role}));
     renderSelect('dashRole', roles, 'Todas as funções');
-    $('roleOptions').innerHTML = roles.map(r => `<option value="${esc(r.name)}"></option>`).join('');
+    renderSelect('empRole', roles, 'Selecione a função');
     
     const years = [...new Set(state.collections.map(c => c.year).filter(Boolean))].sort((a,b) => b-a).map(year => ({id: String(year), name: String(year)}));
     renderSelect('dashYear', years, 'Todos os anos');
@@ -1948,7 +1957,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   $('empUnit').onchange = renderEmployeeSectors;
   $('empSector').onchange = renderEmployeeRequirementPreview;
-  $('empRole').oninput = renderEmployeeRequirementPreview;
+  $('empRole').onchange = renderEmployeeRequirementPreview;
 
   function renderEpiFilterSectors() {
     const current = $('epiFilterSector').value, unitId = $('epiFilterUnit').value;
@@ -2059,7 +2068,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function renderLists() {
-   $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span><button type="button" class="ghost" onclick="deleteUnit('${u.id}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
+   $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
     $('examList').innerHTML = state.exams.length ? state.exams.map(e => `<li><span><strong>${esc(e.name)}</strong></span> <small>Unidade: ${esc(e.unit)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
@@ -2076,9 +2085,6 @@ document.addEventListener('DOMContentLoaded', () => {
     $('trainingTypeList').innerHTML = state.trainingTypes.length ? state.trainingTypes.map(t => `<li><span><strong>${esc(t.name)}</strong>${t.code ? ` — ${esc(t.code)}` : ''}</span><small>Validade padrão: ${esc(t.validity)} dias | Certificado: ${esc(t.certificate)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
   }
 
-  $('unitForm').onsubmit = e => { e.preventDefault(); };
-  $('sectorForm').onsubmit = e => { e.preventDefault(); state.sectors.push({id: uid(), unitId: $('sectorUnit').value, name: $('sectorName').value.trim()}); e.target.reset(); save(); renderAll(); };
-  $('employeeForm').onsubmit = e => { e.preventDefault(); const newEmployee={id: uid(), name: $('empName').value.trim(), unitId: $('empUnit').value, sectorId: $('empSector').value, shift: $('empShift').value, role: $('empRole').value.trim()}; state.employees.push(newEmployee); e.target.reset(); save(); renderAll(); showEmployeeRequirements(newEmployee.id); };
   $('examForm').onsubmit = e => { e.preventDefault(); state.exams.push({id: uid(), name: $('examName').value.trim(), unit: $('examUnit').value.trim()}); e.target.reset(); save(); renderAll(); };
   $('trainingTypeForm').onsubmit = e => { e.preventDefault(); state.trainingTypes.push({id: uid(), name:$('trainingTypeName').value.trim(), code:$('trainingTypeCode').value.trim(), validity:Number($('trainingTypeValidity').value), certificate:$('trainingTypeCertificate').value}); e.target.reset(); save(); renderAll(); };
 
@@ -2580,6 +2586,7 @@ if(logout) {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-auth.js"></script>
-<script src="supabase-units.js"></script>
+<script src="supabase-data.js"></script>
+<script src="supabase-organizational.js"></script>
 </body>
 </html>
