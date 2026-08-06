@@ -27,14 +27,27 @@
     try {
       window.NexusData.getClient();
       window.NexusData.getOrganizationId();
-      const [units, sectors, jobRoles, employees] = await Promise.all([
-        window.NexusData.list(entities.units),
-        window.NexusData.list(entities.sectors),
-        window.NexusData.list(entities.jobRoles),
-        window.NexusData.list({ ...entities.employees, filters: [{ column: 'active', value: true }] })
-      ]);
-      Object.assign(state(), { units: units.map(mapUnit), sectors: sectors.map(mapSector), jobRoles: jobRoles.map(mapRole), employees: employees.map(mapEmployee) });
+      const requests = [
+        { key: 'units', label: 'unidades', map: mapUnit, promise: window.NexusData.list(entities.units) },
+        { key: 'sectors', label: 'setores', map: mapSector, promise: window.NexusData.list(entities.sectors) },
+        { key: 'jobRoles', label: 'funções', map: mapRole, promise: window.NexusData.list(entities.jobRoles) },
+        { key: 'employees', label: 'colaboradores', map: mapEmployee, promise: window.NexusData.list({ ...entities.employees, filters: [{ column: 'active', value: true }] }) }
+      ];
+      const results = await Promise.allSettled(requests.map(request => request.promise));
+      let hasFailure = false;
+
+      results.forEach((result, index) => {
+        const request = requests[index];
+        if (result.status === 'fulfilled') {
+          state()[request.key] = result.value.map(request.map);
+          return;
+        }
+        hasFailure = true;
+        console.error(`Falha ao carregar ${request.label}.`, result.reason);
+      });
+
       app().render();
+      if (hasFailure) message('Alguns dados da estrutura organizacional não puderam ser atualizados. Os demais foram carregados normalmente.');
     } catch (cause) {
       console.error('Falha ao carregar a estrutura organizacional.', cause);
       message('Não foi possível carregar a estrutura organizacional do Supabase.');
@@ -130,18 +143,26 @@
     if (unitList) unitList.innerHTML = current.units.length ? current.units.map(item => `<li><span><strong>${esc(item.name)}</strong></span><button type="button" class="ghost" onclick="deleteUnit('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     if (sectorList) sectorList.innerHTML = current.sectors.length ? current.sectors.map(item => `<li><span><strong>${esc(item.name)}</strong></span><small>${esc(unitName(item.unitId))}</small><button type="button" class="ghost" onclick="deleteSector('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     if (roleList) roleList.innerHTML = current.jobRoles.length ? current.jobRoles.map(item => `<li><span><strong>${esc(item.name)}</strong></span><button type="button" class="ghost" onclick="deleteJobRole('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma função cadastrada.</span></li>';
-    if (employeeList) employeeList.innerHTML = current.employees.length ? current.employees.map(item => `<li><span><strong>${esc(item.name)}</strong> — ${esc(item.role)} (${esc(item.shift || 'Turno não informado')})<small style="display:block;margin-top:4px">${esc(unitName(item.unitId))}</small></span><span><button type="button" class="ghost" onclick="showEmployeeRequirements('${esc(item.id)}')">Ver requisitos</button><button type="button" class="ghost" onclick="deactivateEmployee('${esc(item.id)}')">Desativar</button></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador ativo cadastrado.</span></li>';
-  }
-
-  function wrapRender() {
-    const original = app().render;
-    app().render = () => { original(); renderManagedLists(); };
+    if (employeeList) current.employees.forEach((item, index) => {
+      const listItem = employeeList.children[index];
+      if (!listItem || listItem.querySelector('[data-organizational-action="deactivate"]')) return;
+      const viewButton = listItem.querySelector('button');
+      const actions = document.createElement('span');
+      const deactivateButton = document.createElement('button');
+      deactivateButton.type = 'button';
+      deactivateButton.className = 'ghost';
+      deactivateButton.dataset.organizationalAction = 'deactivate';
+      deactivateButton.textContent = 'Desativar';
+      deactivateButton.onclick = () => deactivateEmployee(item.id);
+      if (viewButton) actions.appendChild(viewButton);
+      actions.appendChild(deactivateButton);
+      listItem.appendChild(actions);
+    });
   }
 
   function install() {
     if (installed || !app()?.getState || !app()?.render || !window.NexusData) return;
     installed = true;
-    wrapRender();
     byId('unitForm').onsubmit = submitUnit;
     byId('sectorForm').onsubmit = submitSector;
     byId('jobRoleForm').onsubmit = submitRole;
@@ -152,6 +173,8 @@
     window.deactivateEmployee = deactivateEmployee;
     loadAll();
   }
+
+  window.NexusOrganizational = { loadAll, renderManagedLists };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true }); else install();
 })();

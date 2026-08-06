@@ -1926,9 +1926,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     renderOccurrenceTypeSelect();
 
-    const roles = state.jobRoles?.length ? state.jobRoles : [...new Set([...state.employees.map(e => e.role),...state.matrixRules.map(r => r.role)].filter(Boolean))].sort().map(role => ({id: role, name: role}));
-    renderSelect('dashRole', roles, 'Todas as funções');
-    renderSelect('empRole', roles, 'Selecione a função');
+    const employeeRoleOptions = state.jobRoles || [];
+    const dashboardRoleOptions = [...new Set([
+      ...employeeRoleOptions.map(role => role.name),
+      ...state.employees.map(employee => employee.role),
+      ...state.matrixRules.map(rule => rule.role)
+    ].filter(Boolean))].sort().map(role => ({id: role, name: role}));
+    renderSelect('empRole', employeeRoleOptions, 'Selecione a função');
+    renderSelect('dashRole', dashboardRoleOptions, 'Todas as funções');
     
     const years = [...new Set(state.collections.map(c => c.year).filter(Boolean))].sort((a,b) => b-a).map(year => ({id: String(year), name: String(year)}));
     renderSelect('dashYear', years, 'Todos os anos');
@@ -2083,6 +2088,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum EPI cadastrado.</span></li>';
     $('epiPurchaseList').innerHTML = state.epiPurchases.length ? [...state.epiPurchases].sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p => `<li><span><strong>${esc(epi(p.epiId)?.name || 'EPI')}</strong> — ${esc(p.quantity)} unidade(s)</span><small>${esc(p.date)} | ${esc(p.supplier || 'Fornecedor não informado')} | ${esc(p.invoice || 'Sem NF')} | Responsável: ${esc(p.technicalResponsible)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma compra registrada.</span></li>';
     $('trainingTypeList').innerHTML = state.trainingTypes.length ? state.trainingTypes.map(t => `<li><span><strong>${esc(t.name)}</strong>${t.code ? ` — ${esc(t.code)}` : ''}</span><small>Validade padrão: ${esc(t.validity)} dias | Certificado: ${esc(t.certificate)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
+    window.NexusOrganizational?.renderManagedLists?.();
   }
 
   $('examForm').onsubmit = e => { e.preventDefault(); state.exams.push({id: uid(), name: $('examName').value.trim(), unit: $('examUnit').value.trim()}); e.target.reset(); save(); renderAll(); };
@@ -2515,7 +2521,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = e.target.files[0]; if(!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try { const parsed=JSON.parse(reader.result); Object.assign(state, parsed.data || parsed); save(); renderAll(); alert('Backup restaurado com sucesso!'); } catch { alert('Arquivo de backup inválido'); }
+      try {
+        const parsed = JSON.parse(reader.result);
+        const restoredData = { ...(parsed.data || parsed) };
+        delete restoredData.units;
+        delete restoredData.sectors;
+        delete restoredData.jobRoles;
+        delete restoredData.employees;
+        Object.assign(state, restoredData);
+        save();
+        renderAll();
+        alert('Backup restaurado com sucesso!');
+      } catch {
+        alert('Arquivo de backup inválido');
+      }
     };
     reader.readAsText(file);
   };
