@@ -1005,19 +1005,29 @@
 
       <div id="reg-colaboradores" class="subtab-content">
         <div class="card-box">
-          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Novo Colaborador</h3>
-          <form id="employeeForm" class="form">
-            <input id="empName" placeholder="Nome completo" required>
+          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Colaborador</h3>
+          <form id="employeeForm" class="form" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Identificação</h4>
+            <input id="empName" placeholder="Nome Completo" required>
+            <input id="empCpf" inputmode="numeric" placeholder="CPF">
+            <input id="empBirthDate" type="date" title="Data de Nascimento">
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Vínculo eSocial</h4>
+            <select id="empEsocialWorkerType"><option value="">Tipo de Vínculo eSocial</option><option value="VINCULO">Trabalhador com vínculo (S-2200)</option><option value="TSVE">TSVE — Trabalhador sem vínculo (S-2300)</option></select>
+            <input id="empEsocialRegistration" maxlength="30" placeholder="Matrícula eSocial">
+            <div id="empEsocialCategoryWrap" hidden><input id="empEsocialCategoryCode" inputmode="numeric" placeholder="Código da Categoria eSocial"><small class="form-helper">Para TSVE sem matrícula, o código da categoria identifica o vínculo nos eventos SST.</small></div>
+            <div><label id="empRelationshipStartLabel" class="form-helper">Início do Vínculo / Admissão</label><input id="empRelationshipStartDate" type="date" title="Início do Vínculo / Admissão"></div>
+            <div><label id="empRelationshipEndLabel" class="form-helper">Fim do Vínculo / Desligamento</label><input id="empRelationshipEndDate" type="date" title="Fim do Vínculo / Desligamento"></div>
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Alocação SST</h4>
             <select id="empUnit" required></select>
             <select id="empSector" required></select>
+            <select id="empRole" required></select>
             <select id="empShift" required>
               <option value="Manhã">Manhã</option>
               <option value="Tarde">Tarde</option>
               <option value="Noite">Noite</option>
               <option value="Administrativo">Administrativo</option>
             </select>
-            <select id="empRole" required></select>
-            <div><button type="submit">Cadastrar Colaborador</button></div>
+            <div style="grid-column: 1 / -1;"><button id="employeeSubmitButton" type="submit">Cadastrar Colaborador</button> <button id="employeeCancelEdit" type="button" class="ghost" hidden>Cancelar edição</button></div>
           </form>
           <div id="employeeRequirementPreview" class="requirements-preview">
             <div class="requirements-empty">Selecione unidade, setor e função para visualizar automaticamente os EPIs, treinamentos e demais requisitos da Matriz de Controle.</div>

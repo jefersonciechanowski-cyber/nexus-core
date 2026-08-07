@@ -5,11 +5,12 @@
     units: { table: 'units', select: 'id, name, establishment_kind, registration_type, registration_number, cnae_preponderant, esocial_valid_from, esocial_valid_to, cnpj_responsible, caepf_type, construction_contribution_substitution, postal_code, street, street_number, address_complement, district, city, state', label: 'a unidade', order: { column: 'name' } },
     sectors: { table: 'sectors', select: 'id, unit_id, name', label: 'o setor', order: { column: 'name' } },
     jobRoles: { table: 'job_roles', select: 'id, name', label: 'a função', order: { column: 'name' } },
-    employees: { table: 'employees', select: 'id, unit_id, sector_id, job_role_id, full_name, shift, active, job_roles ( name )', label: 'o colaborador', order: { column: 'full_name' } }
+    employees: { table: 'employees', select: 'id, unit_id, sector_id, job_role_id, full_name, shift, active, cpf, birth_date, esocial_worker_type, esocial_registration, esocial_category_code, relationship_start_date, relationship_end_date, job_roles ( name )', label: 'o colaborador', order: { column: 'full_name' } }
   };
   const brazilianStates = new Set(['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']);
   let installed = false;
   let editingUnitId = null;
+  let editingEmployeeId = null;
 
   const byId = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -19,6 +20,7 @@
   const digits = value => String(value || '').replace(/\D/g, '');
   const hasAllowedNumericInput = value => /^[0-9./\-\s]*$/.test(String(value || ''));
   const hasAllowedPostalCodeInput = value => /^[0-9\-\s]*$/.test(String(value || ''));
+  const hasAllowedCpfInput = value => /^[0-9.\-\s]*$/.test(String(value || ''));
 
   function formatCnpj(value) { return window.NexusCnpj.format(value); }
 
@@ -67,7 +69,7 @@
   function mapRole(row) { return { id: row.id, name: row.name }; }
   function mapEmployee(row) {
     const role = Array.isArray(row.job_roles) ? row.job_roles[0] : row.job_roles;
-    return { id: row.id, name: row.full_name, unitId: row.unit_id, sectorId: row.sector_id, jobRoleId: row.job_role_id, role: role?.name || '', shift: row.shift, active: row.active };
+    return { id: row.id, name: row.full_name, unitId: row.unit_id, sectorId: row.sector_id, jobRoleId: row.job_role_id, role: role?.name || '', shift: row.shift, active: row.active, cpf: row.cpf || '', birthDate: row.birth_date || '', esocialWorkerType: row.esocial_worker_type || '', esocialRegistration: row.esocial_registration || '', esocialCategoryCode: row.esocial_category_code || '', relationshipStartDate: row.relationship_start_date || '', relationshipEndDate: row.relationship_end_date || '' };
   }
 
   async function loadAll() {
@@ -245,19 +247,93 @@
     }, form.querySelector('[type="submit"]'));
   }
 
+  function formatCpf(value) {
+    if (!hasAllowedCpfInput(value)) return String(value || '');
+    return digits(value).replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2').slice(0, 14);
+  }
+
+  function isValidCpf(value) {
+    const cpf = digits(value);
+    if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+    const digit = length => {
+      const sum = cpf.slice(0, length).split('').reduce((total, item, index) => total + Number(item) * (length + 1 - index), 0);
+      const result = (sum * 10) % 11;
+      return result === 10 ? 0 : result;
+    };
+    return digit(9) === Number(cpf[9]) && digit(10) === Number(cpf[10]);
+  }
+
+  function employeeProfileComplete(employee) {
+    const base = Boolean(employee?.name && employee?.cpf && employee?.birthDate && employee?.esocialWorkerType && employee?.relationshipStartDate && employee?.unitId && employee?.sectorId && employee?.jobRoleId);
+    if (!base) return false;
+    return employee.esocialWorkerType === 'VINCULO' ? Boolean(employee.esocialRegistration) : employee.esocialWorkerType === 'TSVE' ? Boolean(employee.esocialRegistration || employee.esocialCategoryCode) : false;
+  }
+
+  function updateEmployeeWorkerTypeFields() {
+    const type = byId('empEsocialWorkerType').value;
+    const categoryWrap = byId('empEsocialCategoryWrap');
+    categoryWrap.hidden = type !== 'TSVE';
+    const startLabel = type === 'TSVE' ? 'Início do TSVE' : 'Início do Vínculo / Admissão';
+    const endLabel = type === 'TSVE' ? 'Término do TSVE' : 'Fim do Vínculo / Desligamento';
+    byId('empRelationshipStartDate').title = startLabel; byId('empRelationshipEndDate').title = endLabel;
+    byId('empRelationshipStartLabel').textContent = startLabel; byId('empRelationshipEndLabel').textContent = endLabel;
+    if (type !== 'TSVE') byId('empEsocialCategoryCode').value = '';
+  }
+
+  function employeeValuesFromForm() {
+    const rawCpf = byId('empCpf').value;
+    const rawCategory = byId('empEsocialCategoryCode').value;
+    const fullName = byId('empName').value.trim(), unitId = byId('empUnit').value, sectorId = byId('empSector').value, jobRoleId = byId('empRole').value, shift = byId('empShift').value;
+    const workerType = byId('empEsocialWorkerType').value || null;
+    const cpf = digits(rawCpf), category = digits(rawCategory);
+    const birthDate = byId('empBirthDate').value || null, startDate = byId('empRelationshipStartDate').value || null, endDate = byId('empRelationshipEndDate').value || null;
+    const registration = byId('empEsocialRegistration').value.trim();
+    if (!fullName || !unitId || !sectorId || !jobRoleId) throw new Error('Preencha nome, unidade, setor e função do colaborador.');
+    if (rawCpf && !hasAllowedCpfInput(rawCpf)) throw new Error('O CPF deve conter apenas números e formatação permitida.');
+    if (cpf && !isValidCpf(cpf)) throw new Error('Informe um CPF válido.');
+    if (birthDate && birthDate > new Date().toISOString().slice(0, 10)) throw new Error('A data de nascimento não pode estar no futuro.');
+    if (rawCategory && !hasAllowedNumericInput(rawCategory)) throw new Error('A categoria eSocial deve conter apenas números.');
+    if (category && category.length !== 3) throw new Error('O código da categoria eSocial deve possuir 3 dígitos.');
+    if (registration.length > 30) throw new Error('A matrícula eSocial deve possuir no máximo 30 caracteres.');
+    if (startDate && endDate && endDate < startDate) throw new Error('A data final não pode ser anterior à data inicial.');
+    return { full_name: fullName, unit_id: unitId, sector_id: sectorId, job_role_id: jobRoleId, shift, active: true, cpf: cpf || null, birth_date: birthDate, esocial_worker_type: workerType, esocial_registration: registration || null, esocial_category_code: category || null, relationship_start_date: startDate, relationship_end_date: endDate };
+  }
+
+  function resetEmployeeForm() {
+    byId('employeeForm').reset(); editingEmployeeId = null;
+    byId('employeeSubmitButton').textContent = 'Cadastrar Colaborador'; byId('employeeCancelEdit').hidden = true;
+    updateEmployeeWorkerTypeFields();
+  }
+
   async function submitEmployee(event) {
     event.preventDefault();
-    const form = event.currentTarget, fullName = byId('empName').value.trim(), unitId = byId('empUnit').value, sectorId = byId('empSector').value, jobRoleId = byId('empRole').value, shift = byId('empShift').value;
-    if (!fullName || !unitId || !sectorId || !jobRoleId) return message('Preencha nome, unidade, setor e função do colaborador.');
-    await window.NexusData.runLocked('create-employee', async () => {
+    const form = event.currentTarget;
+    await window.NexusData.runLocked(editingEmployeeId ? 'update-employee' : 'create-employee', async () => {
       try {
-        await validateReference('units', unitId);
-        await validateReference('sectors', sectorId, [{ column: 'unit_id', value: unitId }]);
-        await validateReference('job_roles', jobRoleId);
-        await window.NexusData.insert({ ...entities.employees, values: { full_name: fullName, unit_id: unitId, sector_id: sectorId, job_role_id: jobRoleId, shift, active: true } });
-        form.reset(); await loadAll();
-      } catch (cause) { console.error('Falha ao cadastrar colaborador.', cause); message('Não foi possível cadastrar o colaborador.'); }
+        const values = employeeValuesFromForm();
+        await validateReference('units', values.unit_id); await validateReference('sectors', values.sector_id, [{ column: 'unit_id', value: values.unit_id }]); await validateReference('job_roles', values.job_role_id);
+        if (editingEmployeeId) await window.NexusData.update({ ...entities.employees, id: editingEmployeeId, values });
+        else await window.NexusData.insert({ ...entities.employees, values });
+        resetEmployeeForm(); await loadAll();
+      } catch (cause) {
+        console.error('Falha ao salvar colaborador.', cause);
+        if (cause?.code === '23505' || cause?.cause?.code === '23505') return message('Esta matrícula eSocial já está vinculada a outro contrato nesta empresa.');
+        message(cause.message || 'Não foi possível salvar o colaborador.');
+      }
     }, form.querySelector('[type="submit"]'));
+  }
+
+  function editEmployee(id) {
+    const employee = state().employees.find(item => String(item.id) === String(id));
+    if (!employee) return message('Colaborador não encontrado.');
+    editingEmployeeId = employee.id;
+    byId('empName').value = employee.name || ''; byId('empCpf').value = employee.cpf || ''; byId('empBirthDate').value = employee.birthDate || '';
+    byId('empEsocialWorkerType').value = employee.esocialWorkerType || ''; byId('empEsocialRegistration').value = employee.esocialRegistration || ''; byId('empEsocialCategoryCode').value = employee.esocialCategoryCode || '';
+    byId('empRelationshipStartDate').value = employee.relationshipStartDate || ''; byId('empRelationshipEndDate').value = employee.relationshipEndDate || '';
+    byId('empUnit').value = employee.unitId || ''; app().render(); byId('empSector').value = employee.sectorId || ''; byId('empRole').value = employee.jobRoleId || ''; byId('empShift').value = employee.shift || '';
+    byId('empCpf').dispatchEvent(new Event('input')); updateEmployeeWorkerTypeFields();
+    byId('employeeSubmitButton').textContent = 'Salvar Alterações'; byId('employeeCancelEdit').hidden = false;
+    byId('employeeForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function linkCounts(configs) { return Promise.all(configs.map(config => window.NexusData.count(config))); }
@@ -300,16 +376,14 @@
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     if (sectorList) sectorList.innerHTML = current.sectors.length ? current.sectors.map(item => `<li><span><strong>${esc(item.name)}</strong></span><small>${esc(unitName(item.unitId))}</small><button type="button" class="ghost" onclick="deleteSector('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     if (roleList) roleList.innerHTML = current.jobRoles.length ? current.jobRoles.map(item => `<li><span><strong>${esc(item.name)}</strong></span><button type="button" class="ghost" onclick="deleteJobRole('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma função cadastrada.</span></li>';
-    if (employeeList) current.employees.forEach((item, index) => {
-      const listItem = employeeList.children[index];
-      if (!listItem || listItem.querySelector('[data-organizational-action="deactivate"]')) return;
-      const viewButton = listItem.querySelector('button');
-      const actions = document.createElement('span');
-      const deactivateButton = document.createElement('button');
-      deactivateButton.type = 'button'; deactivateButton.className = 'ghost'; deactivateButton.dataset.organizationalAction = 'deactivate'; deactivateButton.textContent = 'Desativar'; deactivateButton.onclick = () => deactivateEmployee(item.id);
-      if (viewButton) actions.appendChild(viewButton);
-      actions.appendChild(deactivateButton); listItem.appendChild(actions);
-    });
+    if (employeeList) employeeList.innerHTML = current.employees.length ? current.employees.map(item => {
+      const identity = item.cpf ? formatCpf(item.cpf) : 'CPF não informado';
+      const worker = item.esocialWorkerType === 'VINCULO' ? 'Vínculo' : item.esocialWorkerType === 'TSVE' ? 'TSVE' : 'Não informado';
+      const reference = item.esocialRegistration ? `Matrícula: ${item.esocialRegistration}` : item.esocialCategoryCode ? `Categoria: ${item.esocialCategoryCode}` : '';
+      const allocation = `${unitName(item.unitId)} / ${current.sectors.find(sector => String(sector.id) === String(item.sectorId))?.name || 'Sem setor'} / ${item.role || 'Sem função'}`;
+      const profileStatus = employeeProfileComplete(item) ? 'Cadastro completo' : 'Cadastro incompleto';
+      return `<li><span><strong>${esc(item.name)}</strong><small>${esc(identity)} | ${esc(worker)}${reference ? ` | ${esc(reference)}` : ''}</small><small>${esc(allocation)} | ${esc(profileStatus)}</small></span><span><button type="button" class="ghost" onclick="showEmployeeRequirements('${esc(item.id)}')">Visualizar</button><button type="button" class="ghost" onclick="editEmployee('${esc(item.id)}')">Editar</button><button type="button" class="ghost" onclick="deactivateEmployee('${esc(item.id)}')">Desativar</button></span></li>`;
+    }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
   }
 
   function installUnitMasks() {
@@ -338,14 +412,20 @@
     byId('sectorForm').onsubmit = submitSector;
     byId('jobRoleForm').onsubmit = submitRole;
     byId('employeeForm').onsubmit = submitEmployee;
+    byId('employeeCancelEdit').onclick = resetEmployeeForm;
+    byId('empCpf').addEventListener('input', event => { event.target.value = formatCpf(event.target.value); });
+    byId('empEsocialCategoryCode').addEventListener('input', event => { if (hasAllowedNumericInput(event.target.value)) event.target.value = digits(event.target.value); });
+    byId('empEsocialWorkerType').addEventListener('change', updateEmployeeWorkerTypeFields);
+    updateEmployeeWorkerTypeFields();
     window.editUnit = editUnit;
     window.deleteUnit = id => deleteEntity('units', id);
     window.deleteSector = id => deleteEntity('sectors', id);
     window.deleteJobRole = id => deleteEntity('jobRoles', id);
     window.deactivateEmployee = deactivateEmployee;
+    window.editEmployee = editEmployee;
     loadAll();
   }
 
-  window.NexusOrganizational = { loadAll, renderManagedLists, isLegalProfileComplete };
+  window.NexusOrganizational = { loadAll, renderManagedLists, isLegalProfileComplete, employeeProfileComplete };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true }); else install();
 })();
