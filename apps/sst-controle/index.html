@@ -956,10 +956,30 @@
 
       <div id="reg-unidades" class="subtab-content">
         <div class="card-box">
-          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Nova Unidade</h3>
-          <form id="unitForm" class="form">
-            <input id="unitName" placeholder="Ex: Matriz - São Paulo" required>
-            <div><button type="submit">Cadastrar Unidade</button></div>
+          <h3 style="margin-bottom: 8px; font-size: 14px; font-weight: 600;">Unidade / Estabelecimento</h3>
+          <p class="form-helper">O cadastro legal pode ser concluído progressivamente sem interromper o uso da unidade.</p>
+          <form id="unitForm" class="form" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Identificação</h4>
+            <input id="unitName" placeholder="Nome da Unidade" required>
+            <select id="unitEstablishmentKind" required><option value="MATRIZ">Matriz</option><option value="FILIAL">Filial</option><option value="OBRA">Obra</option><option value="UNIDADE" selected>Unidade</option></select>
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Identificação Legal / eSocial</h4>
+            <select id="unitRegistrationType"><option value="">Tipo de Inscrição</option><option value="CNPJ">CNPJ</option><option value="CAEPF">CAEPF</option><option value="CNO">CNO</option></select>
+            <input id="unitRegistrationNumber" inputmode="numeric" placeholder="Número da Inscrição">
+            <input id="unitCnaePreponderant" inputmode="numeric" placeholder="CNAE Preponderante">
+            <input id="unitEsocialValidFrom" type="month" title="Início da Validade eSocial">
+            <input id="unitEsocialValidTo" type="month" title="Fim da Validade eSocial">
+            <div data-unit-registration="CNO" hidden><input id="unitCnpjResponsible" inputmode="numeric" placeholder="CNPJ Responsável pela Obra"><small class="form-helper">CNPJ responsável pela obra/CNO, quando aplicável.</small></div>
+            <div data-unit-registration="CNO" hidden><select id="unitConstructionContributionSubstitution"><option value="">Situação da Contribuição Patronal da Obra</option><option value="1">Contribuição patronal substituída</option><option value="2">Contribuição patronal não substituída</option></select></div>
+            <div data-unit-registration="CAEPF" hidden><select id="unitCaepfType"><option value="">Tipo de CAEPF</option><option value="1">Contribuinte individual</option><option value="2">Produtor rural</option><option value="3">Segurado especial</option></select></div>
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Endereço</h4>
+            <input id="unitPostalCode" inputmode="numeric" placeholder="CEP">
+            <input id="unitStreet" placeholder="Logradouro">
+            <input id="unitStreetNumber" placeholder="Número">
+            <input id="unitAddressComplement" placeholder="Complemento">
+            <input id="unitDistrict" placeholder="Bairro">
+            <input id="unitCity" placeholder="Cidade">
+            <select id="unitState"><option value="">UF</option><option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option></select>
+            <div style="grid-column: 1 / -1;"><button id="unitSubmitButton" type="submit">Cadastrar Unidade</button> <button id="unitCancelEdit" type="button" class="ghost" hidden>Cancelar edição</button></div>
           </form>
         </div>
         <div class="card-box">
@@ -2643,6 +2663,7 @@ if (logout) {
 <script src="supabase-config.js"></script>
 <script src="supabase-auth.js"></script>
 <script src="supabase-data.js"></script>
+<script src="supabase-cnpj.js"></script>
 <script src="supabase-organizational.js"></script>
 <script src="supabase-exams.js"></script>
 <script src="supabase-training-types.js"></script>

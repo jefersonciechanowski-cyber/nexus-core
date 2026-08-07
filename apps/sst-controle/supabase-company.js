@@ -33,13 +33,15 @@
 
   function digits(value) { return String(value || '').replace(/\D/g, ''); }
   function isRepeated(value) { return /^(\d)\1+$/.test(value); }
+  function hasAllowedCpfInput(value) { return /^[0-9.\-\s]*$/.test(String(value || '')); }
 
   function formatCpf(value) {
+    if (!hasAllowedCpfInput(value)) return String(value || '');
     return digits(value).replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2').slice(0, 14);
   }
 
   function formatCnpj(value) {
-    return digits(value).replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2').slice(0, 18);
+    return window.NexusCnpj.format(value);
   }
 
   function isValidCpf(value) {
@@ -54,19 +56,7 @@
   }
 
   function isValidCnpj(value) {
-    const cnpj = digits(value);
-    if (cnpj.length !== 14 || isRepeated(cnpj)) return false;
-    const digit = length => {
-      let weight = length - 7;
-      const sum = cnpj.slice(0, length).split('').reduce((total, item) => {
-        const next = total + Number(item) * weight;
-        weight = weight === 2 ? 9 : weight - 1;
-        return next;
-      }, 0);
-      const remainder = sum % 11;
-      return remainder < 2 ? 0 : 11 - remainder;
-    };
-    return digit(12) === Number(cnpj[12]) && digit(13) === Number(cnpj[13]);
+    return window.NexusCnpj.isValid(value);
   }
 
   function setMessage(text, isError = false) {
@@ -94,12 +84,19 @@
 
   function payloadFromForm() {
     const registrationType = byId('companyRegistrationType').value;
-    const registrationNumber = digits(byId('companyRegistrationNumber').value);
-    const legalResponsibleCpf = digits(byId('companyLegalResponsibleCpf').value);
+    const rawRegistrationNumber = byId('companyRegistrationNumber').value;
+    const rawLegalResponsibleCpf = byId('companyLegalResponsibleCpf').value;
+    if (Boolean(registrationType) !== Boolean(rawRegistrationNumber.trim())) throw new Error('Informe o tipo e o número da inscrição da empresa.');
+    if (registrationType === 'CNPJ' && !window.NexusCnpj.isValid(rawRegistrationNumber)) throw new Error('Informe um CNPJ válido.');
+    if (registrationType === 'CPF' && !hasAllowedCpfInput(rawRegistrationNumber)) throw new Error('O CPF deve conter apenas números e formatação permitida.');
+    if (rawLegalResponsibleCpf && !hasAllowedCpfInput(rawLegalResponsibleCpf)) throw new Error('O CPF do responsável legal deve conter apenas números e formatação permitida.');
+    const registrationNumber = registrationType === 'CNPJ'
+      ? window.NexusCnpj.normalize(rawRegistrationNumber)
+      : digits(rawRegistrationNumber);
+    const legalResponsibleCpf = digits(rawLegalResponsibleCpf);
     const state = byId('companyState').value.trim().toUpperCase();
     const email = byId('companyEmail').value.trim();
     if (Boolean(registrationType) !== Boolean(registrationNumber)) throw new Error('Informe o tipo e o número da inscrição da empresa.');
-    if (registrationType === 'CNPJ' && !isValidCnpj(registrationNumber)) throw new Error('Informe um CNPJ válido.');
     if (registrationType === 'CPF' && !isValidCpf(registrationNumber)) throw new Error('Informe um CPF válido.');
 
     if (legalResponsibleCpf && !isValidCpf(legalResponsibleCpf)) throw new Error('Informe um CPF válido para o responsável legal.');
