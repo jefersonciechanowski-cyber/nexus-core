@@ -1585,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sectors: [],
     jobRoles: [],
     employees: [],
-    exams: dataStore.get('sst_ctrl_exams_v1', []),
+    exams: [],
     parameters: dataStore.get('sst_ctrl_parameters_v1', []),
     occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
     collections: dataStore.get('sst_ctrl_collections_v1', []),
@@ -1616,9 +1616,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function dateOffset(days) {
     const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0];
   }
-  const completelyEmpty = ['exams','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules'].every(k => !state[k].length);
+  const completelyEmpty = ['collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules'].every(k => !state[k].length);
   if(completelyEmpty) {
-    state.exams = [{id:'ex1',name:'Audiometria',unit:'dB'},{id:'ex2',name:'Indicador Biológico',unit:'mg/L'}];
     state.parameters = [{examId:'ex1',good:25,attention:40},{examId:'ex2',good:10,attention:20}];
     state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
     state.epis = [{id:'p1',name:'Luva de Proteção X',code:'CA-1020'},{id:'p2',name:'Protetor Auricular Y',code:'CA-2280'}];
@@ -1657,7 +1656,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['exams','parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -2077,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
    $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
-    $('examList').innerHTML = state.exams.length ? state.exams.map(e => `<li><span><strong>${esc(e.name)}</strong></span> <small>Unidade: ${esc(e.unit)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
+    if(window.NexusExams?.renderExamList) window.NexusExams.renderExamList(); else $('examList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
     $('parameterList').innerHTML = state.parameters.length ? state.parameters.map(p => `<li><span><strong>${esc(exam(p.examId)?.name || 'Exame')}</strong></span> <small>Bom ≤ ${esc(p.good)} | Atenção ≤ ${esc(p.attention)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum parâmetro configurado.</span></li>';
     $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
     
@@ -2092,7 +2091,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.NexusOrganizational?.renderManagedLists?.();
   }
 
-  $('examForm').onsubmit = e => { e.preventDefault(); state.exams.push({id: uid(), name: $('examName').value.trim(), unit: $('examUnit').value.trim()}); e.target.reset(); save(); renderAll(); };
   $('trainingTypeForm').onsubmit = e => { e.preventDefault(); state.trainingTypes.push({id: uid(), name:$('trainingTypeName').value.trim(), code:$('trainingTypeCode').value.trim(), validity:Number($('trainingTypeValidity').value), certificate:$('trainingTypeCertificate').value}); e.target.reset(); save(); renderAll(); };
 
   $('parameterForm').onsubmit = e => { e.preventDefault(); const id = $('paramExam').value, good = Number($('paramGood').value), attention = Number($('paramAttention').value), existing = state.parameters.find(p => p.examId == id); if(existing) Object.assign(existing, {good, attention}); else state.parameters.push({examId: id, good, attention}); save(); renderAll(); };
@@ -2612,5 +2610,6 @@ if (logout) {
 <script src="supabase-auth.js"></script>
 <script src="supabase-data.js"></script>
 <script src="supabase-organizational.js"></script>
+<script src="supabase-exams.js"></script>
 </body>
 </html>
