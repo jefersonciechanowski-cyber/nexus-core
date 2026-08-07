@@ -1,158 +1,20 @@
 (() => {
   'use strict';
-
-  let installed = false;
-
-  const byId = id => document.getElementById(id);
-  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  }[char]));
-
-  function getClient() {
-    if (!window.NexusAuth?.getClient) {
-      throw new Error('Cliente autenticado do Supabase não está disponível.');
-    }
-    return window.NexusAuth.getClient();
-  }
-
-  function getOrganizationId() {
-    const raw = sessionStorage.getItem('nexus_demo_session');
-    if (!raw) throw new Error('Sessão autenticada não encontrada.');
-
-    let session;
-    try {
-      session = JSON.parse(raw);
-    } catch {
-      throw new Error('Sessão autenticada inválida.');
-    }
-
-    const organizationId = String(session?.organizationId || '').trim();
-    if (!organizationId) throw new Error('Organização autenticada não foi identificada.');
-    return organizationId;
-  }
-
-  function getState() {
-    const state = window.NEXUS_SST_APP?.getState?.();
-    if (!state) throw new Error('Estado do SST Controle não está disponível.');
-    return state;
-  }
-
-  function renderExamList() {
-    const list = byId('examList');
-    if (!list) return;
-
-    const exams = getState().exams || [];
-    list.innerHTML = exams.length
-      ? exams.map(exam => `<li><span><strong>${escapeHtml(exam.name)}</strong></span> <small>Unidade: ${escapeHtml(exam.unit || 'Não informada')}</small><button type="button" class="ghost" data-exam-id="${escapeHtml(exam.id)}">Excluir</button></li>`).join('')
-      : '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
-
-    list.querySelectorAll('[data-exam-id]').forEach(button => {
-      button.addEventListener('click', () => deleteExam(button.dataset.examId));
-    });
-  }
-
-  async function listExams() {
-    try {
-      const organizationId = getOrganizationId();
-      const { data, error } = await getClient()
-        .from('exam_catalog')
-        .select('id, name, measurement_unit')
-        .eq('organization_id', organizationId)
-        .eq('active', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      getState().exams = (data || []).map(exam => ({
-        id: exam.id,
-        name: exam.name,
-        unit: exam.measurement_unit || ''
-      }));
-      window.NEXUS_SST_APP.render();
-    } catch (error) {
-      console.error('Falha ao carregar o catálogo de exames.', error);
-      getState().exams = [];
-      renderExamList();
-      window.alert('Não foi possível carregar os exames do Supabase.');
-    }
-  }
-
-  async function createExam(event) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    const name = byId('examName')?.value.trim();
-    const measurementUnit = byId('examUnit')?.value.trim();
-    if (!name) {
-      window.alert('Informe o nome do exame ou indicador.');
-      return;
-    }
-
-    const button = form.querySelector('[type="submit"]');
-    if (button) button.disabled = true;
-
-    try {
-      const organizationId = getOrganizationId();
-      const { error } = await getClient()
-        .from('exam_catalog')
-        .insert({
-          organization_id: organizationId,
-          name,
-          measurement_unit: measurementUnit || null,
-          active: true
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error('Já existe um exame com este nome nesta organização.');
-        }
-        throw error;
-      }
-
-      form.reset();
-      await listExams();
-    } catch (error) {
-      console.error('Falha ao cadastrar exame.', error);
-      window.alert(error.message || 'Não foi possível cadastrar o exame.');
-    } finally {
-      if (button) button.disabled = false;
-    }
-  }
-
-  async function deleteExam(id) {
-    if (!id || !window.confirm('Excluir este exame? Esta ação não poderá ser desfeita.')) return;
-
-    try {
-      const organizationId = getOrganizationId();
-      const { error } = await getClient()
-        .from('exam_catalog')
-        .delete()
-        .eq('id', id)
-        .eq('organization_id', organizationId);
-
-      if (error) throw error;
-      await listExams();
-    } catch (error) {
-      console.error('Falha ao excluir exame.', error);
-      window.alert('Não foi possível excluir o exame.');
-    }
-  }
-
-  function install() {
-    if (installed) return;
-    const form = byId('examForm');
-    if (!form || !window.NEXUS_SST_APP?.getState) return;
-
-    installed = true;
-    form.onsubmit = createExam;
-    listExams();
-  }
-
-  window.NexusExams = { listExams, createExam, deleteExam, renderExamList };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
-  } else {
-    install();
-  }
+  let installed=false, editingId=null;
+  const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const client=()=>window.NexusAuth.getClient();
+  const org=()=>String(JSON.parse(sessionStorage.getItem('nexus_demo_session')||'{}').organizationId||'');
+  const state=()=>window.NEXUS_SST_APP.getState();
+  const fields=['good_min','good_max','attention_min','attention_max'];
+  function classifyValue(id,value){const exam=state().exams.find(e=>String(e.id)===String(id)),r=exam?.evaluation,n=Number(value);if(!exam||exam.resultType!=='NUMERIC'||!r||r.mode==='NONE'||!Number.isFinite(n))return 'SEM PARÂMETRO';if(r.mode==='LOWER_IS_BETTER')return n<=r.goodMax?'BOM':n<=r.attentionMax?'ATENÇÃO':'CRÍTICO';if(r.mode==='HIGHER_IS_BETTER')return n>=r.goodMin?'BOM':n>=r.attentionMin?'ATENÇÃO':'CRÍTICO';return n>=r.goodMin&&n<=r.goodMax?'BOM':n>=r.attentionMin&&n<=r.attentionMax?'ATENÇÃO':'CRÍTICO'}
+  function updateForm(){const qualitative=$('examResultType').value==='QUALITATIVE',mode=qualitative?'NONE':$('examEvaluationMode').value;$('examEvaluationMode').disabled=qualitative;$('examEvaluationMode').value=mode;$('examEsocialProcedureCode').hidden=$('examEsocialReportable').value!=='true';fields.forEach(f=>$("exam"+f.split('_').map(x=>x[0].toUpperCase()+x.slice(1)).join('')).hidden=!((mode==='LOWER_IS_BETTER'&&(f==='good_max'||f==='attention_max'))||(mode==='HIGHER_IS_BETTER'&&(f==='good_min'||f==='attention_min'))||(mode==='TARGET_RANGE')));}
+  function values(){const resultType=$('examResultType').value, reportable=$('examEsocialReportable').value==='true', code=$('examEsocialProcedureCode').value.trim(), mode=resultType==='QUALITATIVE'?'NONE':$('examEvaluationMode').value;if(!$('examName').value.trim())throw Error('Informe o nome do exame.');if(reportable&&!/^\d{4}$/.test(code))throw Error('Informe o código Tabela 27 com 4 dígitos.');const r={evaluation_mode:mode};fields.forEach(f=>{const el=$("exam"+f.split('_').map(x=>x[0].toUpperCase()+x.slice(1)).join(''));r[f]=el.hidden?null:(el.value===''?null:Number(el.value));if(r[f]!==null&&!Number.isFinite(r[f]))throw Error('Informe limites numéricos válidos.');});if(mode==='LOWER_IS_BETTER'&&!(r.good_max<r.attention_max))throw Error('Bom até deve ser menor que Atenção até.');if(mode==='HIGHER_IS_BETTER'&&!(r.attention_min<r.good_min))throw Error('Atenção mínima deve ser menor que Bom mínimo.');if(mode==='TARGET_RANGE'&&!(r.attention_min<=r.good_min&&r.good_min<=r.good_max&&r.good_max<=r.attention_max))throw Error('As faixas informadas são inválidas.');return {catalog:{name:$('examName').value.trim(),measurement_unit:$('examUnit').value.trim()||null,result_type:resultType,esocial_reportable:reportable,esocial_procedure_code:reportable?code:null,active:true},rule:r};}
+  async function listExams(){try{const o=org();const {data,error}=await client().from('exam_catalog').select('id,name,measurement_unit,result_type,esocial_reportable,esocial_procedure_code,exam_evaluation_rules(evaluation_mode,good_min,good_max,attention_min,attention_max)').eq('organization_id',o).eq('active',true).order('name');if(error)throw error;state().exams=(data||[]).map(x=>{const r=Array.isArray(x.exam_evaluation_rules)?x.exam_evaluation_rules[0]:x.exam_evaluation_rules;return{id:x.id,name:x.name,unit:x.measurement_unit||'',resultType:x.result_type,eSocialReportable:x.esocial_reportable,esocialProcedureCode:x.esocial_procedure_code||'',evaluation:{mode:r?.evaluation_mode||'NONE',goodMin:r?.good_min,goodMax:r?.good_max,attentionMin:r?.attention_min,attentionMax:r?.attention_max}}});window.NEXUS_SST_APP.render()}catch(e){console.error(e);alert('Não foi possível carregar os exames.')}}
+  function renderExamList(){const list=$('examList');if(!list)return;list.innerHTML=state().exams.map(e=>`<li><span><strong>${esc(e.name)}</strong><small>${esc(e.resultType==='NUMERIC'?'Numérico':'Qualitativo')} ${e.unit?`| ${esc(e.unit)}`:''} | ${e.eSocialReportable?`Tabela 27: ${esc(e.esocialProcedureCode)}`:'Não configurado'} | ${esc(e.evaluation.mode)}</small></span><span><button class="ghost" type="button" onclick="editExam('${esc(e.id)}')">Editar</button><button class="ghost" type="button" onclick="deleteExam('${esc(e.id)}')">Excluir</button></span></li>`).join('')||'<li>Nenhum exame cadastrado.</li>'}
+  async function submit(e){e.preventDefault();try{const v=values(),o=org();let id=editingId;if(id){let q=client().from('exam_catalog').update(v.catalog).eq('id',id).eq('organization_id',o);const {error}=await q;if(error)throw error}else{const {data,error}=await client().from('exam_catalog').insert({...v.catalog,organization_id:o}).select('id').single();if(error)throw error;id=data.id}const {error:ruleError}=await client().from('exam_evaluation_rules').upsert({exam_id:id,...v.rule});if(ruleError)throw ruleError;reset();await listExams()}catch(err){console.error(err);alert(err.message||'Não foi possível salvar o exame.')}}
+  function reset(){$('examForm').reset();editingId=null;$('examSubmitButton').textContent='Cadastrar Exame';$('examCancelEdit').hidden=true;updateForm()}
+  function editExam(id){const e=state().exams.find(x=>String(x.id)===String(id));if(!e)return;editingId=id;$('examName').value=e.name;$('examUnit').value=e.unit;$('examResultType').value=e.resultType;$('examEsocialReportable').value=String(e.eSocialReportable);$('examEsocialProcedureCode').value=e.esocialProcedureCode;$('examEvaluationMode').value=e.evaluation.mode;fields.forEach(f=>$("exam"+f.split('_').map(x=>x[0].toUpperCase()+x.slice(1)).join('')).value=e.evaluation[f.replace(/_([a-z])/g,(_,c)=>c.toUpperCase())]??'');$('examSubmitButton').textContent='Salvar Alterações';$('examCancelEdit').hidden=false;updateForm()}
+  async function deleteExam(id){const s=state();if(s.collections.some(x=>String(x.examId)===String(id))||s.matrixRules.some(x=>String(x.itemId)===String(id)))return alert('Não é possível excluir este exame porque existem registros ou regras da Matriz de Controle vinculados a ele.');if(!confirm('Excluir este exame?'))return;const {error}=await client().from('exam_catalog').delete().eq('id',id).eq('organization_id',org());if(error)return alert('Não foi possível excluir o exame.');await listExams()}
+  function install(){if(installed||!$('examForm'))return;installed=true;$('examForm').onsubmit=submit;$('examCancelEdit').onclick=reset;['examResultType','examEsocialReportable','examEvaluationMode'].forEach(id=>$(id).onchange=updateForm);$('examEsocialProcedureCode').oninput=e=>{e.target.value=e.target.value.replace(/\D/g,'')};updateForm();window.editExam=editExam;window.deleteExam=deleteExam;listExams()}
+  window.NexusExams={listExams,renderExamList,classifyValue,deleteExam};document.readyState==='loading'?document.addEventListener('DOMContentLoaded',install,{once:true}):install();
 })();
