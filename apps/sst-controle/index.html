@@ -1592,7 +1592,7 @@ document.addEventListener('DOMContentLoaded', () => {
     risks: dataStore.get('sst_ctrl_risks_v1', []),
     epis: dataStore.get('sst_ctrl_epis_v1', []),
     epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
-    trainingTypes: dataStore.get('sst_ctrl_trainingTypes_v1', []),
+    trainingTypes: [],
     trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
     matrixRules: dataStore.get('sst_ctrl_matrixRules_v1', []),
     epiPurchases: dataStore.get('sst_ctrl_epiPurchases_v1', []),
@@ -1616,13 +1616,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function dateOffset(days) {
     const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0];
   }
-  const completelyEmpty = ['collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules'].every(k => !state[k].length);
+  const completelyEmpty = ['collections','risks','epis','epiMovements','trainingRecords','matrixRules'].every(k => !state[k].length);
   if(completelyEmpty) {
     state.parameters = [{examId:'ex1',good:25,attention:40},{examId:'ex2',good:10,attention:20}];
     state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
     state.epis = [{id:'p1',name:'Luva de Proteção X',code:'CA-1020'},{id:'p2',name:'Protetor Auricular Y',code:'CA-2280'}];
     state.epiPurchases = [{id:'pc1',epiId:'p1',date:dateOffset(-120),quantity:50,supplier:'Protege Industrial',invoice:'NF-1001',technicalResponsible:'Claudemir Santos'},{id:'pc2',epiId:'p2',date:dateOffset(-120),quantity:40,supplier:'Protege Industrial',invoice:'NF-1002',technicalResponsible:'Claudemir Santos'}];
-    state.trainingTypes = [{id:'t1',name:'NR-35 — Trabalho em Altura',code:'NR-35',validity:730,certificate:'Sim'},{id:'t2',name:'NR-06 — Uso de EPI',code:'NR-06',validity:365,certificate:'Sim'}];
   }
 
   // Apply theme & font
@@ -1656,7 +1655,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingTypes','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -2087,11 +2086,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<li><span><strong>${esc(e.name)}</strong> (CA: ${esc(e.code)})</span><small>Comprado: ${purchased} | Disponível: <strong>${stock}</strong> | ${rules.length} regra(s) de troca por setor na Matriz</small></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum EPI cadastrado.</span></li>';
     $('epiPurchaseList').innerHTML = state.epiPurchases.length ? [...state.epiPurchases].sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p => `<li><span><strong>${esc(epi(p.epiId)?.name || 'EPI')}</strong> — ${esc(p.quantity)} unidade(s)</span><small>${esc(p.date)} | ${esc(p.supplier || 'Fornecedor não informado')} | ${esc(p.invoice || 'Sem NF')} | Responsável: ${esc(p.technicalResponsible)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma compra registrada.</span></li>';
-    $('trainingTypeList').innerHTML = state.trainingTypes.length ? state.trainingTypes.map(t => `<li><span><strong>${esc(t.name)}</strong>${t.code ? ` — ${esc(t.code)}` : ''}</span><small>Validade padrão: ${esc(t.validity)} dias | Certificado: ${esc(t.certificate)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
+    if(window.NexusTrainingTypes?.renderTrainingTypeList) window.NexusTrainingTypes.renderTrainingTypeList(); else $('trainingTypeList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
     window.NexusOrganizational?.renderManagedLists?.();
   }
 
-  $('trainingTypeForm').onsubmit = e => { e.preventDefault(); state.trainingTypes.push({id: uid(), name:$('trainingTypeName').value.trim(), code:$('trainingTypeCode').value.trim(), validity:Number($('trainingTypeValidity').value), certificate:$('trainingTypeCertificate').value}); e.target.reset(); save(); renderAll(); };
 
   $('parameterForm').onsubmit = e => { e.preventDefault(); const id = $('paramExam').value, good = Number($('paramGood').value), attention = Number($('paramAttention').value), existing = state.parameters.find(p => p.examId == id); if(existing) Object.assign(existing, {good, attention}); else state.parameters.push({examId: id, good, attention}); save(); renderAll(); };
   
@@ -2611,5 +2609,6 @@ if (logout) {
 <script src="supabase-data.js"></script>
 <script src="supabase-organizational.js"></script>
 <script src="supabase-exams.js"></script>
+<script src="supabase-training-types.js"></script>
 </body>
 </html>
