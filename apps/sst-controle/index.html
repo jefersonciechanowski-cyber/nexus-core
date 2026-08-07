@@ -909,7 +909,8 @@
         <p class="subtitle">Gerencie unidades organizacionais, setores, colaboradores, turnos, parâmetros e tipos de ocorrência.</p>
       </div>
       <div class="subtabs">
-        <button class="subtab active" data-subtab="reg-unidades" type="button">Unidades</button>
+        <button class="subtab active" data-subtab="reg-empresa" type="button">Empresa</button>
+        <button class="subtab" data-subtab="reg-unidades" type="button">Unidades</button>
         <button class="subtab" data-subtab="reg-setores" type="button">Setores</button>
         <button class="subtab" data-subtab="reg-funcoes" type="button">Funções</button>
         <button class="subtab" data-subtab="reg-colaboradores" type="button">Colaboradores</button>
@@ -920,7 +921,40 @@
         <button class="subtab" data-subtab="reg-epis" type="button">EPIs (Estoque)</button>
       </div>
 
-      <div id="reg-unidades" class="subtab-content active">
+      <div id="reg-empresa" class="subtab-content active">
+        <div class="card-box">
+          <h3 style="margin-bottom: 8px; font-size: 14px; font-weight: 600;">Cadastro Legal da Empresa</h3>
+          <p class="form-helper">Estas informações serão reutilizadas futuramente em documentos, certificados e integrações SST.</p>
+          <form id="companyForm" class="form" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Identificação da Empresa</h4>
+            <input id="companyLegalName" placeholder="Razão Social">
+            <input id="companyTradeName" placeholder="Nome Fantasia">
+            <select id="companyRegistrationType"><option value="">Tipo de Inscrição</option><option value="CNPJ">CNPJ</option><option value="CPF">CPF</option></select>
+            <input id="companyRegistrationNumber" inputmode="numeric" placeholder="Número da Inscrição">
+            <input id="companyStateRegistration" placeholder="Inscrição Estadual">
+            <div><input id="companyCnaeCode" placeholder="CNAE Principal"><small class="form-helper">O CNAE próprio/preponderante de cada estabelecimento será tratado futuramente no S-1005.</small></div>
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Contato</h4>
+            <input id="companyEmail" type="email" placeholder="E-mail">
+            <input id="companyPhone" inputmode="tel" placeholder="Telefone">
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Endereço</h4>
+            <input id="companyPostalCode" inputmode="numeric" placeholder="CEP">
+            <input id="companyStreet" placeholder="Logradouro">
+            <input id="companyStreetNumber" placeholder="Número">
+            <input id="companyAddressComplement" placeholder="Complemento">
+            <input id="companyDistrict" placeholder="Bairro">
+            <input id="companyCity" placeholder="Cidade">
+            <select id="companyState"><option value="">UF</option><option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option></select>
+            <h4 style="grid-column: 1 / -1; margin: 8px 0 0;">Responsável Legal</h4>
+            <input id="companyLegalResponsibleName" placeholder="Nome Completo">
+            <input id="companyLegalResponsibleCpf" inputmode="numeric" placeholder="CPF">
+            <input id="companyLegalResponsibleRole" placeholder="Cargo / Função">
+            <div style="grid-column: 1 / -1;"><button type="submit">Salvar Dados da Empresa</button></div>
+          </form>
+          <p id="companyFormMessage" class="form-helper" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div id="reg-unidades" class="subtab-content">
         <div class="card-box">
           <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Nova Unidade</h3>
           <form id="unitForm" class="form">
@@ -1847,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageTitles = {executivo:'Dashboard Executivo',dashboard:'Painel de Controle',registros:'Cadastros',coletas:'Coletas',treinamentos:'Treinamentos',matriz:'Matriz de Controle',riscos:'Riscos e Incidentes',epis:'EPIs',relatorios:'Relatórios',config:'Configurações e Backup'};
         $('currentPageTitle').textContent = pageTitles[targetId] || 'SST Controle';
       }
+      if(targetId === 'registros' && document.querySelector('.subtab.active')?.dataset.subtab === 'reg-empresa') window.NexusCompany?.load?.();
       document.querySelector('.sidebar').classList.remove('open');
       $('sidebarOverlay').classList.remove('open');
     };
@@ -1860,6 +1895,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.add('active');
       const targetSub = document.getElementById(btn.dataset.subtab);
       if(targetSub) targetSub.classList.add('active');
+      if(btn.dataset.subtab === 'reg-empresa') window.NexusCompany?.load?.();
     };
   });
 
@@ -2610,5 +2646,6 @@ if (logout) {
 <script src="supabase-organizational.js"></script>
 <script src="supabase-exams.js"></script>
 <script src="supabase-training-types.js"></script>
+<script src="supabase-company.js"></script>
 </body>
 </html>
