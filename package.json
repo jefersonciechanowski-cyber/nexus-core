@@ -1,1 +1,1 @@
-{"name":"nexus-core","private":true,"type":"module","scripts":{"seed:demo":"node scripts/seed-demo-users.mjs"},"dependencies":{"@supabase/supabase-js":"^2.57.4"}}
+{"name":"nexus-core","private":true,"type":"module","scripts":{"seed:demo":"node scripts/seed-demo-users.mjs","build:cloudflare":"node scripts/prepare-cloudflare.mjs"},"dependencies":{"@supabase/supabase-js":"^2.57.4"}}
