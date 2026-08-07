@@ -16,11 +16,12 @@
     <p><a id="home-link" href="index.html">Ir para a página inicial</a></p>
   </main>
   <script>
+    const githubProjectPath = location.hostname.endsWith('.github.io')
+      ? `/${location.pathname.split('/').filter(Boolean)[0] || ''}`
+      : '';
     const target = location.protocol === 'file:'
       ? new URL('index.html', document.baseURI).href
-      : location.pathname.startsWith('/nexus-core/')
-        ? '/nexus-core/index.html'
-        : '/index.html';
+      : `${githubProjectPath}/index.html`;
     document.getElementById('home-link').href = target;
     location.replace(target);
   </script>
