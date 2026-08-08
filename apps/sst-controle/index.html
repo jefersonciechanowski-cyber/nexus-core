@@ -1274,7 +1274,7 @@
         <form id="matrixForm" class="form" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));">
           <select id="matrixUnit"><option value="">Todas as unidades</option></select>
           <select id="matrixSector"><option value="">Todos os setores</option></select>
-          <input id="matrixRole" placeholder="Função / cargo (vazio = todos)">
+          <select id="matrixRole"><option value="">Todas as funções</option></select>
           <select id="matrixType" required><option value="Exame">Exame</option><option value="Treinamento">Treinamento</option><option value="EPI">EPI</option><option value="Documento">Documento</option><option value="Risco">Risco</option></select>
           <select id="matrixItem" required></select>
           <input id="matrixCustomItem" placeholder="Nome do documento ou risco" style="display:none;">
@@ -1285,7 +1285,7 @@
       </div>
       <div class="filter-panel">
         <div class="filter-heading"><div><h3>Consultar Matriz</h3><p>Encontre as regras aplicáveis a cada contexto operacional</p></div><button id="matrixClear" class="ghost" type="button">Limpar Filtros</button></div>
-        <div class="filters"><label>Unidade<select id="matrixFilterUnit"></select></label><label>Setor<select id="matrixFilterSector"></select></label><label>Tipo<select id="matrixFilterType"><option value="">Todos</option><option>Exame</option><option>Treinamento</option><option>EPI</option><option>Documento</option><option>Risco</option></select></label><label>Função<input id="matrixFilterRole" placeholder="Pesquisar função"></label></div>
+        <div class="filters"><label>Unidade<select id="matrixFilterUnit"></select></label><label>Setor<select id="matrixFilterSector"></select></label><label>Tipo<select id="matrixFilterType"><option value="">Todos</option><option>Exame</option><option>Treinamento</option><option>EPI</option><option>Documento</option><option>Risco</option></select></label><label>Função<select id="matrixFilterRole"><option value="">Todas as funções</option></select></label></div>
       </div>
       <div class="table-card"><div class="table-header"><div><h3>Regras Ativas</h3><span id="matrixCount">0 regras</span></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Unidade</th><th>Setor</th><th>Função</th><th>Tipo</th><th>Requisito</th><th>Validade</th><th>Vigência</th><th>Ações</th></tr></thead><tbody id="matrixTable"></tbody></table></div></div>
     </section>
@@ -1676,7 +1676,7 @@ document.addEventListener('DOMContentLoaded', () => {
     epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
     trainingTypes: [],
     trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
-    matrixRules: dataStore.get('sst_ctrl_matrixRules_v1', []),
+    matrixRules: [],
     epiPurchases: [],
     settings: dataStore.get('sst_ctrl_settings_v1', { schemaVersion: 5, tenantId: APP_CONFIG.tenantId })
   };
@@ -1717,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','epiMovements','trainingRecords','matrixRules','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','risks','epiMovements','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1759,13 +1759,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function unit(id) { return state.units.find(u => u.id == id); }
   function epi(id) { return state.epis.find(e => e.id == id); }
   function trainingType(id) { return state.trainingTypes.find(t => t.id == id); }
-  function validMatrixRules() { return state.matrixRules.filter(rule => (!rule.unitId || unit(rule.unitId)) && (!rule.sectorId || sector(rule.sectorId))); }
+  function jobRole(id) { return state.jobRoles.find(r => r.id == id); }
+  function validMatrixRules() { return state.matrixRules.filter(rule => (!rule.unitId || unit(rule.unitId)) && (!rule.sectorId || sector(rule.sectorId)) && (!rule.jobRoleId || jobRole(rule.jobRoleId))); }
   function addDaysISO(date, days) { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + Number(days || 0)); return d.toISOString().split('T')[0]; }
   function daysUntil(date) { if(!date) return -9999; const target = new Date(`${date}T12:00:00`); const now = new Date(); now.setHours(12,0,0,0); return Math.ceil((target - now) / 86400000); }
   function validityStatus(due) { const days = daysUntil(due); if(days < 0) return 'CRÍTICO'; if(days <= 30) return 'ATENÇÃO'; return 'BOM'; }
   function matchingMatrixRules(emp, type, itemId) {
     if(!emp) return [];
-    return validMatrixRules().filter(r => r.active !== false && r.type === type && (!itemId || String(r.itemId) === String(itemId)) && (!r.unitId || String(r.unitId) === String(emp.unitId)) && (!r.sectorId || String(r.sectorId) === String(emp.sectorId)) && (!r.role || String(r.role).toLowerCase() === String(emp.role || '').toLowerCase()) && (!r.effective || r.effective <= new Date().toISOString().split('T')[0])).sort((a,b) => ((b.unitId?1:0)+(b.sectorId?2:0)+(b.role?4:0))-((a.unitId?1:0)+(a.sectorId?2:0)+(a.role?4:0)));
+    return validMatrixRules().filter(r => r.active !== false && r.type === type && (!itemId || String(r.itemId) === String(itemId)) && (!r.unitId || String(r.unitId) === String(emp.unitId)) && (!r.sectorId || String(r.sectorId) === String(emp.sectorId)) && (!r.jobRoleId || String(r.jobRoleId) === String(emp.jobRoleId || '')) && (!r.effective || r.effective <= new Date().toISOString().split('T')[0])).sort((a,b) => ((b.unitId?1:0)+(b.sectorId?2:0)+(b.role?4:0))-((a.unitId?1:0)+(a.sectorId?2:0)+(a.role?4:0)));
   }
   function epiValidity(employeeId, epiId) { const emp = employee(employeeId), rule = matchingMatrixRules(emp,'EPI',epiId)[0]; return Number(rule?.validity || 0); }
   function trainingValidity(employeeId, trainingTypeId) { const emp = employee(employeeId), rule = matchingMatrixRules(emp,'Treinamento',trainingTypeId)[0]; return Number(rule?.validity || trainingType(trainingTypeId)?.validity || 0); }
@@ -1854,7 +1855,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function getContextLabel(emp) { return `${unit(emp.unitId)?.name || 'unidade não definida'} / ${sector(emp.sectorId)?.name || 'setor não definido'} / ${emp.role || 'função não definida'}`; }
   function renderEmployeeRequirementPreview() {
     const selectedRole = state.jobRoles?.find(role => String(role.id) === String($('empRole').value));
-    const emp = {id:null,unitId:$('empUnit').value,sectorId:$('empSector').value,role:selectedRole?.name || $('empRole').value.trim()};
+    const emp = {id:null,unitId:$('empUnit').value,sectorId:$('empSector').value,jobRoleId:selectedRole?.id || '',role:selectedRole?.name || ''};
     $('employeeRequirementPreview').innerHTML = emp.unitId && emp.sectorId && emp.role ? requirementsHtml(emp,true) : '<div class="requirements-empty">Selecione unidade, setor e função para visualizar automaticamente os EPIs, treinamentos e demais requisitos da Matriz de Controle.</div>';
   }
   function showEmployeeRequirements(id) {
@@ -1964,9 +1965,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSelect('trainingEmployee', state.employees, 'Selecione o colaborador');
     renderSelect('trainingType', state.trainingTypes, 'Selecione o treinamento');
     renderSelect('matrixUnit', state.units, 'Todas as unidades');
-    renderSelect('matrixSector', state.sectors, 'Todos os setores');
+    renderMatrixSectors();
+    renderSelect('matrixRole', state.jobRoles, 'Todas as funções');
     renderSelect('matrixFilterUnit', state.units, 'Todas as unidades');
-    renderSelect('matrixFilterSector', state.sectors, 'Todos os setores');
+    renderMatrixFilterSectors();
+    renderSelect('matrixFilterRole', state.jobRoles, 'Todas as funções');
 
     
     // Filtros do Dashboard de EPIs
@@ -1988,7 +1991,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardRoleOptions = [...new Set([
       ...employeeRoleOptions.map(role => role.name),
       ...state.employees.map(employee => employee.role),
-      ...validMatrixRules().map(rule => rule.role)
+      ...validMatrixRules().map(rule => jobRole(rule.jobRoleId)?.name)
     ].filter(Boolean))].sort().map(role => ({id: role, name: role}));
     renderSelect('empRole', employeeRoleOptions, 'Selecione a função');
     renderSelect('dashRole', dashboardRoleOptions, 'Todas as funções');
@@ -2029,6 +2032,19 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSelect('epiFilterSector', items, 'Todos os setores', current);
   }
   $('epiFilterUnit').onchange = renderEpiFilterSectors;
+
+  function renderMatrixSectors() {
+    const current = $('matrixSector').value, unitId = $('matrixUnit').value;
+    const items = state.sectors.filter(s => !unitId || String(s.unitId) === String(unitId));
+    renderSelect('matrixSector', items, unitId ? 'Selecione o setor' : 'Todos os setores', current);
+  }
+  function renderMatrixFilterSectors() {
+    const current = $('matrixFilterSector').value, unitId = $('matrixFilterUnit').value;
+    const items = state.sectors.filter(s => !unitId || String(s.unitId) === String(unitId));
+    renderSelect('matrixFilterSector', items, 'Todos os setores', current);
+  }
+  $('matrixUnit').onchange = renderMatrixSectors;
+  $('matrixFilterUnit').onchange = () => { renderMatrixFilterSectors(); renderMatrixModule(); };
 
   $('repType').onchange = updateReportTargets;
   function updateReportTargets() {
@@ -2513,20 +2529,20 @@ document.addEventListener('DOMContentLoaded', () => {
     select.innerHTML=items.map(i=>`<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('');
   }
   function renderMatrixModule() {
-    const unitId=$('matrixFilterUnit').value,sectorId=$('matrixFilterSector').value,type=$('matrixFilterType').value,role=$('matrixFilterRole').value.toLowerCase();
-    const rows=validMatrixRules().filter(r=>(!unitId||String(r.unitId)===unitId)&&(!sectorId||String(r.sectorId)===sectorId)&&(!type||r.type===type)&&(!role||String(r.role||'').toLowerCase().includes(role)));
+    const unitId=$('matrixFilterUnit').value,sectorId=$('matrixFilterSector').value,type=$('matrixFilterType').value,jobRoleId=$('matrixFilterRole').value;
+    const rows=validMatrixRules().filter(r=>(!unitId||String(r.unitId)===unitId)&&(!sectorId||String(r.sectorId)===sectorId)&&(!type||r.type===type)&&(!jobRoleId||String(r.jobRoleId)===jobRoleId));
     $('matrixCount').textContent=`${rows.length} regra(s)`;
-    $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(r.role||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" onclick="deleteMatrixRule('${r.id}')">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
+    $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(jobRole(r.jobRoleId)?.name||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" onclick="deleteMatrixRule('${r.id}')">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
   }
   window.deleteTrainingRecord=id=>{state.trainingRecords=state.trainingRecords.filter(r=>String(r.id)!==String(id));save();renderAll();};
-  window.deleteMatrixRule=id=>{state.matrixRules=state.matrixRules.filter(r=>String(r.id)!==String(id));save();renderAll();};
+  window.deleteMatrixRule=id=>window.NexusControlMatrix?.deactivateRule?.(id);
   $('trainingRecordForm').onsubmit=e=>{e.preventDefault();const validity=trainingValidity($('trainingEmployee').value,$('trainingType').value);if(!validity){alert('Defina uma validade no tipo de treinamento ou na Matriz de Controle.');return;}state.trainingRecords.push({id:uid(),employeeId:$('trainingEmployee').value,trainingTypeId:$('trainingType').value,date:$('trainingDate').value,due:addDaysISO($('trainingDate').value,validity),certificate:$('trainingCertificate').value.trim(),instructor:$('trainingInstructor').value.trim()});e.target.reset();save();renderAll();};
   $('trainingEmployee').onchange=populateTrainingOptions; $('trainingType').onchange=updateTrainingDuePreview; $('trainingDate').onchange=updateTrainingDuePreview;
   $('epiMoveEmp').onchange=populateEpiMoveOptions;
   ['trainingUnit','trainingSector','trainingFilterType','trainingStatus'].forEach(id=>$(id).onchange=renderTrainingModule);$('trainingSearch').oninput=renderTrainingModule;$('trainingClear').onclick=()=>{['trainingUnit','trainingSector','trainingFilterType','trainingStatus','trainingSearch'].forEach(id=>$(id).value='');renderTrainingModule();};
   $('matrixType').onchange=updateMatrixItems;
-  $('matrixForm').onsubmit=e=>{e.preventDefault();const type=$('matrixType').value,isCustom=['Documento','Risco'].includes(type),itemId=isCustom?uid():$('matrixItem').value,itemName=isCustom?$('matrixCustomItem').value.trim():(type==='Exame'?exam(itemId)?.name:type==='Treinamento'?trainingType(itemId)?.name:epi(itemId)?.name),validity=Number($('matrixValidity').value);if(!itemName){alert('Informe o requisito.');return;}if(type==='EPI'&&!$('matrixSector').value){alert('Para EPIs, selecione obrigatoriamente o setor. O prazo de troca pertence ao setor, não ao cadastro do EPI.');return;}if(type==='EPI'&&validity<=0){alert('Informe o prazo de troca deste EPI no setor selecionado.');return;}state.matrixRules.push({id:uid(),unitId:$('matrixUnit').value,sectorId:$('matrixSector').value,role:$('matrixRole').value.trim(),type,itemId,itemName,validity,effective:$('matrixEffective').value,active:true});e.target.reset();updateMatrixItems();save();renderAll();};
-  ['matrixFilterUnit','matrixFilterSector','matrixFilterType'].forEach(id=>$(id).onchange=renderMatrixModule);$('matrixFilterRole').oninput=renderMatrixModule;$('matrixClear').onclick=()=>{['matrixFilterUnit','matrixFilterSector','matrixFilterType','matrixFilterRole'].forEach(id=>$(id).value='');renderMatrixModule();};
+  $('matrixForm').onsubmit=e=>{e.preventDefault();alert('Aguarde o carregamento da Matriz no Supabase.');};
+  ['matrixFilterSector','matrixFilterType','matrixFilterRole'].forEach(id=>$(id).onchange=renderMatrixModule);$('matrixClear').onclick=()=>{['matrixFilterUnit','matrixFilterSector','matrixFilterType','matrixFilterRole'].forEach(id=>$(id).value='');renderMatrixModule();};
   ['execUnit','execSector','execPeriod','execEmployee'].forEach(id=>$(id).onchange=renderExecutive);$('execClear').onclick=()=>{['execUnit','execSector','execEmployee'].forEach(id=>$(id).value='');$('execPeriod').value='all';renderExecutive();};
   $('globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.trim();document.querySelector('[data-tab="dashboard"]').click();$('dashSearch').value=q;renderDashboard();}});
 
@@ -2556,6 +2572,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.sectors;
         delete restoredData.jobRoles;
         delete restoredData.employees;
+        delete restoredData.matrixRules;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2643,6 +2660,7 @@ if (logout) {
 <script src="supabase-collections.js"></script>
 <script src="supabase-training-types.js"></script>
 <script src="supabase-epis.js"></script>
+<script src="supabase-control-matrix.js"></script>
 <script src="supabase-company.js"></script>
 </body>
 </html>
