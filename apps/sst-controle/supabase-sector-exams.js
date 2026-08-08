@@ -99,12 +99,20 @@
     const button = event.currentTarget.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      const { error } = await getClient()
+      const { data, error } = await getClient()
         .from('sector_exam_requirements')
-        .insert({ organization_id: getOrganizationId(), sector_id: sectorId, exam_id: examId });
+        .insert({ organization_id: getOrganizationId(), sector_id: sectorId, exam_id: examId })
+        .select('id, sector_id, exam_id, active')
+        .single();
       if (error) throw error;
+      getState().sectorExamRequirements.push({
+        id: data.id,
+        sectorId: data.sector_id,
+        examId: data.exam_id,
+        active: data.active
+      });
       event.currentTarget.reset();
-      await listRequirements();
+      render();
       window.NexusCollections?.populateRequiredExams?.();
     } catch (error) {
       console.error('Falha ao vincular exame ao setor.', error);

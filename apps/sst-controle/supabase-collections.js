@@ -80,7 +80,11 @@
       const currentResult = selectedQualitativeResult || qualitativeInput.value;
       const options = [...(exam.qualitativeOptions || [])];
       if (currentResult && !options.some(option => option.label === currentResult)) options.push({ label: currentResult, status: historicalStatus || 'SEM PARÂMETRO', historical: true });
-      selectOptions('collectionQualitativeResult', options.map(option => ({ id: option.label, name: `${option.label} — ${option.status}${option.historical ? ' (histórico)' : ''}` })), 'Selecione o resultado', currentResult);
+      const hasConfiguredOptions = (exam.qualitativeOptions || []).length > 0;
+      selectOptions('collectionQualitativeResult', options.map(option => ({ id: option.label, name: `${option.label} — ${option.status}${option.historical ? ' (histórico)' : ''}` })), hasConfiguredOptions || currentResult ? 'Selecione o resultado' : 'Nenhuma opção qualitativa configurada', currentResult);
+      qualitativeInput.disabled = !hasConfiguredOptions && !currentResult;
+      qualitativeInput.required = hasConfiguredOptions;
+      if (!hasConfiguredOptions && !currentResult) setEligibilityMessage('Nenhuma opção qualitativa configurada. Atualize o cadastro deste exame antes de registrar a coleta.');
     } else {
       qualitativeInput.value = '';
       selectOptions('collectionQualitativeResult', [], 'Selecione o resultado');
@@ -96,9 +100,15 @@
       return;
     }
     if (exam.resultType === 'QUALITATIVE') {
-      const option = (exam.qualitativeOptions || []).find(item => item.label === byId('collectionQualitativeResult').value);
-      if (!option) { preview.hidden = true; preview.textContent = ''; return; }
-      preview.textContent = `Classificação: ${option.status}`;
+      const selectedResult = byId('collectionQualitativeResult').value;
+      const option = (exam.qualitativeOptions || []).find(item => item.label === selectedResult);
+      const historicalStatus = editingRecord
+        && String(editingRecord.examId) === String(exam.id)
+        && editingRecord.qualitativeResult === selectedResult
+        ? editingRecord.status
+        : '';
+      if (!option && !historicalStatus) { preview.hidden = true; preview.textContent = ''; return; }
+      preview.textContent = `Classificação: ${option?.status || historicalStatus}`;
       preview.hidden = false;
       return;
     }
@@ -180,6 +190,7 @@
       const preservesHistoricalResult = editingRecord
         && String(editingRecord.examId) === String(examId)
         && qualitativeResult === editingRecord.qualitativeResult;
+      if (!(exam.qualitativeOptions || []).length && !preservesHistoricalResult) throw new Error('Nenhuma opção qualitativa configurada. Atualize o cadastro deste exame antes de registrar a coleta.');
       if (!option && !preservesHistoricalResult) throw new Error('Selecione um resultado qualitativo configurado para este exame.');
       return {
         employee_id: employeeId,
