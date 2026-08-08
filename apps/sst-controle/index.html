@@ -1672,37 +1672,18 @@ document.addEventListener('DOMContentLoaded', () => {
     occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
     collections: [],
     risks: dataStore.get('sst_ctrl_risks_v1', []),
-    epis: dataStore.get('sst_ctrl_epis_v1', []),
+    epis: [],
     epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
     trainingTypes: [],
     trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
     matrixRules: dataStore.get('sst_ctrl_matrixRules_v1', []),
-    epiPurchases: dataStore.get('sst_ctrl_epiPurchases_v1', []),
+    epiPurchases: [],
     settings: dataStore.get('sst_ctrl_settings_v1', { schemaVersion: 5, tenantId: APP_CONFIG.tenantId })
   };
 
-  // Migração do protótipo anterior: quantidade/data deixam o cadastro do EPI e passam para compras.
-  if(!state.epiPurchases.length && state.epis.some(e => Number(e.quantity) > 0)) {
-    state.epiPurchases = state.epis.filter(e => Number(e.quantity) > 0).map((e,index) => ({
-      id: `migration-purchase-${index}`,
-      epiId: e.id,
-      date: e.date || new Date().toISOString().split('T')[0],
-      quantity: Number(e.quantity) || 0,
-      supplier: 'Migração do protótipo anterior',
-      invoice: '',
-      technicalResponsible: 'Responsável não informado'
-    }));
-    state.epis = state.epis.map(({quantity,date,validity,...epiData}) => epiData);
-  }
-
-  function dateOffset(days) {
-    const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0];
-  }
-  const completelyEmpty = ['collections','risks','epis','epiMovements','trainingRecords','matrixRules'].every(k => !state[k].length);
+  const completelyEmpty = ['collections','risks','epiMovements','trainingRecords','matrixRules'].every(k => !state[k].length);
   if(completelyEmpty) {
     state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
-    state.epis = [{id:'p1',name:'Luva de Proteção X',code:'CA-1020'},{id:'p2',name:'Protetor Auricular Y',code:'CA-2280'}];
-    state.epiPurchases = [{id:'pc1',epiId:'p1',date:dateOffset(-120),quantity:50,supplier:'Protege Industrial',invoice:'NF-1001',technicalResponsible:'Claudemir Santos'},{id:'pc2',epiId:'p2',date:dateOffset(-120),quantity:40,supplier:'Protege Industrial',invoice:'NF-1002',technicalResponsible:'Claudemir Santos'}];
   }
 
   // Apply theme & font
@@ -1736,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','epis','epiMovements','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','risks','epiMovements','trainingRecords','matrixRules','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1829,8 +1810,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function totalPurchased(epiId) { return state.epiPurchases.filter(p => String(p.epiId) === String(epiId)).reduce((sum,p) => sum + Number(p.quantity || 0), 0); }
   function currentStock(epiId) { return totalPurchased(epiId) - activeEpiMovements().filter(m => String(m.epiId) === String(epiId)).length; }
-  function latestTechnicalResponsible() {
-    const purchase = [...state.epiPurchases].filter(p => p.technicalResponsible).sort((a,b) => String(b.date).localeCompare(String(a.date)))[0];
+  function latestTechnicalResponsible(epiId) {
+    const purchase = [...state.epiPurchases]
+      .filter(p => p.technicalResponsible && (!epiId || String(p.epiId) === String(epiId)))
+      .sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     return purchase?.technicalResponsible || 'Não definido';
   }
   function uniqueRules(rules) {
@@ -2160,7 +2143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('epiList').innerHTML = state.epis.length ? state.epis.map(e => {
       const stock = currentStock(e.id), purchased = totalPurchased(e.id);
       const rules = validMatrixRules().filter(r => r.type === 'EPI' && String(r.itemId) === String(e.id));
-      return `<li><span><strong>${esc(e.name)}</strong> (CA: ${esc(e.code)})</span><small>Comprado: ${purchased} | Disponível: <strong>${stock}</strong> | ${rules.length} regra(s) de troca por setor na Matriz</small></li>`;
+      return `<li><span><strong>${esc(e.name)}</strong> (CA: ${esc(e.code)})</span><small>Comprado: ${purchased} | Disponível: <strong>${stock}</strong> | Responsável técnico: ${esc(latestTechnicalResponsible(e.id))} | ${rules.length} regra(s) de troca por setor na Matriz</small></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum EPI cadastrado.</span></li>';
     $('epiPurchaseList').innerHTML = state.epiPurchases.length ? [...state.epiPurchases].sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p => `<li><span><strong>${esc(epi(p.epiId)?.name || 'EPI')}</strong> — ${esc(p.quantity)} unidade(s)</span><small>${esc(p.date)} | ${esc(p.supplier || 'Fornecedor não informado')} | ${esc(p.invoice || 'Sem NF')} | Responsável: ${esc(p.technicalResponsible)}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma compra registrada.</span></li>';
     if(window.NexusTrainingTypes?.renderTrainingTypeList) window.NexusTrainingTypes.renderTrainingTypeList(); else $('trainingTypeList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum tipo de treinamento cadastrado.</span></li>';
@@ -2174,17 +2157,6 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.reset();
     save();
     renderAll();
-  };
-
-  $('epiCatalogForm').onsubmit = e => {
-    e.preventDefault();
-    state.epis.push({id:uid(),name:$('epiName').value.trim(),code:$('epiCode').value.trim()});
-    e.target.reset(); save(); renderAll();
-  };
-  $('epiPurchaseForm').onsubmit = e => {
-    e.preventDefault();
-    state.epiPurchases.push({id:uid(),epiId:$('epiPurchaseItem').value,date:$('epiPurchaseDate').value,quantity:Number($('epiQuantity').value),supplier:$('epiSupplier').value.trim(),invoice:$('epiInvoice').value.trim(),technicalResponsible:$('epiTechnicalResponsible').value.trim()});
-    e.target.reset(); save(); renderAll();
   };
 
   $('riskForm').onsubmit = e => {
@@ -2670,6 +2642,7 @@ if (logout) {
 <script src="supabase-sector-exams.js"></script>
 <script src="supabase-collections.js"></script>
 <script src="supabase-training-types.js"></script>
+<script src="supabase-epis.js"></script>
 <script src="supabase-company.js"></script>
 </body>
 </html>
