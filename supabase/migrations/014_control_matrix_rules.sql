@@ -159,7 +159,7 @@ begin
       raise exception 'O EPI da regra deve pertencer à mesma organização.';
     end if;
 
-    if not referenced_active then
+    if new.active and not referenced_active then
       raise exception 'Somente EPIs ativos podem ser vinculados à Matriz.';
     end if;
   elsif new.requirement_type = 'EXAM' then
@@ -173,7 +173,7 @@ begin
       raise exception 'O exame da regra deve pertencer à mesma organização.';
     end if;
 
-    if not referenced_active then
+    if new.active and not referenced_active then
       raise exception 'Somente exames ativos podem ser vinculados à Matriz.';
     end if;
   elsif new.requirement_type = 'TRAINING' then
@@ -187,7 +187,7 @@ begin
       raise exception 'O treinamento da regra deve pertencer à mesma organização.';
     end if;
 
-    if not referenced_active then
+    if new.active and not referenced_active then
       raise exception 'Somente treinamentos ativos podem ser vinculados à Matriz.';
     end if;
   end if;
