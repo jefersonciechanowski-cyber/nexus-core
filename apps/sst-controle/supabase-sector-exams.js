@@ -29,7 +29,13 @@
   }
 
   function sectorFor(id) { return getState().sectors.find(sector => String(sector.id) === String(id)); }
+  function unitFor(id) { return getState().units.find(unit => String(unit.id) === String(id)); }
   function examFor(id) { return getState().exams.find(exam => String(exam.id) === String(id)); }
+
+  function sectorLabel(sector) {
+    const unit = unitFor(sector?.unitId);
+    return `${unit?.name || 'Unidade indisponível'} — ${sector?.name || 'Setor indisponível'}`;
+  }
 
   function renderSelect(id, items, label, selected) {
     const select = byId(id);
@@ -41,7 +47,7 @@
 
   function render() {
     const state = getState();
-    renderSelect('sectorExamSector', state.sectors, 'Selecione o setor');
+    renderSelect('sectorExamSector', state.sectors.map(sector => ({ id: sector.id, name: sectorLabel(sector) })), 'Selecione o setor');
     renderSelect('sectorExamExam', state.exams.filter(exam => exam.active !== false), 'Selecione o exame');
 
     const list = byId('sectorExamRequirementList');
@@ -52,7 +58,7 @@
         const exam = examFor(requirement.examId);
         const stateLabel = requirement.active ? 'Ativo' : 'Inativo';
         const toggleLabel = requirement.active ? 'Desativar' : 'Reativar';
-        return `<li><span><strong>${escapeHtml(exam?.name || 'Exame indisponível')}</strong><small>${escapeHtml(sector?.name || 'Setor indisponível')} · ${escapeHtml(exam?.resultType === 'QUALITATIVE' ? 'Qualitativo' : 'Numérico')} · ${stateLabel}</small></span><span><button type="button" class="ghost" data-sector-exam-toggle="${escapeHtml(requirement.id)}">${toggleLabel}</button><button type="button" class="ghost" data-sector-exam-remove="${escapeHtml(requirement.id)}">Desvincular</button></span></li>`;
+        return `<li><span><strong>${escapeHtml(exam?.name || 'Exame indisponível')}</strong><small>${escapeHtml(sectorLabel(sector))} · ${escapeHtml(exam?.resultType === 'QUALITATIVE' ? 'Qualitativo' : 'Numérico')} · ${stateLabel}</small></span><span><button type="button" class="ghost" data-sector-exam-toggle="${escapeHtml(requirement.id)}">${toggleLabel}</button><button type="button" class="ghost" data-sector-exam-remove="${escapeHtml(requirement.id)}">Desvincular</button></span></li>`;
       }).join('')
       : '<li><span style="color:var(--text-muted)">Nenhum exame vinculado a setor.</span></li>';
     list.querySelectorAll('[data-sector-exam-remove]').forEach(button => button.addEventListener('click', () => removeRequirement(button.dataset.sectorExamRemove)));
