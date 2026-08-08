@@ -1154,8 +1154,13 @@
           <h3>Filtrar Histórico de Coletas</h3>
         </div>
         <div class="filters">
+          <label>Unidade<select id="filterCollectionUnit"><option value="">Todas as unidades</option></select></label>
+          <label>Setor<select id="filterCollectionSector"><option value="">Todos os setores</option></select></label>
+          <label>Colaborador<select id="filterCollectionEmployee"><option value="">Todos os colaboradores</option></select></label>
+          <label>Exame<select id="filterCollectionExam"><option value="">Todos os exames</option></select></label>
           <label>Ano<select id="filterYear"><option value="">Todos os anos</option></select></label>
           <label>Coleta<select id="filterCollection"><option value="">Todas as coletas</option></select></label>
+          <label>Status<select id="filterCollectionStatus"><option value="">Todos os status</option><option value="BOM">Bom</option><option value="ATENÇÃO">Atenção</option><option value="CRÍTICO">Crítico</option><option value="SEM PARÂMETRO">Sem parâmetro</option></select></label>
           <div style="display:flex; gap:8px;">
             <button id="applyCollectionFilter" type="button" style="flex:1;">Filtrar</button>
             <button id="clearCollectionFilter" class="ghost" type="button" style="flex:1;">Limpar</button>
@@ -1164,15 +1169,16 @@
       </div>
 
       <div class="card-box">
-        <h3 style="margin-bottom: 14px; font-size: 14px; font-weight: 600;">Registar Nova Coleta</h3>
+        <h3 id="collectionFormTitle" style="margin-bottom: 14px; font-size: 14px; font-weight: 600;">Registrar Nova Coleta</h3>
         <form id="collectionForm" class="form" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
           <select id="collectionEmployee" required></select>
           <select id="collectionExam" required></select>
-          <input id="collectionYear" type="number" placeholder="Ano (ex: 2026)" required>
-          <input id="collectionNumber" type="number" placeholder="Nº Coleta (ex: 1)" required>
+          <input id="collectionNumber" type="number" min="1" step="1" placeholder="Nº da Coleta (ex: 1)" required>
           <input id="collectionDate" type="date" required>
           <input id="collectionValue" type="number" step="0.01" placeholder="Valor obtido" required>
-          <div><button type="submit">Registar</button></div>
+          <small id="collectionExamInfo" style="grid-column: 1 / -1; color: var(--text-muted);" hidden></small>
+          <small id="collectionStatusPreview" style="grid-column: 1 / -1; color: var(--text-muted);" hidden></small>
+          <div><button id="collectionSubmitButton" type="submit">Registrar Coleta</button> <button id="collectionCancelEdit" class="ghost" type="button" hidden>Cancelar edição</button></div>
         </form>
       </div>
 
@@ -1182,12 +1188,13 @@
             <thead>
               <tr>
                 <th>Colaborador</th>
-                <th>Turno</th>
+                <th>Unidade / Setor</th>
                 <th>Exame</th>
-                <th>Ano</th>
+                <th>Data</th>
                 <th>Coleta</th>
                 <th>Valor</th>
                 <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="collectionTable"></tbody>
@@ -1644,7 +1651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     employees: [],
     exams: [],
     occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
-    collections: dataStore.get('sst_ctrl_collections_v1', []),
+    collections: [],
     risks: dataStore.get('sst_ctrl_risks_v1', []),
     epis: dataStore.get('sst_ctrl_epis_v1', []),
     epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
@@ -1710,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','collections','risks','epis','epiMovements','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','risks','epis','epiMovements','trainingRecords','matrixRules','epiPurchases','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1941,6 +1948,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSelect('collectionEmployee', state.employees, 'Selecione o colaborador');
     renderSelect('riskEmployee', state.employees, 'Selecione o colaborador');
     renderSelect('collectionExam', state.exams.filter(exam => exam.resultType === 'NUMERIC'), 'Selecione o exame');
+    renderSelect('filterCollectionUnit', state.units, 'Todas as unidades');
+    renderSelect('filterCollectionEmployee', state.employees, 'Todos os colaboradores');
+    renderSelect('filterCollectionExam', state.exams, 'Todos os exames');
     renderSelect('dashUnit', state.units, 'Todas as unidades');
     renderSelect('dashSector', state.sectors, 'Todos os setores');
     renderSelect('dashExam', state.exams, 'Todos os exames');
@@ -2159,8 +2169,6 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.reset(); save(); renderAll();
   };
 
-  $('collectionForm').onsubmit = e => { e.preventDefault(); const examId = $('collectionExam').value, value = Number($('collectionValue').value); state.collections.push({id: uid(), employeeId: $('collectionEmployee').value, examId, year: $('collectionYear').value, collection: $('collectionNumber').value, date: $('collectionDate').value, value, status: classify(examId, value)}); e.target.reset(); save(); renderAll(); };
-
   $('riskForm').onsubmit = e => {
     e.preventDefault();
     state.risks.push({ id: uid(), employeeId: $('riskEmployee').value, type: $('riskType').value, severity: $('riskSeverity').value, date: $('riskDate').value, desc: $('riskDesc').value.trim() });
@@ -2205,25 +2213,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function renderCollectionTable() {
-    const year = $('filterYear').value, coll = $('filterCollection').value;
-    const validCollections = state.collections.filter(collection => employee(collection.employeeId));
-    let data = [...validCollections];
-    if(year) data = data.filter(c => String(c.year) === year);
-    if(coll) data = data.filter(c => String(c.collection) === coll);
-    
-    $('collectionTable').innerHTML = data.length ? data.map(c => {
-      const emp = employee(c.employeeId);
-      return `<tr><td>${esc(emp?.name || '')}</td><td>${esc(emp?.shift || '—')}</td><td>${esc(exam(c.examId)?.name || '')}</td><td>${esc(c.year)}</td><td>${esc(c.collection)}</td><td>${esc(c.value)}</td><td>${statusBadge(c.status)}</td></tr>`;
-    }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum registro de coleta encontrado.</td></tr>`;
-    
-    const selectedYear = year, selectedColl = coll;
-    const years = [...new Set(validCollections.map(c => c.year))].sort((a,b) => b-a).map(v => ({id: String(v), name: String(v)}));
-    const cols = [...new Set(validCollections.map(c => c.collection))].sort((a,b) => a-b).map(v => ({id: String(v), name: `Coleta ${v}`}));
-    renderSelect('filterYear', years, 'Todos os anos', selectedYear);
-    renderSelect('filterCollection', cols, 'Todas as coletas', selectedColl);
+    window.NexusCollections?.renderCollectionTable?.();
   }
-  $('applyCollectionFilter').onclick = renderCollectionTable;
-  $('clearCollectionFilter').onclick = () => { $('filterYear').value = ''; $('filterCollection').value = ''; renderCollectionTable(); };
 
   let statusChart, sectorChart, historyChart, epiUsageChart;
 
@@ -2657,6 +2648,7 @@ if (logout) {
 <script src="supabase-cnpj.js"></script>
 <script src="supabase-organizational.js"></script>
 <script src="supabase-exams.js"></script>
+<script src="supabase-collections.js"></script>
 <script src="supabase-training-types.js"></script>
 <script src="supabase-company.js"></script>
 </body>
