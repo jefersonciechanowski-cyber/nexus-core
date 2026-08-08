@@ -1063,6 +1063,12 @@
             <input id="examName" placeholder="Ex: Audiometria / Ruído" required>
             <select id="examResultType"><option value="NUMERIC">Resultado numérico</option><option value="QUALITATIVE">Resultado qualitativo</option></select>
             <input id="examUnit" placeholder="Unidade de medida (ex: dB, mg/L)">
+            <div id="examQualitativeOptionsWrap" style="grid-column: 1 / -1;" hidden>
+              <label for="examQualitativeOptions">Opções de resultado qualitativo</label>
+              <div id="examQualitativeOptions" style="display: grid; gap: 8px;"></div>
+              <button id="examAddQualitativeOption" class="ghost" type="button" style="margin-top: 8px;">Adicionar opção</button>
+              <small style="color: var(--text-muted);">Defina o rótulo e a classificação de cada opção. Essas opções pertencem exclusivamente a este exame.</small>
+            </div>
             <select id="examEsocialReportable"><option value="false">Informar futuramente no S-2220? Não</option><option value="true">Informar futuramente no S-2220? Sim</option></select>
             <input id="examEsocialProcedureCode" inputmode="numeric" maxlength="4" placeholder="Código do Procedimento — Tabela 27" hidden>
             <select id="examEvaluationMode"><option value="NONE">Sem classificação automática</option><option value="LOWER_IS_BETTER">Quanto menor, melhor</option><option value="HIGHER_IS_BETTER">Quanto maior, melhor</option><option value="TARGET_RANGE">Faixa ideal</option></select>
@@ -1073,6 +1079,16 @@
         <div class="card-box">
           <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Exames Cadastrados</h3>
           <ul id="examList" class="list"></ul>
+        </div>
+        <div class="card-box">
+          <h3 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">Exames Exigidos por Setor</h3>
+          <p class="form-helper">Vincule somente exames já cadastrados no catálogo. As coletas exibirão apenas os exames ativos exigidos pelo setor do colaborador.</p>
+          <form id="sectorExamRequirementForm" class="form">
+            <select id="sectorExamSector" required></select>
+            <select id="sectorExamExam" required></select>
+            <div><button type="submit">Vincular Exame ao Setor</button></div>
+          </form>
+          <ul id="sectorExamRequirementList" class="list" style="margin-top: 14px;"></ul>
         </div>
       </div>
 
@@ -1176,6 +1192,8 @@
           <input id="collectionNumber" type="number" min="1" step="1" placeholder="Nº da Coleta (ex: 1)" required>
           <input id="collectionDate" type="date" required>
           <input id="collectionValue" type="number" step="0.01" placeholder="Valor obtido" required>
+          <select id="collectionQualitativeResult" hidden disabled></select>
+          <small id="collectionEligibilityMessage" style="grid-column: 1 / -1; color: var(--text-muted);" hidden></small>
           <small id="collectionExamInfo" style="grid-column: 1 / -1; color: var(--text-muted);" hidden></small>
           <small id="collectionStatusPreview" style="grid-column: 1 / -1; color: var(--text-muted);" hidden></small>
           <div><button id="collectionSubmitButton" type="submit">Registrar Coleta</button> <button id="collectionCancelEdit" class="ghost" type="button" hidden>Cancelar edição</button></div>
@@ -1650,6 +1668,7 @@ document.addEventListener('DOMContentLoaded', () => {
     jobRoles: [],
     employees: [],
     exams: [],
+    sectorExamRequirements: [],
     occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
     collections: [],
     risks: dataStore.get('sst_ctrl_risks_v1', []),
@@ -1947,7 +1966,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderEmployeeSectors();
     renderSelect('collectionEmployee', state.employees, 'Selecione o colaborador');
     renderSelect('riskEmployee', state.employees, 'Selecione o colaborador');
-    renderSelect('collectionExam', state.exams.filter(exam => exam.resultType === 'NUMERIC'), 'Selecione o exame');
     renderSelect('filterCollectionUnit', state.units, 'Todas as unidades');
     renderSelect('filterCollectionEmployee', state.employees, 'Todos os colaboradores');
     renderSelect('filterCollectionExam', state.exams, 'Todos os exames');
@@ -2582,6 +2600,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMatrixItems();
     renderLists();
     renderCollectionTable();
+    window.NexusSectorExams?.render?.();
     renderRiskTable();
     renderDashboard();
     renderEpiDashboard();
@@ -2648,6 +2667,7 @@ if (logout) {
 <script src="supabase-cnpj.js"></script>
 <script src="supabase-organizational.js"></script>
 <script src="supabase-exams.js"></script>
+<script src="supabase-sector-exams.js"></script>
 <script src="supabase-collections.js"></script>
 <script src="supabase-training-types.js"></script>
 <script src="supabase-company.js"></script>
