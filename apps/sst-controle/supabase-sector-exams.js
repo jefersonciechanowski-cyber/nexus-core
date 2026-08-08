@@ -93,10 +93,11 @@
 
   async function submitRequirement(event) {
     event.preventDefault();
+    const form = event.currentTarget;
     const sectorId = byId('sectorExamSector').value;
     const examId = byId('sectorExamExam').value;
     if (!sectorId || !examId) return window.alert('Selecione o setor e o exame para criar o vínculo.');
-    const button = event.currentTarget.querySelector('[type="submit"]');
+    const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
       const { data, error } = await getClient()
@@ -111,7 +112,7 @@
         examId: data.exam_id,
         active: data.active
       });
-      event.currentTarget.reset();
+      form.reset();
       render();
       window.NexusCollections?.populateRequiredExams?.();
     } catch (error) {
