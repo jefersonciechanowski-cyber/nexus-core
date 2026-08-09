@@ -127,6 +127,13 @@ alter table public.training_records
   add column if not exists company_registration_type_snapshot text,
   add column if not exists company_registration_number_snapshot text;
 
+-- A migration roda pelo SQL Editor sem uma sessao auth.uid(). Desative apenas
+-- o gatilho da aplicacao durante o backfill documental e reative-o antes de
+-- instalar as novas regras. A transacao garante o rollback dessa mudanca se
+-- qualquer instrucao intermediaria falhar.
+alter table public.training_records
+  disable trigger training_records_integrity;
+
 update public.training_records
 set training_kind = 'UNSPECIFIED'
 where training_kind is null;
@@ -150,6 +157,9 @@ set
 from public.organizations organization
 where organization.id = record.organization_id
   and record.company_name_snapshot is null;
+
+alter table public.training_records
+  enable trigger training_records_integrity;
 
 alter table public.training_records
   alter column training_kind set default 'UNSPECIFIED',
