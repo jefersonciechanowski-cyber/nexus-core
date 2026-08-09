@@ -1380,9 +1380,16 @@
         <form id="trainingRecordForm" class="form" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));">
           <select id="trainingEmployee" required></select>
           <select id="trainingType" required></select>
-          <input id="trainingDate" type="date" required>
-          <input id="trainingCertificate" placeholder="Número do certificado">
-          <input id="trainingInstructor" placeholder="Instrutor / Entidade">
+          <input id="trainingDate" type="date" title="Data de realização" required>
+          <input id="trainingHours" type="number" min="0.5" step="0.5" placeholder="Carga horária" title="Carga horária em horas" required>
+          <select id="trainingModality" title="Modalidade" required><option value="IN_PERSON">Presencial</option><option value="ONLINE">Online</option><option value="HYBRID">Híbrido</option></select>
+          <input id="trainingInstructor" placeholder="Instrutor / responsável" required>
+          <input id="trainingInstructorEntity" placeholder="Entidade / empresa do instrutor">
+          <input id="trainingInstructorDocument" placeholder="CPF, registro ou qualificação">
+          <input id="trainingLocation" placeholder="Local do treinamento">
+          <input id="trainingCertificate" placeholder="Certificado externo (opcional)">
+          <textarea id="trainingContent" placeholder="Conteúdo programático para o certificado" style="grid-column:1 / -1;"></textarea>
+          <input id="trainingNotes" placeholder="Observações / evidências">
           <div><button type="submit">Salvar Treinamento</button></div>
         </form>
         <div id="trainingRequirementPreview" class="requirements-preview compact"></div>
@@ -1391,6 +1398,10 @@
       <div class="table-card">
         <div class="table-header"><div><h3>Situação dos Treinamentos</h3><span id="trainingCount">0 registros</span></div></div>
         <div class="table-wrap"><table class="table"><thead><tr><th>Colaborador</th><th>Unidade / Setor</th><th>Treinamento</th><th>Realização</th><th>Vencimento</th><th>Certificado</th><th>Status</th><th>Ações</th></tr></thead><tbody id="trainingTable"></tbody></table></div>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><div><h3>Histórico de Treinamentos Realizados</h3><span id="trainingHistoryCount">0 registros preservados</span></div></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Código / Data</th><th>Colaborador</th><th>Treinamento / Validade</th><th>Instrutor / Carga</th><th>Certificado</th><th>Situação</th><th>Ações</th></tr></thead><tbody id="trainingHistoryTable"></tbody></table></div>
       </div>
     </section>
 
@@ -1816,7 +1827,8 @@ document.addEventListener('DOMContentLoaded', () => {
     epis: [],
     epiMovements: [],
     trainingTypes: [],
-    trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
+    trainingRecords: [],
+    trainingRecordHistory: [],
     matrixRules: [],
     epiPurchases: [],
     settings: dataStore.get('sst_ctrl_settings_v1', { schemaVersion: 5, tenantId: APP_CONFIG.tenantId })
@@ -1853,9 +1865,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
-  function uid() { return Date.now() + Math.random(); }
 
   function statusOf(value) {
     const s = String(value || '').toUpperCase();
@@ -2260,9 +2271,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } else if(type === 'treinamentos') {
       title = "Relatório de Treinamentos";
-      theadHTML = `<tr><th>Colaborador</th><th>Unidade / Setor</th><th>Treinamento</th><th>Realização</th><th>Vencimento</th><th>Status</th></tr>`;
+      theadHTML = `<tr><th>Código</th><th>Colaborador</th><th>Unidade / Setor</th><th>Treinamento</th><th>Realização / Vencimento</th><th>Instrutor / Carga</th><th>Certificado</th><th>Status</th></tr>`;
       const data = requiredTrainingRows();
-      tbodyHTML = data.length ? data.map(r => `<tr><td><strong>${esc(r.employee?.name || '')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name || '—')} / ${esc(sector(r.employee?.sectorId)?.name || '—')}</td><td>${esc(r.rule.itemName)}</td><td>${esc(r.record?.date || 'Não realizado')}</td><td>${esc(r.record?.due || '—')}</td><td>${statusBadge(r.status)}</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
+      tbodyHTML = data.length ? data.map(r => `<tr><td><strong>${esc(r.record?.code || '—')}</strong></td><td><strong>${esc(r.employee?.name || '')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name || '—')} / ${esc(sector(r.employee?.sectorId)?.name || '—')}</td><td>${esc(r.rule.itemName)}</td><td>${esc(r.record?.date || 'Não realizado')}<br><small>Vence: ${esc(r.record?.due || '—')}</small></td><td>${esc(r.record?.instructor || '—')}<br><small>${r.record?.workloadHours ? `${esc(r.record.workloadHours)} h` : 'Carga não informada'}</small></td><td>${esc(r.record?.certificate || 'Emissão Nexus pendente')}</td><td>${statusBadge(r.status)}</td></tr>`).join('') : `<tr><td colspan="8" style="text-align:center;padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
     } else if(type === 'matriz') {
       title = "Relatório da Matriz de Controle";
       theadHTML = `<tr><th>Unidade</th><th>Setor</th><th>Função</th><th>Tipo</th><th>Requisito</th><th>Validade</th></tr>`;
@@ -2631,7 +2642,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitId=$('trainingUnit').value,sectorId=$('trainingSector').value,typeId=$('trainingFilterType').value,status=$('trainingStatus').value,q=$('trainingSearch').value.toLowerCase();
     let rows=requiredTrainingRows().filter(r=>(!unitId||String(r.employee?.unitId)===unitId)&&(!sectorId||String(r.employee?.sectorId)===sectorId)&&(!typeId||String(r.rule.itemId)===typeId)&&(!status||r.status===status)&&(!q||[r.employee?.name,r.rule.itemName].join(' ').toLowerCase().includes(q)));
     $('trainingKpiGood').textContent=rows.filter(r=>r.status==='BOM').length;$('trainingKpiAttention').textContent=rows.filter(r=>r.status==='ATENÇÃO').length;$('trainingKpiCritical').textContent=rows.filter(r=>r.status==='CRÍTICO'&&!r.missing).length;$('trainingKpiMissing').textContent=rows.filter(r=>r.missing).length;$('trainingCount').textContent=`${rows.length} requisito(s) encontrado(s)`;
-    $('trainingTable').innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td>${esc(r.rule.itemName)}</td><td>${esc(r.record?.date||'Não realizado')}</td><td>${esc(r.record?.due||'—')}</td><td>${esc(r.record?.certificate||'—')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`<button type="button" class="ghost" onclick="deleteTrainingRecord('${r.record.id}')">Excluir registro</button>`:'—'}</td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
+    $('trainingTable').innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td><strong>${esc(r.rule.itemName)}</strong>${r.record?.code?`<br><small>${esc(r.record.code)}</small>`:''}</td><td>${esc(r.record?.date||'Não realizado')}${r.record?.instructor?`<br><small>${esc(r.record.instructor)}</small>`:''}</td><td>${esc(r.record?.due||'—')}</td><td>${esc(r.record?.certificate||'Emissão Nexus pendente')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`<button type="button" class="ghost" onclick="cancelTrainingRecord('${r.record.id}')">Cancelar registro</button>`:'—'}</td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
   }
   function updateMatrixItems() {
     const type=$('matrixType').value,select=$('matrixItem'),custom=$('matrixCustomItem');
@@ -2645,12 +2656,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $('matrixCount').textContent=`${rows.length} regra(s)`;
     $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(jobRole(r.jobRoleId)?.name||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" onclick="deleteMatrixRule('${r.id}')">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
   }
-  window.deleteTrainingRecord=id=>{state.trainingRecords=state.trainingRecords.filter(r=>String(r.id)!==String(id));save();renderAll();};
+  window.cancelTrainingRecord=id=>window.NexusTrainingRecords?.cancelRecord?.(id);
   window.deleteMatrixRule=id=>window.NexusControlMatrix?.deactivateRule?.(id);
-  $('trainingRecordForm').onsubmit=e=>{e.preventDefault();const validity=trainingValidity($('trainingEmployee').value,$('trainingType').value);if(!validity){alert('Defina uma validade no tipo de treinamento ou na Matriz de Controle.');return;}state.trainingRecords.push({id:uid(),employeeId:$('trainingEmployee').value,trainingTypeId:$('trainingType').value,date:$('trainingDate').value,due:addDaysISO($('trainingDate').value,validity),certificate:$('trainingCertificate').value.trim(),instructor:$('trainingInstructor').value.trim()});e.target.reset();save();renderAll();};
+  $('trainingRecordForm').onsubmit=e=>{e.preventDefault();alert('Aguarde o carregamento dos treinamentos no Supabase.');};
   $('trainingEmployee').onchange=populateTrainingOptions; $('trainingType').onchange=updateTrainingDuePreview; $('trainingDate').onchange=updateTrainingDuePreview;
   $('epiMoveEmp').onchange=populateEpiMoveOptions;
-  ['trainingUnit','trainingSector','trainingFilterType','trainingStatus'].forEach(id=>$(id).onchange=renderTrainingModule);$('trainingSearch').oninput=renderTrainingModule;$('trainingClear').onclick=()=>{['trainingUnit','trainingSector','trainingFilterType','trainingStatus','trainingSearch'].forEach(id=>$(id).value='');renderTrainingModule();};
+  const renderTrainingViews=()=>{renderTrainingModule();window.NexusTrainingRecords?.renderHistory?.();};
+  ['trainingUnit','trainingSector','trainingFilterType','trainingStatus'].forEach(id=>$(id).onchange=renderTrainingViews);$('trainingSearch').oninput=renderTrainingViews;$('trainingClear').onclick=()=>{['trainingUnit','trainingSector','trainingFilterType','trainingStatus','trainingSearch'].forEach(id=>$(id).value='');renderTrainingViews();};
   $('matrixType').onchange=updateMatrixItems;
   $('matrixForm').onsubmit=e=>{e.preventDefault();alert('Aguarde o carregamento da Matriz no Supabase.');};
   ['matrixFilterSector','matrixFilterType','matrixFilterRole'].forEach(id=>$(id).onchange=renderMatrixModule);$('matrixClear').onclick=()=>{['matrixFilterUnit','matrixFilterSector','matrixFilterType','matrixFilterRole'].forEach(id=>$(id).value='');renderMatrixModule();};
@@ -2687,6 +2699,8 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.epiMovements;
         delete restoredData.occurrenceTypes;
         delete restoredData.risks;
+        delete restoredData.trainingRecords;
+        delete restoredData.trainingRecordHistory;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2708,6 +2722,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     renderEpiDashboard();
     renderTrainingModule();
+    window.NexusTrainingRecords?.renderHistory?.();
     renderMatrixModule();
     renderExecutive();
     renderEmployeeRequirementPreview();
@@ -2775,6 +2790,7 @@ if (logout) {
 <script src="supabase-training-types.js"></script>
 <script src="supabase-epis.js"></script>
 <script src="supabase-control-matrix.js"></script>
+<script src="supabase-training-records.js"></script>
 <script src="supabase-epi-deliveries.js"></script>
 <script src="supabase-occurrences.js"></script>
 <script src="supabase-company.js"></script>
