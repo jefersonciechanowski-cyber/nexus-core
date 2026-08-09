@@ -130,7 +130,8 @@
     if (!id) return;
 
     const state = getState();
-    const hasTrainingRecords = state.trainingRecords.some(record => String(record.trainingTypeId) === String(id));
+    const hasTrainingRecords = (state.trainingRecordHistory || state.trainingRecords)
+      .some(record => String(record.trainingTypeId) === String(id));
     const hasMatrixRules = state.matrixRules.some(rule => rule.type === 'Treinamento' && String(rule.itemId) === String(id));
     if (hasTrainingRecords || hasMatrixRules) {
       window.alert('Não é possível excluir este tipo de treinamento porque existem registros ou regras da Matriz de Controle vinculados a ele.');
