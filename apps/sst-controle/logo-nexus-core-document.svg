@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="148" viewBox="0 0 640 148" role="img" aria-labelledby="title description">
+  <title id="title">Nexus Core — SST Controle</title>
+  <desc id="description">Marca documental horizontal do Nexus Core em azul-escuro e laranja.</desc>
+
+  <g transform="translate(4 10)">
+    <rect width="128" height="128" rx="30" fill="#0c1920"/>
+    <path d="M29 91V39c0-8 6-14 14-14h10l46 46V39c0-8 6-14 14-14h2v50c0 8-6 14-14 14H91L45 57v34c0 8-6 14-14 14h-2c-8 0-14-6-14-14Z" fill="#ff5a1f"/>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="158" y="77" fill="#0c1920" font-size="52" font-weight="800" letter-spacing="1">NEXUS</text>
+    <text x="349" y="77" fill="#ff5a1f" font-size="52" font-weight="800" letter-spacing="1">CORE</text>
+    <rect x="160" y="94" width="468" height="32" rx="16" fill="#eef2f4"/>
+    <circle cx="181" cy="110" r="5" fill="#ff5a1f"/>
+    <text x="195" y="117" fill="#31434c" font-size="20" font-weight="700" letter-spacing="2.4">SST CONTROLE</text>
+  </g>
+</svg>
