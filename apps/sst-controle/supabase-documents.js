@@ -8,7 +8,7 @@
   const templates = () => window.NexusDocumentTemplates;
 
   function nexusDocumentLogoUrl() {
-    return new URL('logo-nexus-core.png', window.location.href).href;
+    return new URL('logo-nexus-core-document.svg', window.location.href).href;
   }
 
   function localDateISO(date = new Date()) {
