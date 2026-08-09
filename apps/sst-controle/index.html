@@ -1753,9 +1753,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<span class="badge ${cls}">${esc(severity)}</span>`;
   }
   
-  function epiBadge(status) {
+  function epiBadge(status, isActive = false) {
     const s = String(status || '').toUpperCase();
-    if(s.includes('ENTRE')) return `<span class="badge badge-atencao">Em Uso</span>`;
+    if(s.includes('ENTRE')) {
+      return isActive
+        ? `<span class="badge badge-atencao">Em Uso</span>`
+        : `<span class="badge badge-sem">Entrega registrada</span>`;
+    }
     if(s.includes('DESC')) return `<span class="badge badge-critico">Descartado / Baixa</span>`;
     if(s.includes('DEV')) return `<span class="badge badge-bom">Retornou ao Estoque</span>`;
     return `<span class="badge badge-sem">${esc(status)}</span>`;
@@ -2364,7 +2368,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const action = m.status === 'Entregue' && m.isActive
         ? `<button type="button" class="ghost" onclick="prepareEpiClosure('${esc(m.deliveryId)}')">Finalizar uso</button>`
         : '<span style="color:var(--text-muted)">Histórico preservado</span>';
-      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status)}${responsible}${reason}</td><td>${action}</td></tr>`;
+      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status, m.isActive)}${responsible}${reason}</td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma movimentação de EPI encontrada com os filtros atuais.</td></tr>`;
 
     // Gráfico de EPIs filtrado
