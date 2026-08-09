@@ -567,6 +567,35 @@
     .nexus-topbar-title span { text-transform:uppercase; letter-spacing:.14em; color:var(--primary); font-size:9px; }
     .mobile-menu-button { display:none; width:auto; height:36px; padding:7px 11px; }
     .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:89; }
+    .preventive-cards { margin:16px 0; }
+    .preventive-overdue { border-top:3px solid #dc2626; }
+    .preventive-7 { border-top:3px solid #f97316; }
+    .preventive-15 { border-top:3px solid #eab308; }
+    .preventive-30 { border-top:3px solid #2563eb; }
+    .preventive-layout { align-items:start; }
+    .preventive-calendar { margin-top:16px; }
+    .preventive-weekdays, .preventive-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; }
+    .preventive-weekdays { margin-bottom:6px; color:var(--muted); font-size:11px; font-weight:700; text-align:center; text-transform:uppercase; }
+    .preventive-day { min-height:58px; height:auto; padding:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:8px; text-align:left; box-shadow:none; }
+    .preventive-day:hover { border-color:var(--primary); }
+    .preventive-day.muted { background:transparent; border-color:transparent; }
+    .preventive-day.today { outline:2px solid var(--primary); outline-offset:-2px; }
+    .preventive-dot { display:inline-block; width:7px; height:7px; margin:10px 3px 0 0; border-radius:50%; }
+    .preventive-dot.OVERDUE, .preventive-badge.OVERDUE { background:#fee2e2; color:#991b1b; }
+    .preventive-dot.OVERDUE { background:#dc2626; }
+    .preventive-dot.DUE_7, .preventive-badge.DUE_7 { background:#ffedd5; color:#9a3412; }
+    .preventive-dot.DUE_7 { background:#f97316; }
+    .preventive-dot.DUE_15, .preventive-badge.DUE_15 { background:#fef9c3; color:#854d0e; }
+    .preventive-dot.DUE_15 { background:#eab308; }
+    .preventive-dot.DUE_30, .preventive-badge.DUE_30 { background:#dbeafe; color:#1e40af; }
+    .preventive-dot.DUE_30 { background:#2563eb; }
+    .preventive-dot.PLANNED, .preventive-badge.PLANNED { background:#dcfce7; color:#166534; }
+    .preventive-dot.PLANNED { background:#16a34a; }
+    .preventive-people { display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+    .preventive-person { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--border); border-radius:8px; }
+    .preventive-person strong, .preventive-person small { display:block; }
+    .preventive-person small { margin-top:3px; color:var(--muted); }
+    @media (max-width:900px) { .preventive-layout { grid-template-columns:1fr; } .preventive-day { min-height:46px; padding:5px; } }
     .form-helper { color:var(--text-muted); font-size:11px; margin:-4px 0 14px; line-height:1.55; }
     .requirements-preview { margin-top:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface-subtle); padding:15px; }
     .requirements-preview.compact { margin-top:13px; padding:12px; }
@@ -790,6 +819,7 @@
       <button class="tab" data-tab="matriz" type="button">Matriz de Controle</button>
       <button class="tab" data-tab="riscos" type="button">Riscos e Incidentes</button>
       <button class="tab" data-tab="epis" type="button">EPIs</button>
+      <button class="tab" data-tab="agenda" type="button">Agenda Preventiva</button>
       <button class="tab" data-tab="relatorios" type="button">Relatórios</button>
       <button class="tab" data-tab="config" type="button">Configurações e Backup</button>
     </nav>
@@ -1661,6 +1691,40 @@
       </div>
     </section>
 
+    <section id="agenda" class="tab-content">
+      <div style="margin-bottom:24px;">
+        <h2>Painel de Vencimentos e Agenda Preventiva</h2>
+        <p class="subtitle">Centralize exames, treinamentos e trocas de EPIs para agir antes do vencimento.</p>
+      </div>
+
+      <div class="filter-panel">
+        <div class="filter-heading"><div><h3>Filtros da Agenda</h3><p>Consulte obrigações por unidade, setor, colaborador, tipo e período</p></div><button id="preventiveClear" class="ghost" type="button">Limpar Filtros</button></div>
+        <div class="filters">
+          <label>Unidade<select id="preventiveUnit"></select></label>
+          <label>Setor<select id="preventiveSector"></select></label>
+          <label>Colaborador<select id="preventiveEmployee"></select></label>
+          <label>Obrigação<select id="preventiveType"><option value="">Todas</option><option value="Exame">Exames</option><option value="Treinamento">Treinamentos</option><option value="EPI">Trocas de EPI</option></select></label>
+          <label>Criticidade<select id="preventiveStatus"><option value="">Todas</option><option value="OVERDUE">Vencidos</option><option value="DUE_7">Até 7 dias</option><option value="DUE_15">De 8 a 15 dias</option><option value="DUE_30">De 16 a 30 dias</option><option value="PLANNED">Após 30 dias</option></select></label>
+          <label>Data Inicial<input id="preventiveStart" type="date"></label>
+          <label>Data Final<input id="preventiveEnd" type="date"></label>
+        </div>
+      </div>
+
+      <div class="executive-cards preventive-cards">
+        <div class="executive-card preventive-overdue"><span>Vencidos</span><strong id="preventiveOverdue">0</strong><small>Exigem ação imediata</small></div>
+        <div class="executive-card preventive-7"><span>Próximos 7 dias</span><strong id="preventive7">0</strong><small>Prioridade máxima</small></div>
+        <div class="executive-card preventive-15"><span>De 8 a 15 dias</span><strong id="preventive15">0</strong><small>Programar execução</small></div>
+        <div class="executive-card preventive-30"><span>De 16 a 30 dias</span><strong id="preventive30">0</strong><small>Planejamento preventivo</small></div>
+      </div>
+
+      <div class="grid two preventive-layout">
+        <div class="card"><div class="table-header"><div><h3>Calendário Preventivo</h3><p id="preventiveMonthLabel" class="subtitle"></p></div><div><button id="preventivePrevMonth" class="ghost" type="button">Anterior</button> <button id="preventiveToday" class="ghost" type="button">Hoje</button> <button id="preventiveNextMonth" class="ghost" type="button">Próximo</button></div></div><div id="preventiveCalendar" class="preventive-calendar"></div></div>
+        <div class="card"><h3>Colaboradores Afetados</h3><div id="preventivePeople" class="preventive-people"></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;"><div class="table-header"><div><h3>Obrigações do Período</h3><p id="preventiveSummary" class="subtitle">Carregando prazos...</p></div><input id="preventiveSearch" placeholder="Pesquisar colaborador ou obrigação"></div><div class="table-wrap"><table><thead><tr><th>Vencimento</th><th>Criticidade</th><th>Obrigação</th><th>Colaborador</th><th>Local de trabalho</th><th>Ação</th></tr></thead><tbody id="preventiveTable"></tbody></table></div></div>
+    </section>
+
     <section id="relatorios" class="tab-content">
       <div style="margin-bottom: 24px;">
         <h2>Relatórios Especializados</h2>
@@ -2157,7 +2221,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetContent = document.getElementById(targetId);
       if(targetContent) {
         targetContent.classList.add('active');
-        const pageTitles = {executivo:'Dashboard Executivo',dashboard:'Painel de Controle',registros:'Cadastros',coletas:'Coletas',treinamentos:'Treinamentos',matriz:'Matriz de Controle',riscos:'Riscos e Incidentes',epis:'EPIs',relatorios:'Relatórios',config:'Configurações e Backup'};
+        const pageTitles = {executivo:'Dashboard Executivo',dashboard:'Painel de Controle',registros:'Cadastros',coletas:'Coletas',treinamentos:'Treinamentos',matriz:'Matriz de Controle',riscos:'Riscos e Incidentes',epis:'EPIs',agenda:'Agenda Preventiva',relatorios:'Relatórios',config:'Configurações e Backup'};
         $('currentPageTitle').textContent = pageTitles[targetId] || 'SST Controle';
       }
       if(targetId === 'registros' && document.querySelector('.subtab.active')?.dataset.subtab === 'reg-empresa') window.NexusCompany?.load?.();
@@ -2867,5 +2931,6 @@ if (logout) {
 <script src="document-templates.js"></script>
 <script src="supabase-documents.js"></script>
 <script src="supabase-executive-dashboard.js"></script>
+<script src="supabase-preventive-agenda.js"></script>
 </body>
 </html>
