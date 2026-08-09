@@ -109,8 +109,8 @@ begin
     raise exception 'É necessário estar autenticado para registrar ou cancelar ocorrências.';
   end if;
 
-  if new.organization_id <> public.current_org_id()
-     and not public.is_nexus_admin() then
+  if not coalesce(public.is_nexus_admin(), false)
+     and new.organization_id is distinct from public.current_org_id() then
     raise exception 'A ocorrência deve pertencer à organização do usuário autenticado.';
   end if;
 
