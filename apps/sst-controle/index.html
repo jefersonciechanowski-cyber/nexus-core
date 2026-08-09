@@ -1326,6 +1326,7 @@
           <table class="table">
             <thead>
               <tr>
+                <th>Código</th>
                 <th>Data</th>
                 <th>Colaborador</th>
                 <th>Setor / Unidade</th>
@@ -2118,13 +2119,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } else if(type === 'riscos') {
       title = "Relatório Consolidado de Riscos e Incidentes";
-      theadHTML = `<tr><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Situação</th><th>Descrição / Motivo</th></tr>`;
+      theadHTML = `<tr><th>Código</th><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Situação</th><th>Descrição / Motivo</th></tr>`;
       const data = state.risks.filter(risk => employee(risk.employeeId));
       tbodyHTML = data.length ? data.map(r => {
         const emp = employee(r.employeeId), sec = sector(r.sectorId || emp?.sectorId), un = unit(r.unitId || emp?.unitId);
         const details = r.status === 'CANCELLED' ? `${r.desc} | Cancelamento: ${r.cancelReason || 'Motivo não informado no registro legado'}` : r.desc;
-        return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${riskStatusBadge(r.status)}</td><td>${esc(details)}</td></tr>`;
-      }).join('') : `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
+        return `<tr><td><strong>${esc(r.code || '—')}</strong></td><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${riskStatusBadge(r.status)}</td><td>${esc(details)}</td></tr>`;
+      }).join('') : `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
 
     } else if(type === 'treinamentos') {
       title = "Relatório de Treinamentos";
@@ -2237,8 +2238,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const action = cancelled
         ? '<span class="badge badge-sem">Histórico preservado</span>'
         : `<button type="button" class="ghost" onclick="cancelOccurrence('${esc(r.id)}')">Cancelar registro</button>`;
-      return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${details}<div style="margin-top:8px">${riskStatusBadge(r.status)}</div></td><td>${action}</td></tr>`;
-    }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
+      return `<tr><td><strong>${esc(r.code || '—')}</strong></td><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${details}<div style="margin-top:8px">${riskStatusBadge(r.status)}</div></td><td>${action}</td></tr>`;
+    }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
   }
 
   window.deleteRisk = id => window.cancelOccurrence?.(id);
@@ -2535,7 +2536,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ...collectionCritical.map(c => {const emp=employee(c.employeeId);return {source:'Coleta',emp,description:`${exam(c.examId)?.name || 'Exame'}: resultado ${c.value}`,due:c.date,status:'CRÍTICO'}}),
       ...trainingCritical.map(r => ({source:'Treinamento',emp:r.employee,description:r.missing?`${r.rule.itemName}: não realizado`:`${r.rule.itemName}: vencido`,due:r.record?.due || 'Sem registro',status:'CRÍTICO'})),
       ...epiAlerts,
-      ...highRisks.map(r => ({source:'Risco',emp:employee(r.employeeId),description:r.desc,due:r.date,status:'CRÍTICO'}))
+      ...highRisks.map(r => ({source:r.code || 'Risco',emp:employee(r.employeeId),description:`${r.code ? r.code + ' — ' : ''}${r.desc}`,due:r.date,status:'CRÍTICO'}))
     ];
     $('execPriorityCount').textContent = `${priorities.length} itens exigem atenção`;
     $('execPriorityTable').innerHTML = priorities.length ? priorities.map(p => `<tr><td>${esc(p.source)}</td><td><strong>${esc(p.emp?.name || '—')}</strong><br><small>${esc(sector(p.emp?.sectorId)?.name || '—')}</small></td><td>${esc(p.description)}</td><td>${esc(p.due)}</td><td>${statusBadge(p.status)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma prioridade para os filtros selecionados.</td></tr>`;
