@@ -304,7 +304,7 @@
     .executive-status strong { font-size:18px; }
     .executive-status p { color:var(--text-muted); font-size:12px; margin-top:5px; }
     .executive-score { color:var(--primary); font-size:28px; font-weight:700; white-space:nowrap; }
-    .executive-cards { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin-bottom:24px; }
+    .executive-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:24px; }
     .executive-card {
       background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
       padding:18px; min-height:118px; box-shadow:var(--shadow);
@@ -313,6 +313,60 @@
     .executive-card strong { display:block; font-size:28px; margin-top:12px; }
     .executive-card small { display:block; color:var(--text-muted); font-size:10px; margin-top:7px; }
     .executive-grid { display:grid; grid-template-columns:1.2fr .8fr; gap:24px; margin-bottom:24px; }
+    .executive-module-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin-bottom:24px; }
+    .executive-module-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+      padding:16px; box-shadow:var(--shadow); min-width:0;
+    }
+    .executive-module-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:14px; }
+    .executive-module-head h3 { font-size:13px; }
+    .executive-module-head .badge { white-space:nowrap; }
+    .executive-module-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .executive-module-metric { min-width:0; }
+    .executive-module-metric strong { display:block; font-size:18px; line-height:1.1; }
+    .executive-module-metric span { display:block; color:var(--text-muted); font-size:9px; line-height:1.3; margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+    .executive-section-title { margin:0 0 12px; }
+    .executive-section-title h3 { font-size:15px; }
+    .executive-section-title p { color:var(--text-muted); font-size:11px; margin-top:4px; }
+    .executive-activity { margin-top:24px; }
+    .executive-period-note {
+      display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+      border:1px solid rgba(224,184,74,.22); background:rgba(224,184,74,.055);
+      border-radius:var(--radius); padding:12px 14px; margin:0 0 18px;
+    }
+    .executive-period-note strong { font-size:12px; }
+    .executive-period-note div span { color:var(--text-muted); font-size:11px; }
+    .executive-comparison-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .executive-comparison-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+      padding:16px; box-shadow:var(--shadow); min-width:0;
+    }
+    .executive-comparison-card > span { display:block; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
+    .executive-comparison-value { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
+    .executive-comparison-value strong { font-size:25px; }
+    .executive-comparison-card small { display:block; color:var(--text-muted); font-size:10px; margin-top:7px; }
+    .executive-trend { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:10px; font-weight:700; white-space:nowrap; }
+    .executive-trend[data-result="improved"] { color:var(--good); background:var(--good-bg); }
+    .executive-trend[data-result="worsened"] { color:var(--critical); background:var(--critical-bg); }
+    .executive-trend[data-result="stable"] { color:var(--text-muted); background:var(--surface-subtle); }
+    .executive-trend[data-result="informative"] { color:var(--primary); background:rgba(224,184,74,.10); }
+    .executive-comparison-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:24px; margin-bottom:24px; }
+    .executive-comparison-chart { min-height:380px; }
+    .executive-comparison-chart canvas { max-height:285px; }
+    .executive-summary-box { height:100%; margin:0; }
+    .executive-summary-box h3 { margin-bottom:8px; }
+    .executive-summary-box > p { color:var(--text-muted); font-size:11px; line-height:1.55; margin-bottom:14px; }
+    .executive-summary-list { display:grid; gap:10px; }
+    .executive-summary-item { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .executive-summary-item:last-child { border-bottom:0; }
+    .executive-summary-item span { color:var(--text-muted); font-size:11px; }
+    .executive-summary-item strong { font-size:12px; text-align:right; }
+    .executive-comparison-table td:last-child { white-space:nowrap; }
+    #execDateStart:disabled, #execDateEnd:disabled { opacity:.72; cursor:not-allowed; }
+    .executive-card[data-level="critical"] { border-color:rgba(220,108,103,.45); }
+    .executive-card[data-level="attention"] { border-color:rgba(224,184,74,.42); }
+    .executive-card[data-level="good"] { border-color:rgba(114,168,117,.42); }
+    .executive-card[data-level="unknown"] strong { color:var(--text-muted); }
     .integration-note {
       border:1px solid rgba(224,184,74,.25); background:rgba(224,184,74,.06); color:var(--text);
       border-radius:8px; padding:12px 14px; font-size:11px; margin-bottom:16px;
@@ -326,17 +380,23 @@
       .nexus-topbar { grid-template-columns:1fr 180px 230px; }
       .nexus-profile { display:none; }
       .executive-cards { grid-template-columns:repeat(3,1fr); }
+      .executive-module-grid { grid-template-columns:repeat(3,1fr); }
+      .executive-comparison-cards { grid-template-columns:repeat(2,1fr); }
     }
     @media (max-width: 900px) {
       .nexus-topbar { margin:-32px -32px 24px; grid-template-columns:1fr 1fr; }
       .nexus-topbar-title { grid-column:1/-1; }
       .executive-cards { grid-template-columns:repeat(2,1fr); }
       .executive-grid { grid-template-columns:1fr; }
+      .executive-comparison-grid { grid-template-columns:1fr; }
+      .executive-module-grid { grid-template-columns:repeat(2,1fr); }
       .training-summary { grid-template-columns:repeat(2,1fr); }
     }
     @media (max-width: 700px) {
       .nexus-topbar { margin:-32px -32px 20px; grid-template-columns:1fr; }
       .executive-cards,.training-summary { grid-template-columns:1fr; }
+      .executive-module-grid { grid-template-columns:1fr; }
+      .executive-comparison-cards { grid-template-columns:1fr; }
       .executive-status { align-items:flex-start; flex-direction:column; }
     }
 
@@ -749,14 +809,18 @@
 
       <div class="filter-panel">
         <div class="filter-heading">
-          <div><h3>Contexto da Operação</h3><p>Todos os indicadores abaixo respondem aos filtros selecionados</p></div>
+          <div><h3>Contexto da Operação</h3><p>Filtre a situação atual e compare a evolução por período; o estoque permanece consolidado para toda a empresa</p></div>
           <button id="execClear" class="ghost" type="button">Limpar Filtros</button>
         </div>
         <div class="filters">
           <label>Unidade<select id="execUnit"></select></label>
           <label>Setor<select id="execSector"></select></label>
-          <label>Período<select id="execPeriod"><option value="all">Todo o período</option><option value="30">Próximos 30 dias</option><option value="expired">Vencidos</option></select></label>
+          <label>Janela de Prazos<select id="execPeriod"><option value="all">Todos os prazos</option><option value="30">Próximos 30 dias</option><option value="expired">Somente vencidos</option></select></label>
           <label>Colaborador<select id="execEmployee"></select></label>
+          <label>Período de Análise<select id="execDatePreset"><option value="current-month">Mês atual</option><option value="previous-month">Mês anterior</option><option value="last-3-months">Últimos 3 meses</option><option value="last-6-months">Últimos 6 meses</option><option value="last-12-months">Últimos 12 meses</option><option value="custom">Período personalizado</option><option value="all">Todo o histórico</option></select></label>
+          <label>Data Inicial<input id="execDateStart" type="date" disabled></label>
+          <label>Data Final<input id="execDateEnd" type="date" disabled></label>
+          <label>Comparar Com<select id="execCompareMode"><option value="previous">Período anterior equivalente</option><option value="previous-year">Mesmo período do ano anterior</option></select></label>
         </div>
       </div>
 
@@ -766,21 +830,88 @@
       </div>
 
       <div class="executive-cards">
-        <div class="executive-card"><span>Colaboradores Ativos</span><strong id="execEmployees">0</strong><small>Base filtrada</small></div>
-        <div class="executive-card"><span>Coletas Críticas</span><strong id="execCollectionsCritical">0</strong><small>Resultados fora do parâmetro</small></div>
-        <div class="executive-card"><span>Treinamentos Vencidos</span><strong id="execTrainingExpired">0</strong><small>Inclui requisitos sem registro</small></div>
-        <div class="executive-card"><span>Trocas de EPI</span><strong id="execEpiAlerts">0</strong><small>Vencidas ou em até 15 dias</small></div>
-        <div class="executive-card"><span>Riscos Altos</span><strong id="execRisksHigh">0</strong><small>Ocorrências de alta gravidade</small></div>
+        <div class="executive-card" id="execEmployeesCard"><span>Colaboradores Ativos</span><strong id="execEmployees">0</strong><small id="execEmployeesDetail">Base filtrada</small></div>
+        <div class="executive-card" id="execOccurrencesCard"><span>Ocorrências Abertas</span><strong id="execOccurrencesOpen">—</strong><small id="execOccurrencesDetail">Aguardando dados</small></div>
+        <div class="executive-card" id="execStockCard"><span>Estoque Disponível</span><strong id="execStockAvailable">—</strong><small id="execStockDetail">Estoque geral da empresa</small></div>
+        <div class="executive-card" id="execEpiActiveCard"><span>EPIs em Uso</span><strong id="execEpiActive">—</strong><small id="execEpiActiveDetail">Entregas ativas</small></div>
+        <div class="executive-card" id="execCollectionsCard"><span>Coletas Críticas</span><strong id="execCollectionsCritical">—</strong><small id="execCollectionsDetail">Aguardando dados</small></div>
+        <div class="executive-card" id="execTrainingCard"><span>Treinamentos Pendentes</span><strong id="execTrainingExpired">—</strong><small id="execTrainingDetail">Vencidos ou não realizados</small></div>
+        <div class="executive-card" id="execEpiAlertsCard"><span>Trocas de EPI</span><strong id="execEpiAlerts">—</strong><small id="execEpiAlertsDetail">Vencidas ou em até 15 dias</small></div>
+        <div class="executive-card" id="execCriticalCard"><span>Ações Críticas</span><strong id="execCriticalActions">0</strong><small id="execCriticalDetail">Prioridades que exigem ação imediata</small></div>
+      </div>
+
+      <div class="executive-section-title">
+        <h3>Resultados por Módulo</h3>
+        <p>Situação atual da operação, sem considerar ausência de dados como conformidade.</p>
+      </div>
+      <div class="executive-module-grid">
+        <div class="executive-module-card">
+          <div class="executive-module-head"><h3>Coletas</h3><span id="execCollectionsState" class="badge badge-sem">Dados insuficientes</span></div>
+          <div class="executive-module-metrics"><div class="executive-module-metric"><strong id="execCollectionsTotal">0</strong><span>Realizadas</span></div><div class="executive-module-metric"><strong id="execCollectionsGood">0</strong><span>Dentro do parâmetro</span></div><div class="executive-module-metric"><strong id="execCollectionsAttention">0</strong><span>Atenção</span></div><div class="executive-module-metric"><strong id="execCollectionsBad">0</strong><span>Críticas</span></div></div>
+        </div>
+        <div class="executive-module-card">
+          <div class="executive-module-head"><h3>Treinamentos</h3><span id="execTrainingsState" class="badge badge-sem">Dados insuficientes</span></div>
+          <div class="executive-module-metrics"><div class="executive-module-metric"><strong id="execTrainingsRequired">0</strong><span>Requisitos</span></div><div class="executive-module-metric"><strong id="execTrainingsGood">0</strong><span>Em dia</span></div><div class="executive-module-metric"><strong id="execTrainingsAttention">0</strong><span>A vencer</span></div><div class="executive-module-metric"><strong id="execTrainingsPending">0</strong><span>Pendentes</span></div></div>
+        </div>
+        <div class="executive-module-card">
+          <div class="executive-module-head"><h3>EPIs</h3><span id="execEpisState" class="badge badge-sem">Dados insuficientes</span></div>
+          <div class="executive-module-metrics"><div class="executive-module-metric"><strong id="execEpisPurchased">0</strong><span>Unid. compradas</span></div><div class="executive-module-metric"><strong id="execEpisInUse">0</strong><span>Em uso</span></div><div class="executive-module-metric"><strong id="execEpisReturned">0</strong><span>Devolvidos</span></div><div class="executive-module-metric"><strong id="execEpisDiscarded">0</strong><span>Descartados</span></div></div>
+        </div>
+        <div class="executive-module-card">
+          <div class="executive-module-head"><h3>Ocorrências</h3><span id="execRisksState" class="badge badge-sem">Dados insuficientes</span></div>
+          <div class="executive-module-metrics"><div class="executive-module-metric"><strong id="execRisksTotal">0</strong><span>Total</span></div><div class="executive-module-metric"><strong id="execRisksOpen">0</strong><span>Abertas</span></div><div class="executive-module-metric"><strong id="execRisksCancelled">0</strong><span>Canceladas</span></div><div class="executive-module-metric"><strong id="execRisksRelevant">0</strong><span>Médias / altas</span></div></div>
+        </div>
+        <div class="executive-module-card">
+          <div class="executive-module-head"><h3>Matriz de Controle</h3><span id="execMatrixState" class="badge badge-sem">Não configurada</span></div>
+          <div class="executive-module-metrics"><div class="executive-module-metric"><strong id="execMatrixTotal">0</strong><span>Regras ativas</span></div><div class="executive-module-metric"><strong id="execMatrixExams">0</strong><span>Exames</span></div><div class="executive-module-metric"><strong id="execMatrixTrainings">0</strong><span>Treinamentos</span></div><div class="executive-module-metric"><strong id="execMatrixEpis">0</strong><span>EPIs</span></div></div>
+        </div>
       </div>
 
       <div class="executive-grid">
-        <div class="chart-card"><h3>Conformidade por Módulo</h3><canvas id="executiveModuleChart"></canvas></div>
+        <div class="chart-card"><h3>Conformidade dos Módulos Avaliáveis</h3><canvas id="executiveModuleChart"></canvas></div>
         <div class="chart-card"><h3>Distribuição das Prioridades</h3><canvas id="executivePriorityChart"></canvas></div>
+      </div>
+
+      <div class="executive-section-title">
+        <h3>Evolução e Comparativo de Gestão</h3>
+        <p>Compara os registros realizados no período; pendências e prioridades acima continuam representando a situação atual.</p>
+      </div>
+      <div class="executive-period-note">
+        <div><strong id="execAnalysisPeriodLabel">Preparando período de análise...</strong><br><span id="execComparisonPeriodLabel">Preparando período de comparação...</span></div>
+        <span id="execPeriodProgressBadge" class="badge badge-sem">Período concluído</span>
+      </div>
+      <div class="executive-comparison-cards">
+        <div class="executive-comparison-card"><span>Ocorrências registradas</span><div class="executive-comparison-value"><strong id="execCompareOccurrences">0</strong><span id="execCompareOccurrencesTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareOccurrencesPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Coletas críticas</span><div class="executive-comparison-value"><strong id="execCompareCriticalCollections">0</strong><span id="execCompareCriticalCollectionsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareCriticalCollectionsPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Treinamentos realizados</span><div class="executive-comparison-value"><strong id="execCompareTrainings">0</strong><span id="execCompareTrainingsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareTrainingsPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Coletas dentro do parâmetro</span><div class="executive-comparison-value"><strong id="execCompareGoodCollections">0</strong><span id="execCompareGoodCollectionsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareGoodCollectionsPrevious">Período anterior: 0</small></div>
+      </div>
+      <div class="executive-comparison-grid">
+        <div class="chart-card executive-comparison-chart"><h3 id="execMonthlyChartTitle">Evolução Mensal dos Registros</h3><canvas id="executiveMonthlyChart"></canvas></div>
+        <div class="card-box executive-summary-box">
+          <h3>Leitura Executiva</h3>
+          <p id="execComparisonSummary">Os indicadores serão interpretados conforme o período selecionado.</p>
+          <div class="executive-summary-list">
+            <div class="executive-summary-item"><span>Indicadores que melhoraram</span><strong id="execImprovedCount">0</strong></div>
+            <div class="executive-summary-item"><span>Indicadores que pioraram</span><strong id="execWorsenedCount">0</strong></div>
+            <div class="executive-summary-item"><span>Indicadores estáveis</span><strong id="execStableCount">0</strong></div>
+            <div class="executive-summary-item"><span>Base da comparação</span><strong id="execComparisonBase">Período anterior</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><div><h3>Comparativo por Indicador</h3><span>Menos riscos e pendências é melhora; mais ações preventivas e resultados conformes é melhora.</span></div></div>
+        <div class="table-wrap"><table class="table executive-comparison-table"><thead><tr><th>Módulo</th><th>Indicador</th><th>Período atual</th><th>Comparação</th><th>Variação</th><th>Leitura</th></tr></thead><tbody id="execComparisonTable"></tbody></table></div>
       </div>
 
       <div class="table-card">
         <div class="table-header"><div><h3>Prioridades Integradas</h3><span id="execPriorityCount">0 itens exigem atenção</span></div></div>
-        <div class="table-wrap"><table class="table"><thead><tr><th>Origem</th><th>Colaborador / Setor</th><th>Descrição</th><th>Prazo</th><th>Status</th></tr></thead><tbody id="execPriorityTable"></tbody></table></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Código / Origem</th><th>Colaborador / Setor</th><th>Descrição</th><th>Prazo</th><th>Status</th></tr></thead><tbody id="execPriorityTable"></tbody></table></div>
+      </div>
+
+      <div class="table-card executive-activity">
+        <div class="table-header"><div><h3>Atividade do Período</h3><span id="execActivityCount">0 movimentações encontradas</span></div></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Data</th><th>Módulo</th><th>Registro</th><th>Colaborador / Contexto</th><th>Situação</th></tr></thead><tbody id="execActivityTable"></tbody></table></div>
       </div>
     </section>
     <section id="dashboard" class="tab-content">
@@ -1326,12 +1457,13 @@
           <table class="table">
             <thead>
               <tr>
+                <th>Código</th>
                 <th>Data</th>
                 <th>Colaborador</th>
                 <th>Setor / Unidade</th>
                 <th>Tipo de Ocorrência</th>
                 <th>Severidade</th>
-                <th>Descrição</th>
+                <th>Descrição / Situação</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -1678,9 +1810,9 @@ document.addEventListener('DOMContentLoaded', () => {
     employees: [],
     exams: [],
     sectorExamRequirements: [],
-    occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
+    occurrenceTypes: [],
     collections: [],
-    risks: dataStore.get('sst_ctrl_risks_v1', []),
+    risks: [],
     epis: [],
     epiMovements: [],
     trainingTypes: [],
@@ -1689,11 +1821,6 @@ document.addEventListener('DOMContentLoaded', () => {
     epiPurchases: [],
     settings: dataStore.get('sst_ctrl_settings_v1', { schemaVersion: 5, tenantId: APP_CONFIG.tenantId })
   };
-
-  const completelyEmpty = ['collections','risks','epiMovements','trainingRecords','matrixRules'].every(k => !state[k].length);
-  if(completelyEmpty) {
-    state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
-  }
 
   // Apply theme & font
   document.body.setAttribute('data-theme', state.theme);
@@ -1726,7 +1853,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1751,6 +1878,12 @@ document.addEventListener('DOMContentLoaded', () => {
     else if(s.includes('MÉDIA')) cls = 'badge-atencao';
     else if(s.includes('BAIXA')) cls = 'badge-bom';
     return `<span class="badge ${cls}">${esc(severity)}</span>`;
+  }
+
+  function riskStatusBadge(status) {
+    return status === 'CANCELLED'
+      ? '<span class="badge badge-sem">Cancelada</span>'
+      : '<span class="badge badge-atencao">Registrada</span>';
   }
   
   function epiBadge(status, isActive = false) {
@@ -2052,7 +2185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!el) return;
     const current = el.value;
     el.innerHTML = `<option value="">Selecione o Tipo de Ocorrência...</option>` + state.occurrenceTypes.map(ot => {
-      return `<option value="${esc(ot.name)}">${esc(ot.name)}</option>`;
+      return `<option value="${esc(ot.id)}">${esc(ot.name)}</option>`;
     }).join('');
     if([...el.options].some(o => o.value === current)) el.value = current;
   }
@@ -2117,12 +2250,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } else if(type === 'riscos') {
       title = "Relatório Consolidado de Riscos e Incidentes";
-      theadHTML = `<tr><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Descrição</th></tr>`;
+      theadHTML = `<tr><th>Código</th><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Situação</th><th>Descrição / Motivo</th></tr>`;
       const data = state.risks.filter(risk => employee(risk.employeeId));
       tbodyHTML = data.length ? data.map(r => {
-        const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
-        return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${esc(r.desc)}</td></tr>`;
-      }).join('') : `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
+        const emp = employee(r.employeeId), sec = sector(r.sectorId || emp?.sectorId), un = unit(r.unitId || emp?.unitId);
+        const details = r.status === 'CANCELLED' ? `${r.desc} | Cancelamento: ${r.cancelReason || 'Motivo não informado no registro legado'}` : r.desc;
+        return `<tr><td><strong>${esc(r.code || '—')}</strong></td><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${riskStatusBadge(r.status)}</td><td>${esc(details)}</td></tr>`;
+      }).join('') : `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
 
     } else if(type === 'treinamentos') {
       title = "Relatório de Treinamentos";
@@ -2194,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
     if(window.NexusExams?.renderExamList) window.NexusExams.renderExamList(); else $('examList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
-    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
+    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong><small>Tipo ativo no Supabase</small></span><button type="button" class="ghost" onclick="deactivateOccurrenceType('${esc(ot.id)}')">Desativar</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
     
     // Catálogo e estoque calculado pelas compras. O prazo nunca fica no EPI, somente na Matriz.
     $('epiList').innerHTML = state.epis.length ? state.epis.map(e => {
@@ -2210,18 +2344,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('occurrenceTypeForm').onsubmit = e => {
     e.preventDefault();
-    state.occurrenceTypes.push({ id: uid(), name: $('ocTypeName').value.trim() });
-    e.target.reset();
-    save();
-    renderAll();
+    alert('Aguarde o carregamento dos tipos de ocorrência no Supabase.');
   };
 
   $('riskForm').onsubmit = e => {
     e.preventDefault();
-    state.risks.push({ id: uid(), employeeId: $('riskEmployee').value, type: $('riskType').value, severity: $('riskSeverity').value, date: $('riskDate').value, desc: $('riskDesc').value.trim() });
-    e.target.reset();
-    save();
-    renderAll();
+    alert('Aguarde o carregamento das ocorrências no Supabase.');
   };
 
   $('epiMovementForm').onsubmit = e => {
@@ -2233,16 +2361,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = state.risks.filter(risk => employee(risk.employeeId));
     $('riskCount').textContent = `${data.length} registro${data.length === 1 ? '' : 's'} encontrado${data.length === 1 ? '' : 's'}`;
     $('riskTable').innerHTML = data.length ? data.sort((a,b) => String(b.date).localeCompare(String(a.date))).map(r => {
-      const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
-      return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${esc(r.desc)}</td><td><button type="button" class="ghost" onclick="deleteRisk('${r.id}')">Excluir</button></td></tr>`;
-    }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
+      const emp = employee(r.employeeId), sec = sector(r.sectorId || emp?.sectorId), un = unit(r.unitId || emp?.unitId);
+      const cancelled = r.status === 'CANCELLED';
+      const details = cancelled
+        ? `${esc(r.desc)}<small style="display:block;margin-top:6px">Motivo do cancelamento: ${esc(r.cancelReason || 'Não informado no registro legado')}</small>`
+        : esc(r.desc);
+      const action = cancelled
+        ? '<span class="badge badge-sem">Histórico preservado</span>'
+        : `<button type="button" class="ghost" onclick="cancelOccurrence('${esc(r.id)}')">Cancelar registro</button>`;
+      return `<tr><td><strong>${esc(r.code || '—')}</strong></td><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${details}<div style="margin-top:8px">${riskStatusBadge(r.status)}</div></td><td>${action}</td></tr>`;
+    }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
   }
 
-  window.deleteRisk = id => {
-    state.risks = state.risks.filter(r => r.id != id);
-    save();
-    renderAll();
-  };
+  window.deleteRisk = id => window.cancelOccurrence?.(id);
   
   window.deleteEpiMove = id => window.NexusEpiDeliveries?.prepareReturn?.(id);
 
@@ -2488,63 +2619,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('closeHistory').onclick = () => $('historyModal').classList.add('hidden');
 
 
-  let executiveModuleChart, executivePriorityChart;
-  function executiveContextEmployee(emp) {
-    return (!$('execUnit').value || String(emp?.unitId) === $('execUnit').value) && (!$('execSector').value || String(emp?.sectorId) === $('execSector').value) && (!$('execEmployee').value || String(emp?.id) === $('execEmployee').value);
-  }
-  function executivePeriodMatch(due) {
-    const period = $('execPeriod').value, days = daysUntil(due);
-    if(period === '30') return days >= 0 && days <= 30;
-    if(period === 'expired') return days < 0;
-    return true;
-  }
-  function executiveEpiAlerts() {
-    const out = [];
-    activeEpiMovements().forEach(m => {
-      const emp = employee(m.employeeId); if(!executiveContextEmployee(emp)) return;
-      const validity = Number(m.appliedValidity || epiValidity(m.employeeId,m.epiId)); if(!validity) return;
-      const due = m.dueDate || addDaysISO(m.date,validity), days = daysUntil(due);
-      if(days <= 15 && executivePeriodMatch(due)) out.push({source:'EPI',emp,description:`Troca de ${epi(m.epiId)?.name || 'EPI'}`,due,status:days<0?'CRÍTICO':'ATENÇÃO'});
-    });
-    return out;
-  }
   function renderExecutive() {
-    const employees = state.employees.filter(executiveContextEmployee);
-    const employeeIds = new Set(employees.map(e => String(e.id)));
-    const collections = state.collections.filter(c => employeeIds.has(String(c.employeeId)));
-    const collectionCritical = collections.filter(c => statusOf(c.status) === 'CRÍTICO');
-    const trainings = requiredTrainingRows().filter(r => employeeIds.has(String(r.employee?.id)));
-    const trainingCritical = trainings.filter(r => r.status === 'CRÍTICO');
-    const epiAlerts = executiveEpiAlerts();
-    const highRisks = state.risks.filter(r => employeeIds.has(String(r.employeeId)) && String(r.severity).toUpperCase().includes('ALTA'));
-    const collectionCompliance = collections.length ? Math.round(collections.filter(c => statusOf(c.status) === 'BOM').length / collections.length * 100) : 100;
-    const trainingCompliance = trainings.length ? Math.round(trainings.filter(r => r.status === 'BOM').length / trainings.length * 100) : 100;
-    const epiTotal = activeEpiMovements().filter(m => employeeIds.has(String(m.employeeId))).length;
-    const epiCompliance = epiTotal ? Math.max(0,Math.round((epiTotal-epiAlerts.length)/epiTotal*100)) : 100;
-    const riskCompliance = state.risks.filter(r => employeeIds.has(String(r.employeeId))).length ? Math.max(0,100-highRisks.length*20) : 100;
-    const score = Math.round((collectionCompliance+trainingCompliance+epiCompliance+riskCompliance)/4);
-    $('execEmployees').textContent = employees.length;
-    $('execCollectionsCritical').textContent = collectionCritical.length;
-    $('execTrainingExpired').textContent = trainingCritical.length;
-    $('execEpiAlerts').textContent = epiAlerts.length;
-    $('execRisksHigh').textContent = highRisks.length;
-    $('execScore').textContent = `${score}%`;
-    $('execStatusTitle').textContent = score >= 90 ? 'A operação está sob controle.' : score >= 75 ? 'A operação está estável, com pontos de atenção.' : 'A operação requer ação imediata.';
-    $('execStatusText').textContent = `${collectionCritical.length + trainingCritical.length + epiAlerts.filter(x=>x.status==='CRÍTICO').length + highRisks.length} item(ns) crítico(s) foram identificados.`;
-    const priorities = [
-      ...collectionCritical.map(c => {const emp=employee(c.employeeId);return {source:'Coleta',emp,description:`${exam(c.examId)?.name || 'Exame'}: resultado ${c.value}`,due:c.date,status:'CRÍTICO'}}),
-      ...trainingCritical.map(r => ({source:'Treinamento',emp:r.employee,description:r.missing?`${r.rule.itemName}: não realizado`:`${r.rule.itemName}: vencido`,due:r.record?.due || 'Sem registro',status:'CRÍTICO'})),
-      ...epiAlerts,
-      ...highRisks.map(r => ({source:'Risco',emp:employee(r.employeeId),description:r.desc,due:r.date,status:'CRÍTICO'}))
-    ];
-    $('execPriorityCount').textContent = `${priorities.length} itens exigem atenção`;
-    $('execPriorityTable').innerHTML = priorities.length ? priorities.map(p => `<tr><td>${esc(p.source)}</td><td><strong>${esc(p.emp?.name || '—')}</strong><br><small>${esc(sector(p.emp?.sectorId)?.name || '—')}</small></td><td>${esc(p.description)}</td><td>${esc(p.due)}</td><td>${statusBadge(p.status)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma prioridade para os filtros selecionados.</td></tr>`;
-    const isDark = true, chartTextColor = '#9ca3af';
-    if(executiveModuleChart) executiveModuleChart.destroy();
-    executiveModuleChart = new Chart($('executiveModuleChart'),{type:'bar',data:{labels:['Coletas','Treinamentos','EPIs','Riscos'],datasets:[{data:[collectionCompliance,trainingCompliance,epiCompliance,riskCompliance],backgroundColor:['#e0b84a','#c99a37','#9c7a31','#72a875'],borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{color:chartTextColor,callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}},x:{ticks:{color:chartTextColor},grid:{display:false}}},maintainAspectRatio:false}});
-    const pCritical = priorities.filter(p=>p.status==='CRÍTICO').length, pAttention=priorities.length-pCritical;
-    if(executivePriorityChart) executivePriorityChart.destroy();
-    executivePriorityChart = new Chart($('executivePriorityChart'),{type:'doughnut',data:{labels:['Crítico','Atenção','Sem prioridade'],datasets:[{data:[pCritical,pAttention,Math.max(0,employees.length-priorities.length)],backgroundColor:['#dc6c67','#e0b84a','#72a875'],borderWidth:0}]},options:{plugins:{legend:{position:'bottom',labels:{color:chartTextColor,boxWidth:12}}},maintainAspectRatio:false}});
+    window.NexusExecutiveDashboard?.render?.();
   }
   function updateTrainingDuePreview() {
     const empId=$('trainingEmployee').value,typeId=$('trainingType').value,date=$('trainingDate').value;
@@ -2609,6 +2685,8 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.employees;
         delete restoredData.matrixRules;
         delete restoredData.epiMovements;
+        delete restoredData.occurrenceTypes;
+        delete restoredData.risks;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2698,6 +2776,8 @@ if (logout) {
 <script src="supabase-epis.js"></script>
 <script src="supabase-control-matrix.js"></script>
 <script src="supabase-epi-deliveries.js"></script>
+<script src="supabase-occurrences.js"></script>
 <script src="supabase-company.js"></script>
+<script src="supabase-executive-dashboard.js"></script>
 </body>
 </html>
