@@ -7,6 +7,10 @@
   const state = () => window.NEXUS_SST_APP?.getState?.();
   const templates = () => window.NexusDocumentTemplates;
 
+  function nexusDocumentLogoUrl() {
+    return new URL('logo-nexus-core-document.png', window.location.href).href;
+  }
+
   function localDateISO(date = new Date()) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -178,7 +182,7 @@
         company,
         employee,
         record,
-        nexusLogoUrl: new URL('logo-nexus-core.png', window.location.href).href
+        nexusLogoUrl: nexusDocumentLogoUrl()
       });
       openDocument(html, code, popup);
     } catch (error) {
@@ -205,6 +209,16 @@
 
   function statusCell(label, className = 'neutral') {
     return { html: `<span class="status ${className}">${templates().escapeHtml(label)}</span>` };
+  }
+
+  function dateCell(value) {
+    return { html: `<span class="date-value">${templates().escapeHtml(templates().formatDate(value))}</span>` };
+  }
+
+  function datePairCell(start, end) {
+    return {
+      html: `<span class="date-pair"><span class="date-value">${templates().escapeHtml(templates().formatDate(start))}</span><span aria-hidden="true">/</span><span class="date-value">${templates().escapeHtml(templates().formatDate(end))}</span></span>`
+    };
   }
 
   function addDays(value, days) {
@@ -297,17 +311,17 @@
 
     const trainingRows = current.trainingRecordHistory.filter(record => employeeIds.has(String(record.employeeId)) && between(record.date, start, end)).map(record => {
       const employee = employeeMap.get(String(record.employeeId));
-      return [record.code, record.employeeNameSnapshot || employee?.name || '—', record.trainingName, `${templates().formatDate(record.date)} / ${templates().formatDate(record.due)}`, `${record.instructor} / ${record.technicalResponsible || 'RT não informado'}`, record.status === 'COMPLETED' ? statusCell('Válido', 'good') : statusCell('Cancelado', 'neutral')];
+      return [record.code, record.employeeNameSnapshot || employee?.name || '—', record.trainingName, datePairCell(record.date, record.due), `${record.instructor} / ${record.technicalResponsible || 'RT não informado'}`, record.status === 'COMPLETED' ? statusCell('Válido', 'good') : statusCell('Cancelado', 'neutral')];
     });
 
     const epiRows = current.epiMovements.filter(movement => employeeIds.has(String(movement.employeeId)) && between(movement.date, start, end)).map(movement => {
       const due = movement.dueDate || addDays(movement.date, movement.appliedValidity);
-      return [templates().formatDate(movement.date), employeeMap.get(String(movement.employeeId))?.name || '—', epiMap.get(String(movement.epiId))?.name || '—', movement.status, movement.status === 'Entregue' ? `${movement.appliedValidity || '—'} dias / ${templates().formatDate(due)}` : movement.returnReason || 'Encerramento registrado', movement.technicalResponsible || '—'];
+      return [dateCell(movement.date), employeeMap.get(String(movement.employeeId))?.name || '—', epiMap.get(String(movement.epiId))?.name || '—', movement.status, movement.status === 'Entregue' ? `${movement.appliedValidity || '—'} dias / ${templates().formatDate(due)}` : movement.returnReason || 'Encerramento registrado', movement.technicalResponsible || '—'];
     });
 
-    const occurrenceRows = current.risks.filter(record => scopeMatches(record, employeeIds, unitId, sectorId) && between(record.date, start, end)).map(record => [record.code || '—', templates().formatDate(record.date), employeeMap.get(String(record.employeeId))?.name || 'Sem colaborador', record.type, record.severity, `${record.status === 'CANCELLED' ? 'Cancelada' : 'Registrada'} · ${record.desc}${record.cancelReason ? ` · Motivo: ${record.cancelReason}` : ''}`]);
+    const occurrenceRows = current.risks.filter(record => scopeMatches(record, employeeIds, unitId, sectorId) && between(record.date, start, end)).map(record => [record.code || '—', dateCell(record.date), employeeMap.get(String(record.employeeId))?.name || 'Sem colaborador', record.type, record.severity, `${record.status === 'CANCELLED' ? 'Cancelada' : 'Registrada'} · ${record.desc}${record.cancelReason ? ` · Motivo: ${record.cancelReason}` : ''}`]);
 
-    const examRows = current.collections.filter(record => employeeIds.has(String(record.employeeId)) && between(record.date, start, end)).map(record => [templates().formatDate(record.date), employeeMap.get(String(record.employeeId))?.name || '—', examMap.get(String(record.examId))?.name || '—', `${record.year || ''} / ${record.collection || ''}`, record.value ?? '—', record.status || 'Sem parâmetro']);
+    const examRows = current.collections.filter(record => employeeIds.has(String(record.employeeId)) && between(record.date, start, end)).map(record => [dateCell(record.date), employeeMap.get(String(record.employeeId))?.name || '—', examMap.get(String(record.examId))?.name || '—', `${record.year || ''} / ${record.collection || ''}`, record.value ?? '—', record.status || 'Sem parâmetro']);
 
     const selectedEmployeeForMatrix = employeeMap.get(byId('documentEmployee').value);
     const matrixRules = selectedEmployeeForMatrix
@@ -322,7 +336,7 @@
     const activeTrainings = current.trainingRecords.filter(record => employeeIds.has(String(record.employeeId))).length;
     return {
       company,
-      nexusLogoUrl: new URL('logo-nexus-core.png', window.location.href).href,
+      nexusLogoUrl: nexusDocumentLogoUrl(),
       documentCode: documentCode('DF-SST'),
       issuedAt: issuedAt(),
       issuedBy: issuedBy(),
@@ -394,7 +408,7 @@
         title,
         tableHtml: clone.outerHTML,
         company,
-        nexusLogoUrl: new URL('logo-nexus-core.png', window.location.href).href,
+        nexusLogoUrl: nexusDocumentLogoUrl(),
         documentCode: code,
         issuedAt: issuedAt(),
         issuedBy: issuedBy()
