@@ -30,6 +30,7 @@
   function occurrenceFromRow(row) {
     return {
       id: row.id,
+      code: row.occurrence_code,
       employeeId: row.employee_id,
       occurrenceTypeId: row.occurrence_type_id,
       type: row.occurrence_type,
@@ -73,7 +74,7 @@
     const rows = await window.NexusData.list({
       table: 'occurrences',
       label: 'as ocorrências',
-      select: 'id,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at',
+      select: 'id,occurrence_code,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at',
       order: { column: 'occurred_at', ascending: false }
     });
     state().risks = rows.map(occurrenceFromRow);
@@ -144,7 +145,7 @@
             occurred_at: occurredAt,
             description
           },
-          select: 'id,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at'
+          select: 'id,occurrence_code,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at'
         });
         if (!rows[0]) throw new Error('A ocorrência foi salva, mas não pôde ser confirmada.');
         state().risks.unshift(occurrenceFromRow(rows[0]));
@@ -197,7 +198,7 @@
             status: 'CANCELLED',
             cancel_reason: reason.trim()
           },
-          select: 'id,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at'
+          select: 'id,occurrence_code,employee_id,occurrence_type_id,occurrence_type,severity,description,occurred_at,unit_id,sector_id,status,cancelled_at,cancel_reason,created_by,cancelled_by,created_at'
         });
         if (!rows[0]) throw new Error('O cancelamento foi salvo, mas não pôde ser confirmado.');
         const index = state().risks.findIndex(item => String(item.id) === String(id));
