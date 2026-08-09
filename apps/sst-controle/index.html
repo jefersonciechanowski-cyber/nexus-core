@@ -1673,7 +1673,7 @@ document.addEventListener('DOMContentLoaded', () => {
     collections: [],
     risks: dataStore.get('sst_ctrl_risks_v1', []),
     epis: [],
-    epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
+    epiMovements: [],
     trainingTypes: [],
     trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
     matrixRules: [],
@@ -1717,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','epiMovements','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','risks','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1872,6 +1872,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function populateEpiMoveOptions() {
     const emp = employee($('epiMoveEmp').value);
+    const isReturn = $('epiMoveStatus').value === 'Devolvido';
+    if (isReturn) {
+      const activeItems = activeEpiMovements()
+        .filter(move => String(move.employeeId) === String(emp?.id))
+        .map(move => epi(move.epiId))
+        .filter(Boolean);
+      const uniqueItems = [...new Map(activeItems.map(item => [String(item.id), item])).values()];
+      renderSelect('epiMoveEpi', uniqueItems, uniqueItems.length ? 'Selecione o EPI em uso...' : 'Nenhum EPI em uso para devolver');
+      $('epiMoveRulePreview').innerHTML = emp
+        ? (uniqueItems.length
+          ? '<div class="requirements-empty">Selecione o EPI em uso e informe a data da devolução. O histórico da entrega será preservado.</div>'
+          : '<div class="requirements-empty">Este colaborador não possui EPI em uso para devolução.</div>')
+        : '<div class="requirements-empty">Selecione um colaborador para carregar os EPIs em uso.</div>';
+      return;
+    }
+
     const rules = emp ? requirementsForEmployee(emp).filter(r => r.type==='EPI') : [];
     const items = rules.map(r => epi(r.itemId)).filter(Boolean);
     renderSelect('epiMoveEpi', items, items.length ? 'Selecione o EPI obrigatório...' : 'Nenhum EPI obrigatório na Matriz');
@@ -2185,16 +2201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('epiMovementForm').onsubmit = e => {
     e.preventDefault();
-    const employeeId=$('epiMoveEmp').value, epiId=$('epiMoveEpi').value, date=$('epiMoveDate').value, status=$('epiMoveStatus').value;
-    if(status==='Entregue') {
-      const rule=matchingMatrixRules(employee(employeeId),'EPI',epiId)[0];
-      if(!rule || !Number(rule.validity)) { alert('Não existe prazo de troca na Matriz para este EPI, setor e função. Cadastre a regra antes da entrega.'); return; }
-      if(currentStock(epiId)<=0) { alert('Não há estoque disponível para este EPI. Registre uma compra antes da entrega.'); return; }
-      state.epiMovements.push({id:uid(),employeeId,epiId,date,status,appliedValidity:Number(rule.validity),matrixRuleId:rule.id,dueDate:addDaysISO(date,rule.validity)});
-    } else {
-      state.epiMovements.push({id:uid(),employeeId,epiId,date,status});
-    }
-    e.target.reset(); save(); renderAll();
+    alert('Aguarde o carregamento das entregas de EPIs no Supabase.');
   };
 
   function renderRiskTable() {
@@ -2212,11 +2219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   };
   
-  window.deleteEpiMove = id => {
-    state.epiMovements = state.epiMovements.filter(m => m.id != id);
-    save();
-    renderAll();
-  };
+  window.deleteEpiMove = id => window.NexusEpiDeliveries?.prepareReturn?.(id);
 
   function renderCollectionTable() {
     window.NexusCollections?.renderCollectionTable?.();
@@ -2333,7 +2336,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('epiMovementTable').innerHTML = filteredMovements.length ? filteredMovements.sort((a,b) => String(b.date).localeCompare(String(a.date))).map(m => {
       const emp = employee(m.employeeId);
       const e = epi(m.epiId);
-      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status)}</td><td><button type="button" class="ghost" onclick="deleteEpiMove('${m.id}')">Excluir</button></td></tr>`;
+      const responsible = m.technicalResponsible ? `<br><small>Responsável técnico: ${esc(m.technicalResponsible)}</small>` : '';
+      const action = m.status === 'Entregue' && m.isActive
+        ? `<button type="button" class="ghost" onclick="prepareEpiReturn('${esc(m.deliveryId)}')">Registrar devolução</button>`
+        : '<span style="color:var(--text-muted)">Histórico preservado</span>';
+      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status)}${responsible}</td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma movimentação de EPI encontrada com os filtros atuais.</td></tr>`;
 
     // Gráfico de EPIs filtrado
@@ -2573,6 +2580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.jobRoles;
         delete restoredData.employees;
         delete restoredData.matrixRules;
+        delete restoredData.epiMovements;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2661,6 +2669,7 @@ if (logout) {
 <script src="supabase-training-types.js"></script>
 <script src="supabase-epis.js"></script>
 <script src="supabase-control-matrix.js"></script>
+<script src="supabase-epi-deliveries.js"></script>
 <script src="supabase-company.js"></script>
 </body>
 </html>
