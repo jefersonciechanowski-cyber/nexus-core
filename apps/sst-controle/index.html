@@ -595,6 +595,18 @@
     .preventive-person { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--border); border-radius:8px; }
     .preventive-person strong, .preventive-person small { display:block; }
     .preventive-person small { margin-top:3px; color:var(--muted); }
+    .alert-button { position:relative; width:42px; min-width:42px; padding:0; font-size:19px; }
+    .alert-badge { position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; padding:0 5px; border-radius:10px; background:#dc2626; color:#fff; font-size:10px; line-height:20px; text-align:center; }
+    .alert-backdrop { display:none; position:fixed; inset:0; z-index:79; background:rgba(4,9,12,.42); }
+    .alert-backdrop.open { display:block; }
+    .alert-panel { position:fixed; top:0; right:-460px; z-index:80; width:min(440px,100%); height:100vh; padding:22px; overflow:auto; border-left:1px solid var(--border); background:var(--surface); box-shadow:-18px 0 45px rgba(0,0,0,.28); transition:right .2s ease; }
+    .alert-panel.open { right:0; }
+    .alert-panel-header,.alert-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .alert-panel-filters { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0; }
+    .alert-list { display:flex; flex-direction:column; gap:10px; }
+    .alert-item { padding:13px; border:1px solid var(--border); border-left:4px solid #2563eb; border-radius:9px; background:var(--surface-soft); }
+    .alert-item.OVERDUE { border-left-color:#dc2626; }.alert-item.DUE_7 { border-left-color:#f97316; }.alert-item.DUE_15 { border-left-color:#eab308; }
+    .alert-item.read { opacity:.62; }.alert-item-main strong { display:block; margin-top:8px; }.alert-item-main p { margin:5px 0 12px; color:var(--muted); font-size:12px; }
     @media (max-width:900px) { .preventive-layout { grid-template-columns:1fr; } .preventive-day { min-height:46px; padding:5px; } }
     .form-helper { color:var(--text-muted); font-size:11px; margin:-4px 0 14px; line-height:1.55; }
     .requirements-preview { margin-top:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface-subtle); padding:15px; }
@@ -699,7 +711,7 @@
       margin: 0 0 20px;
       padding: 0;
       display: grid;
-      grid-template-columns: 220px minmax(280px, 1fr) auto;
+      grid-template-columns: 220px minmax(280px, 1fr) 42px auto;
       justify-content: end;
       gap: 12px;
       align-items: center;
@@ -754,7 +766,7 @@
 
     @media (max-width: 1180px) {
       .nexus-topbar {
-        grid-template-columns: 210px minmax(220px, 1fr);
+        grid-template-columns: 210px minmax(220px, 1fr) 42px;
       }
       .nexus-profile {
         display: none;
@@ -764,7 +776,7 @@
     @media (max-width: 900px) {
       .nexus-topbar {
         margin: 0 0 18px;
-        grid-template-columns: minmax(190px, .8fr) minmax(230px, 1.2fr);
+        grid-template-columns: minmax(190px, .8fr) minmax(230px, 1.2fr) 42px;
       }
       .nexus-topbar-title {
         display: none;
@@ -775,7 +787,7 @@
       .nexus-topbar {
         margin: 0 0 16px;
         padding: 9px 10px;
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 10px;
         position: sticky;
         top: 8px;
@@ -842,8 +854,16 @@
       </div>
       <select id="globalCompany"><option>Empresa Industrial Alfa</option><option>Metalúrgica Beta</option></select>
       <input id="globalSearch" placeholder="Pesquisar colaborador, exame, treinamento ou EPI">
+      <button id="alertButton" class="ghost alert-button" type="button" aria-label="Abrir Central de Alertas" aria-expanded="false">&#128276;<span id="alertBadge" class="alert-badge" hidden>0</span></button>
       <div class="nexus-profile"><strong id="demoUserName">Usuário Demo</strong><span id="demoUserRole">Demonstração</span><button id="demoLogout" class="ghost" type="button" style="margin-top:8px;height:30px;padding:4px 10px;font-size:11px;">Sair</button></div>
     </header>
+
+    <div id="alertBackdrop" class="alert-backdrop"></div>
+    <aside id="alertPanel" class="alert-panel" aria-label="Central de Alertas">
+      <div class="alert-panel-header"><div><h2>Central de Alertas</h2><p id="alertSummary" class="subtitle">Carregando alertas...</p></div><button id="alertClose" class="ghost" type="button">Fechar</button></div>
+      <div class="alert-panel-filters"><label>Categoria<select id="alertCategory"><option value="">Todas</option><option>Exame</option><option>Treinamento</option><option>EPI</option></select></label><label>Prazo<select id="alertDeadline"><option value="">Todos</option><option value="OVERDUE">Vencidos</option><option value="DUE_7">Até 7 dias</option><option value="DUE_15">8 a 15 dias</option><option value="DUE_30">16 a 30 dias</option></select></label><label>Situação<select id="alertSituation"><option value="UNREAD">Não lidos</option><option value="READ">Lidos</option><option value="ALL">Todos</option></select></label></div>
+      <div id="alertList" class="alert-list"></div>
+    </aside>
 
     <section id="executivo" class="tab-content active">
       <div style="margin-bottom:24px;">
@@ -2932,5 +2952,6 @@ if (logout) {
 <script src="supabase-documents.js"></script>
 <script src="supabase-executive-dashboard.js"></script>
 <script src="supabase-preventive-agenda.js"></script>
+<script src="supabase-alert-center.js"></script>
 </body>
 </html>
