@@ -6,6 +6,22 @@
   const app = () => window.NEXUS_SST_APP;
   const state = () => app()?.getState?.();
 
+  function localDateISO(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function setFormMode(status) {
+    const button = byId('epiMovementForm')?.querySelector('[type="submit"]');
+    if (button) {
+      button.textContent = status === 'Devolvido'
+        ? 'Confirmar Devolução'
+        : 'Salvar Movimentação';
+    }
+  }
+
   function movementFromDelivery(row) {
     const common = {
       deliveryId: row.id,
@@ -108,6 +124,8 @@
         }
 
         form.reset();
+        setFormMode('Entregue');
+        byId('epiMoveEmp').dispatchEvent(new Event('change'));
         await loadDeliveries();
       } catch (error) {
         showError(error, status === 'Entregue'
@@ -129,17 +147,29 @@
     byId('epiMoveEmp').value = movement.employeeId;
     byId('epiMoveEmp').dispatchEvent(new Event('change'));
     byId('epiMoveEpi').value = movement.epiId;
-    byId('epiMoveDate').value = new Date().toISOString().slice(0, 10);
+    byId('epiMoveDate').value = localDateISO();
+    setFormMode('Devolvido');
+
+    const notice = document.createElement('div');
+    notice.className = 'requirements-empty';
+    notice.style.borderColor = 'var(--gold)';
+    notice.style.color = 'var(--text)';
+    notice.textContent = 'Devolução preparada. Confira a data e clique em Confirmar Devolução.';
+    byId('epiMoveRulePreview').replaceChildren(notice);
+
     byId('epiMovementForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.requestAnimationFrame(() => byId('epiMoveDate').focus({ preventScroll: true }));
   }
 
   function install() {
     if (installed || !byId('epiMovementForm') || !window.NexusData || !state()) return;
     installed = true;
     byId('epiMovementForm').onsubmit = submitMovement;
-    byId('epiMoveStatus').addEventListener('change', () => {
+    byId('epiMoveStatus').addEventListener('change', event => {
+      setFormMode(event.currentTarget.value);
       byId('epiMoveEmp').dispatchEvent(new Event('change'));
     });
+    setFormMode(byId('epiMoveStatus').value);
     window.NexusEpiDeliveries = { loadDeliveries, submitMovement, prepareReturn };
     window.prepareEpiReturn = prepareReturn;
     loadDeliveries().catch(error => {
