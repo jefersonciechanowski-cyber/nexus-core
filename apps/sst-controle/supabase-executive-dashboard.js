@@ -3,6 +3,7 @@
 
   let moduleChart;
   let priorityChart;
+  let monthlyChart;
 
   const byId = id => document.getElementById(id);
   const text = (id, value) => { const element = byId(id); if (element) element.textContent = value; };
@@ -26,7 +27,11 @@
       unitId: byId('execUnit')?.value || '',
       sectorId: byId('execSector')?.value || '',
       employeeId: byId('execEmployee')?.value || '',
-      period: byId('execPeriod')?.value || 'all'
+      period: byId('execPeriod')?.value || 'all',
+      datePreset: byId('execDatePreset')?.value || 'current-month',
+      dateStart: byId('execDateStart')?.value || '',
+      dateEnd: byId('execDateEnd')?.value || '',
+      compareMode: byId('execCompareMode')?.value || 'previous'
     };
   }
 
@@ -39,6 +44,121 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return value || '—';
     const [year, month, day] = date.split('-');
     return `${day}/${month}/${year}`;
+  }
+
+  function parseDate(value) {
+    const date = dateOnly(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+    const [year, month, day] = date.split('-').map(Number);
+    const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (Number.isNaN(parsed.getTime()) || parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+    return parsed;
+  }
+
+  function dateToIso(value) {
+    const date = value instanceof Date ? value : parseDate(value);
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function addCalendarDays(value, days) {
+    const date = parseDate(value);
+    if (!date) return '';
+    date.setDate(date.getDate() + Number(days || 0));
+    return dateToIso(date);
+  }
+
+  function shiftMonths(value, months) {
+    const date = parseDate(value);
+    if (!date) return '';
+    const originalDay = date.getDate();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + Number(months || 0));
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(originalDay, lastDay));
+    return dateToIso(date);
+  }
+
+  function shiftYears(value, years) {
+    const date = parseDate(value);
+    if (!date) return '';
+    const month = date.getMonth();
+    date.setFullYear(date.getFullYear() + Number(years || 0));
+    if (date.getMonth() !== month) date.setDate(0);
+    return dateToIso(date);
+  }
+
+  function startOfMonth(value) {
+    const date = parseDate(value);
+    if (!date) return '';
+    date.setDate(1);
+    return dateToIso(date);
+  }
+
+  function endOfMonth(value) {
+    const date = parseDate(value);
+    if (!date) return '';
+    date.setMonth(date.getMonth() + 1, 0);
+    return dateToIso(date);
+  }
+
+  function normalizeRange(start, end) {
+    const validStart = dateOnly(start);
+    const validEnd = dateOnly(end);
+    if (!parseDate(validStart) || !parseDate(validEnd)) return null;
+    return validStart <= validEnd ? { start: validStart, end: validEnd } : { start: validEnd, end: validStart };
+  }
+
+  function analysisRange(selected, availableDates = []) {
+    const today = todayIso();
+    const monthStart = startOfMonth(today);
+    const preset = selected.datePreset;
+    let range;
+    if (preset === 'previous-month') {
+      const start = shiftMonths(monthStart, -1);
+      range = { start, end: endOfMonth(start) };
+    } else if (/^last-(3|6|12)-months$/.test(preset)) {
+      const months = Number(preset.match(/\d+/)[0]);
+      range = { start: shiftMonths(monthStart, -(months - 1)), end: today };
+    } else if (preset === 'custom') {
+      range = normalizeRange(selected.dateStart, selected.dateEnd);
+    } else if (preset === 'all') {
+      const dates = availableDates.map(dateOnly).filter(value => parseDate(value)).sort();
+      range = { start: dates[0] || monthStart, end: dates.at(-1) > today ? dates.at(-1) : today };
+    } else {
+      range = { start: monthStart, end: today };
+    }
+    return range || { start: monthStart, end: today };
+  }
+
+  function comparisonRange(range, selected) {
+    if (selected.compareMode === 'previous-year') {
+      return { start: shiftYears(range.start, -1), end: shiftYears(range.end, -1) };
+    }
+    const presetMonths = { 'current-month': 1, 'previous-month': 1, 'last-3-months': 3, 'last-6-months': 6, 'last-12-months': 12 }[selected.datePreset];
+    if (presetMonths) return { start: shiftMonths(range.start, -presetMonths), end: shiftMonths(range.end, -presetMonths) };
+    const startDate = parseDate(range.start);
+    const endDate = parseDate(range.end);
+    const days = Math.round((endDate - startDate) / 86400000) + 1;
+    const end = addCalendarDays(range.start, -1);
+    return { start: addCalendarDays(end, -(days - 1)), end };
+  }
+
+  function dateInRange(value, range) {
+    const date = dateOnly(value);
+    return Boolean(parseDate(date) && date >= range.start && date <= range.end);
+  }
+
+  function formatRange(range) {
+    return `${formatDate(range.start)} a ${formatDate(range.end)}`;
+  }
+
+  function isOngoingMonth(range) {
+    const today = todayIso();
+    return range.start <= today && range.end >= startOfMonth(today) && today < endOfMonth(today);
   }
 
   function addDays(date, days) {
@@ -196,6 +316,96 @@
     return { unknown: 'Dados insuficientes', critical: 'Ação necessária', attention: 'Exige atenção', good: goodLabel }[level];
   }
 
+  function periodMetrics(sources, range) {
+    const collections = sources.collections.filter(item => dateInRange(item.date, range));
+    const trainingRecords = sources.trainingRecords.filter(item => dateInRange(item.date, range));
+    const movements = sources.movements.filter(item => dateInRange(item.date, range));
+    const occurrences = sources.occurrences.filter(item => item.status !== 'CANCELLED' && dateInRange(item.date, range));
+    const cancelledOccurrences = sources.occurrences.filter(item => item.status === 'CANCELLED' && dateInRange(item.cancelledAt || item.date, range));
+    const matrixRules = sources.matrixRules.filter(item => dateInRange(item.createdAt || item.effective, range));
+    return {
+      collectionsTotal: collections.length,
+      collectionsGood: collections.filter(item => normalizedStatus(item.status) === 'BOM').length,
+      collectionsCritical: collections.filter(item => normalizedStatus(item.status) === 'CRÍTICO').length,
+      trainingsCompleted: trainingRecords.length,
+      epiDeliveries: movements.filter(item => item.status === 'Entregue').length,
+      epiReturns: movements.filter(item => item.status === 'Devolvido').length,
+      epiDisposals: movements.filter(item => item.status === 'Descartado').length,
+      occurrencesTotal: occurrences.length,
+      occurrencesRelevant: occurrences.filter(item => severityLevel(item) !== 'LOW').length,
+      occurrencesCancelled: cancelledOccurrences.length,
+      matrixRulesCreated: matrixRules.length
+    };
+  }
+
+  function comparisonResult(current, previous, preference, available = true) {
+    if (!available) return { result: 'unknown', variation: 'N/D', label: 'Dados insuficientes' };
+    const delta = current - previous;
+    if (preference === 'neutral') {
+      const variation = previous === 0 ? (current === 0 ? '0%' : 'Novo') : `${delta > 0 ? '+' : ''}${Math.round(delta / previous * 100)}%`;
+      return { result: 'informative', variation, label: 'Informativo' };
+    }
+    if (delta === 0) return { result: 'stable', variation: '0%', label: 'Estável' };
+    const improved = preference === 'lower' ? delta < 0 : delta > 0;
+    const variation = previous === 0 ? 'Sem base' : `${delta > 0 ? '+' : ''}${Math.round(delta / previous * 100)}%`;
+    return { result: improved ? 'improved' : 'worsened', variation, label: improved ? 'Melhorou' : 'Piorou' };
+  }
+
+  function renderComparisonTrend(ids, metric) {
+    text(ids.value, metric.available ? metric.current : '—');
+    text(ids.previous, metric.available ? `Comparação: ${metric.previous}` : 'Sem dados para comparar');
+    const element = byId(ids.trend);
+    if (!element) return;
+    element.dataset.result = metric.comparison.result === 'unknown' ? 'stable' : metric.comparison.result;
+    element.textContent = metric.comparison.result === 'unknown'
+      ? 'Sem dados'
+      : `${metric.comparison.label}${metric.comparison.variation === '0%' ? '' : ` · ${metric.comparison.variation}`}`;
+  }
+
+  function monthKeys(start, end, maximum = 12) {
+    const first = parseDate(start);
+    const last = parseDate(end);
+    if (!first || !last) return [];
+    first.setDate(1);
+    last.setDate(1);
+    const keys = [];
+    while (first <= last && keys.length < 240) {
+      keys.push(dateToIso(first).slice(0, 7));
+      first.setMonth(first.getMonth() + 1);
+    }
+    return keys.slice(-maximum);
+  }
+
+  function monthLabel(key) {
+    const [year, month] = key.split('-');
+    const labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return `${labels[Number(month) - 1]}/${year.slice(2)}`;
+  }
+
+  function monthCounts(records, keys, predicate = () => true, dateField = 'date') {
+    return keys.map(key => records.filter(item => predicate(item) && dateOnly(item[dateField]).slice(0, 7) === key).length);
+  }
+
+  function comparisonDefinitions(currentMetrics, previousMetrics, availability) {
+    return [
+      { module: 'Coletas', label: 'Coletas realizadas', key: 'collectionsTotal', preference: 'neutral', available: availability.collections },
+      { module: 'Coletas', label: 'Dentro do parâmetro', key: 'collectionsGood', preference: 'higher', available: availability.collections },
+      { module: 'Coletas', label: 'Resultados críticos', key: 'collectionsCritical', preference: 'lower', available: availability.collections },
+      { module: 'Treinamentos', label: 'Treinamentos realizados', key: 'trainingsCompleted', preference: 'higher', available: availability.trainings },
+      { module: 'EPIs', label: 'Entregas realizadas', key: 'epiDeliveries', preference: 'neutral', available: availability.epis },
+      { module: 'EPIs', label: 'Devoluções registradas', key: 'epiReturns', preference: 'neutral', available: availability.epis },
+      { module: 'EPIs', label: 'Descartes registrados', key: 'epiDisposals', preference: 'neutral', available: availability.epis },
+      { module: 'Ocorrências', label: 'Ocorrências registradas', key: 'occurrencesTotal', preference: 'lower', available: availability.occurrences },
+      { module: 'Ocorrências', label: 'Ocorrências médias / altas', key: 'occurrencesRelevant', preference: 'lower', available: availability.occurrences },
+      { module: 'Ocorrências', label: 'Registros cancelados', key: 'occurrencesCancelled', preference: 'neutral', available: availability.occurrences },
+      { module: 'Matriz', label: 'Regras criadas', key: 'matrixRulesCreated', preference: 'neutral', available: availability.matrix }
+    ].map(definition => {
+      const current = currentMetrics[definition.key];
+      const previous = previousMetrics[definition.key];
+      return { ...definition, current, previous, comparison: comparisonResult(current, previous, definition.preference, definition.available) };
+    });
+  }
+
   function render() {
     const current = state();
     if (!current || !byId('execEmployees')) return;
@@ -210,6 +420,7 @@
     const collections = current.collections.filter(collection => employeeIds.has(String(collection.employeeId)));
     const occurrences = current.risks.filter(occurrence => recordMatches(occurrence, employeeMap.get(String(occurrence.employeeId)), selected));
     const movements = current.epiMovements.filter(movement => recordMatches(movement, employeeMap.get(String(movement.employeeId)), selected));
+    const trainingRecords = current.trainingRecords.filter(record => employeeIds.has(String(record.employeeId)));
     const trainings = trainingRows(current, employees);
     const epiRequirements = epiRequirementRows(current, employees);
 
@@ -251,6 +462,31 @@
     const matrixTraining = matrixRules.filter(rule => rule.type === 'Treinamento').length;
     const matrixEpi = matrixRules.filter(rule => rule.type === 'EPI').length;
     const employeesWithRules = employees.filter(employee => current.matrixRules.some(rule => ruleMatchesEmployee(rule, employee))).length;
+
+    const comparisonSources = { collections, occurrences, movements, trainingRecords, matrixRules };
+    const availableDates = [
+      ...collections.map(item => item.date),
+      ...occurrences.flatMap(item => [item.date, item.cancelledAt]),
+      ...movements.map(item => item.date),
+      ...trainingRecords.map(item => item.date),
+      ...matrixRules.map(item => item.createdAt || item.effective)
+    ];
+    const selectedRange = analysisRange(selected, availableDates);
+    const previousRange = comparisonRange(selectedRange, selected);
+    if (selected.datePreset !== 'custom') {
+      if (byId('execDateStart')) byId('execDateStart').value = selectedRange.start;
+      if (byId('execDateEnd')) byId('execDateEnd').value = selectedRange.end;
+    }
+    const currentPeriodMetrics = periodMetrics(comparisonSources, selectedRange);
+    const previousPeriodMetrics = periodMetrics(comparisonSources, previousRange);
+    const comparisonAvailability = {
+      collections: collections.length > 0,
+      trainings: trainingRecords.length > 0,
+      epis: movements.length > 0,
+      occurrences: occurrences.length > 0,
+      matrix: matrixRules.length > 0
+    };
+    const comparisons = comparisonDefinitions(currentPeriodMetrics, previousPeriodMetrics, comparisonAvailability);
 
     const collectionLevel = moduleLevel(collections.length > 0, collectionCritical, collectionAttention);
     const trainingLevel = moduleLevel(trainings.length > 0, trainingCritical, trainingAttention);
@@ -372,6 +608,72 @@
       text('execStatusText', `${criticalPriorities} prioridade(s) crítica(s), ${attentionPriorities} em atenção e ${moduleScores.length} de 5 módulo(s) com conformidade calculável.`);
     }
 
+    text('execAnalysisPeriodLabel', `Período analisado: ${formatRange(selectedRange)}`);
+    text('execComparisonPeriodLabel', `${selected.compareMode === 'previous-year' ? 'Mesmo período do ano anterior' : 'Período anterior equivalente'}: ${formatRange(previousRange)}`);
+    text('execComparisonBase', formatRange(previousRange));
+    const ongoingMonth = isOngoingMonth(selectedRange);
+    setBadge('execPeriodProgressBadge', ongoingMonth ? 'Inclui mês em andamento' : 'Período concluído', ongoingMonth ? 'attention' : 'good');
+
+    const comparisonByKey = key => comparisons.find(item => item.key === key);
+    renderComparisonTrend({ value: 'execCompareOccurrences', previous: 'execCompareOccurrencesPrevious', trend: 'execCompareOccurrencesTrend' }, comparisonByKey('occurrencesTotal'));
+    renderComparisonTrend({ value: 'execCompareCriticalCollections', previous: 'execCompareCriticalCollectionsPrevious', trend: 'execCompareCriticalCollectionsTrend' }, comparisonByKey('collectionsCritical'));
+    renderComparisonTrend({ value: 'execCompareTrainings', previous: 'execCompareTrainingsPrevious', trend: 'execCompareTrainingsTrend' }, comparisonByKey('trainingsCompleted'));
+    renderComparisonTrend({ value: 'execCompareGoodCollections', previous: 'execCompareGoodCollectionsPrevious', trend: 'execCompareGoodCollectionsTrend' }, comparisonByKey('collectionsGood'));
+
+    const managedComparisons = comparisons.filter(item => item.preference !== 'neutral' && item.available);
+    const improvedCount = managedComparisons.filter(item => item.comparison.result === 'improved').length;
+    const worsenedCount = managedComparisons.filter(item => item.comparison.result === 'worsened').length;
+    const stableCount = managedComparisons.filter(item => item.comparison.result === 'stable').length;
+    text('execImprovedCount', improvedCount);
+    text('execWorsenedCount', worsenedCount);
+    text('execStableCount', stableCount);
+    if (!managedComparisons.length) {
+      text('execComparisonSummary', 'Ainda não existem registros suficientes nos períodos escolhidos para interpretar a evolução. O painel mantém os resultados como N/D, sem considerar ausência de dados como melhora.');
+    } else {
+      const progressWarning = ongoingMonth ? ' O período atual inclui um mês em andamento e a comparação usa a mesma parcela do período anterior.' : '';
+      const conclusion = worsenedCount > improvedCount
+        ? 'A operação piorou em mais indicadores do que melhorou e merece revisão das causas.'
+        : improvedCount > worsenedCount
+          ? 'A operação melhorou em mais indicadores do que piorou; mantenha o acompanhamento dos pontos restantes.'
+          : 'A evolução está equilibrada entre avanços e pontos de atenção.';
+      text('execComparisonSummary', `${conclusion}${progressWarning}`);
+    }
+
+    byId('execComparisonTable').innerHTML = comparisons.map(item => {
+      const level = item.comparison.result === 'improved' ? 'good' : item.comparison.result === 'worsened' ? 'critical' : item.comparison.result === 'informative' ? 'attention' : 'unknown';
+      const currentValue = item.available ? item.current : '—';
+      const previousValue = item.available ? item.previous : '—';
+      return `<tr><td><strong>${escapeHtml(item.module)}</strong></td><td>${escapeHtml(item.label)}</td><td>${escapeHtml(currentValue)}</td><td>${escapeHtml(previousValue)}</td><td>${escapeHtml(item.comparison.variation)}</td><td>${badge(item.comparison.label, level)}</td></tr>`;
+    }).join('');
+
+    const selectedMonthKeys = monthKeys(selectedRange.start, selectedRange.end, 240);
+    const chartStart = selectedMonthKeys.length < 2 ? shiftMonths(startOfMonth(selectedRange.end), -5) : selectedRange.start;
+    const chartKeys = monthKeys(chartStart, selectedRange.end, 12);
+    const monthlyDatasets = [];
+    if (comparisonAvailability.occurrences) monthlyDatasets.push({
+      label: 'Ocorrências', data: monthCounts(occurrences, chartKeys, item => item.status !== 'CANCELLED'), borderColor: '#dc6c67', backgroundColor: 'rgba(220,108,103,.12)', tension: .3, borderWidth: 2
+    });
+    if (comparisonAvailability.collections) monthlyDatasets.push({
+      label: 'Coletas críticas', data: monthCounts(collections, chartKeys, item => normalizedStatus(item.status) === 'CRÍTICO'), borderColor: '#e0b84a', backgroundColor: 'rgba(224,184,74,.12)', tension: .3, borderWidth: 2
+    });
+    if (comparisonAvailability.trainings) monthlyDatasets.push({
+      label: 'Treinamentos realizados', data: monthCounts(trainingRecords, chartKeys), borderColor: '#72a875', backgroundColor: 'rgba(114,168,117,.12)', tension: .3, borderWidth: 2
+    });
+    if (comparisonAvailability.epis) monthlyDatasets.push({
+      label: 'Entregas de EPI', data: monthCounts(movements, chartKeys, item => item.status === 'Entregue'), borderColor: '#5c8fa8', backgroundColor: 'rgba(92,143,168,.12)', tension: .3, borderWidth: 2
+    });
+    text('execMonthlyChartTitle', selectedMonthKeys.length < 2 ? 'Evolução Mensal dos Registros · 6 meses de contexto' : 'Evolução Mensal dos Registros');
+    if (monthlyChart) monthlyChart.destroy();
+    monthlyChart = new window.Chart(byId('executiveMonthlyChart'), {
+      type: 'line',
+      data: { labels: chartKeys.map(monthLabel), datasets: monthlyDatasets },
+      options: {
+        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', boxWidth: 12 } }, tooltip: { mode: 'index', intersect: false } },
+        scales: { y: { beginAtZero: true, ticks: { color: '#9ca3af', precision: 0 }, grid: { color: 'rgba(255,255,255,.05)' } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } },
+        interaction: { mode: 'index', intersect: false }, maintainAspectRatio: false
+      }
+    });
+
     text('execPriorityCount', `${priorities.length} item(ns): ${criticalPriorities} crítico(s) e ${attentionPriorities} em atenção`);
     byId('execPriorityTable').innerHTML = priorities.length ? priorities.map(item => {
       const sector = sectorMap.get(String(item.employee?.sectorId));
@@ -383,7 +685,7 @@
       date: collection.date, createdAt: collection.createdAt || '', module: 'Coleta', record: resultLabel(collection, current),
       context: employeeMap.get(String(collection.employeeId))?.name || 'Colaborador não encontrado', status: normalizedStatus(collection.status)
     }));
-    current.trainingRecords.filter(record => employeeIds.has(String(record.employeeId))).forEach(record => activities.push({
+    trainingRecords.forEach(record => activities.push({
       date: record.date, createdAt: record.createdAt || '', module: 'Treinamento',
       record: trainingMap.get(String(record.trainingTypeId))?.name || 'Treinamento', context: employeeMap.get(String(record.employeeId))?.name || 'Colaborador não encontrado',
       status: dueStatus(record.due, 30)
@@ -405,9 +707,10 @@
         record: `${epiMap.get(String(purchase.epiId))?.name || 'EPI'} — ${purchase.quantity} unidade(s)`, context: purchase.technicalResponsible ? `Responsável: ${purchase.technicalResponsible}` : 'Empresa', status: 'REGISTRADA'
       }));
     }
-    activities.sort((left, right) => String(right.date || '').localeCompare(String(left.date || '')) || String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
-    const visibleActivities = activities.slice(0, 12);
-    text('execActivityCount', activities.length ? `Exibindo ${visibleActivities.length} de ${activities.length} movimentação(ões)` : 'Nenhuma movimentação encontrada');
+    const periodActivities = activities.filter(activity => dateInRange(activity.date, selectedRange));
+    periodActivities.sort((left, right) => String(right.date || '').localeCompare(String(left.date || '')) || String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+    const visibleActivities = periodActivities.slice(0, 12);
+    text('execActivityCount', periodActivities.length ? `Exibindo ${visibleActivities.length} de ${periodActivities.length} movimentação(ões) no período` : 'Nenhuma movimentação encontrada no período');
     byId('execActivityTable').innerHTML = visibleActivities.length ? visibleActivities.map(activity => {
       const normalized = normalizedStatus(activity.status);
       const level = activity.level || (activity.status === 'CANCELADA' || activity.status === 'REGISTRADA' ? 'unknown' : normalized === 'CRÍTICO' ? 'critical' : normalized === 'ATENÇÃO' ? 'attention' : 'good');
@@ -441,8 +744,58 @@
     });
   }
 
+  function stateEventDates(current) {
+    if (!current) return [];
+    return [
+      ...current.collections.map(item => item.date),
+      ...current.risks.flatMap(item => [item.date, item.cancelledAt]),
+      ...current.epiMovements.map(item => item.date),
+      ...current.trainingRecords.map(item => item.date),
+      ...current.matrixRules.map(item => item.createdAt || item.effective)
+    ];
+  }
+
+  function syncDateInputs() {
+    const preset = byId('execDatePreset');
+    const start = byId('execDateStart');
+    const end = byId('execDateEnd');
+    if (!preset || !start || !end) return;
+    const custom = preset.value === 'custom';
+    start.disabled = !custom;
+    end.disabled = !custom;
+    if (custom) {
+      if (!start.value || !end.value) {
+        start.value = startOfMonth(todayIso());
+        end.value = todayIso();
+      }
+      return;
+    }
+    const range = analysisRange({ ...filters(), datePreset: preset.value }, stateEventDates(state()));
+    start.value = range.start;
+    end.value = range.end;
+  }
+
+  function installPeriodEvents() {
+    const preset = byId('execDatePreset');
+    const start = byId('execDateStart');
+    const end = byId('execDateEnd');
+    const compare = byId('execCompareMode');
+    preset?.addEventListener('change', () => { syncDateInputs(); render(); });
+    start?.addEventListener('change', render);
+    end?.addEventListener('change', render);
+    compare?.addEventListener('change', render);
+    byId('execClear')?.addEventListener('click', () => {
+      if (preset) preset.value = 'current-month';
+      if (compare) compare.value = 'previous';
+      syncDateInputs();
+      render();
+    });
+  }
+
   function install() {
     window.NexusExecutiveDashboard = { render };
+    syncDateInputs();
+    installPeriodEvents();
     render();
   }
 

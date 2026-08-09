@@ -329,6 +329,40 @@
     .executive-section-title h3 { font-size:15px; }
     .executive-section-title p { color:var(--text-muted); font-size:11px; margin-top:4px; }
     .executive-activity { margin-top:24px; }
+    .executive-period-note {
+      display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+      border:1px solid rgba(224,184,74,.22); background:rgba(224,184,74,.055);
+      border-radius:var(--radius); padding:12px 14px; margin:0 0 18px;
+    }
+    .executive-period-note strong { font-size:12px; }
+    .executive-period-note div span { color:var(--text-muted); font-size:11px; }
+    .executive-comparison-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .executive-comparison-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+      padding:16px; box-shadow:var(--shadow); min-width:0;
+    }
+    .executive-comparison-card > span { display:block; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
+    .executive-comparison-value { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
+    .executive-comparison-value strong { font-size:25px; }
+    .executive-comparison-card small { display:block; color:var(--text-muted); font-size:10px; margin-top:7px; }
+    .executive-trend { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:10px; font-weight:700; white-space:nowrap; }
+    .executive-trend[data-result="improved"] { color:var(--good); background:var(--good-bg); }
+    .executive-trend[data-result="worsened"] { color:var(--critical); background:var(--critical-bg); }
+    .executive-trend[data-result="stable"] { color:var(--text-muted); background:var(--surface-subtle); }
+    .executive-trend[data-result="informative"] { color:var(--primary); background:rgba(224,184,74,.10); }
+    .executive-comparison-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:24px; margin-bottom:24px; }
+    .executive-comparison-chart { min-height:380px; }
+    .executive-comparison-chart canvas { max-height:285px; }
+    .executive-summary-box { height:100%; margin:0; }
+    .executive-summary-box h3 { margin-bottom:8px; }
+    .executive-summary-box > p { color:var(--text-muted); font-size:11px; line-height:1.55; margin-bottom:14px; }
+    .executive-summary-list { display:grid; gap:10px; }
+    .executive-summary-item { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .executive-summary-item:last-child { border-bottom:0; }
+    .executive-summary-item span { color:var(--text-muted); font-size:11px; }
+    .executive-summary-item strong { font-size:12px; text-align:right; }
+    .executive-comparison-table td:last-child { white-space:nowrap; }
+    #execDateStart:disabled, #execDateEnd:disabled { opacity:.72; cursor:not-allowed; }
     .executive-card[data-level="critical"] { border-color:rgba(220,108,103,.45); }
     .executive-card[data-level="attention"] { border-color:rgba(224,184,74,.42); }
     .executive-card[data-level="good"] { border-color:rgba(114,168,117,.42); }
@@ -347,12 +381,14 @@
       .nexus-profile { display:none; }
       .executive-cards { grid-template-columns:repeat(3,1fr); }
       .executive-module-grid { grid-template-columns:repeat(3,1fr); }
+      .executive-comparison-cards { grid-template-columns:repeat(2,1fr); }
     }
     @media (max-width: 900px) {
       .nexus-topbar { margin:-32px -32px 24px; grid-template-columns:1fr 1fr; }
       .nexus-topbar-title { grid-column:1/-1; }
       .executive-cards { grid-template-columns:repeat(2,1fr); }
       .executive-grid { grid-template-columns:1fr; }
+      .executive-comparison-grid { grid-template-columns:1fr; }
       .executive-module-grid { grid-template-columns:repeat(2,1fr); }
       .training-summary { grid-template-columns:repeat(2,1fr); }
     }
@@ -360,6 +396,7 @@
       .nexus-topbar { margin:-32px -32px 20px; grid-template-columns:1fr; }
       .executive-cards,.training-summary { grid-template-columns:1fr; }
       .executive-module-grid { grid-template-columns:1fr; }
+      .executive-comparison-cards { grid-template-columns:1fr; }
       .executive-status { align-items:flex-start; flex-direction:column; }
     }
 
@@ -772,7 +809,7 @@
 
       <div class="filter-panel">
         <div class="filter-heading">
-          <div><h3>Contexto da Operação</h3><p>Os indicadores operacionais respondem aos filtros; o estoque permanece consolidado para toda a empresa</p></div>
+          <div><h3>Contexto da Operação</h3><p>Filtre a situação atual e compare a evolução por período; o estoque permanece consolidado para toda a empresa</p></div>
           <button id="execClear" class="ghost" type="button">Limpar Filtros</button>
         </div>
         <div class="filters">
@@ -780,6 +817,10 @@
           <label>Setor<select id="execSector"></select></label>
           <label>Janela de Prazos<select id="execPeriod"><option value="all">Todos os prazos</option><option value="30">Próximos 30 dias</option><option value="expired">Somente vencidos</option></select></label>
           <label>Colaborador<select id="execEmployee"></select></label>
+          <label>Período de Análise<select id="execDatePreset"><option value="current-month">Mês atual</option><option value="previous-month">Mês anterior</option><option value="last-3-months">Últimos 3 meses</option><option value="last-6-months">Últimos 6 meses</option><option value="last-12-months">Últimos 12 meses</option><option value="custom">Período personalizado</option><option value="all">Todo o histórico</option></select></label>
+          <label>Data Inicial<input id="execDateStart" type="date" disabled></label>
+          <label>Data Final<input id="execDateEnd" type="date" disabled></label>
+          <label>Comparar Com<select id="execCompareMode"><option value="previous">Período anterior equivalente</option><option value="previous-year">Mesmo período do ano anterior</option></select></label>
         </div>
       </div>
 
@@ -801,7 +842,7 @@
 
       <div class="executive-section-title">
         <h3>Resultados por Módulo</h3>
-        <p>Resumo completo da operação, sem considerar ausência de dados como conformidade.</p>
+        <p>Situação atual da operação, sem considerar ausência de dados como conformidade.</p>
       </div>
       <div class="executive-module-grid">
         <div class="executive-module-card">
@@ -831,13 +872,45 @@
         <div class="chart-card"><h3>Distribuição das Prioridades</h3><canvas id="executivePriorityChart"></canvas></div>
       </div>
 
+      <div class="executive-section-title">
+        <h3>Evolução e Comparativo de Gestão</h3>
+        <p>Compara os registros realizados no período; pendências e prioridades acima continuam representando a situação atual.</p>
+      </div>
+      <div class="executive-period-note">
+        <div><strong id="execAnalysisPeriodLabel">Preparando período de análise...</strong><br><span id="execComparisonPeriodLabel">Preparando período de comparação...</span></div>
+        <span id="execPeriodProgressBadge" class="badge badge-sem">Período concluído</span>
+      </div>
+      <div class="executive-comparison-cards">
+        <div class="executive-comparison-card"><span>Ocorrências registradas</span><div class="executive-comparison-value"><strong id="execCompareOccurrences">0</strong><span id="execCompareOccurrencesTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareOccurrencesPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Coletas críticas</span><div class="executive-comparison-value"><strong id="execCompareCriticalCollections">0</strong><span id="execCompareCriticalCollectionsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareCriticalCollectionsPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Treinamentos realizados</span><div class="executive-comparison-value"><strong id="execCompareTrainings">0</strong><span id="execCompareTrainingsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareTrainingsPrevious">Período anterior: 0</small></div>
+        <div class="executive-comparison-card"><span>Coletas dentro do parâmetro</span><div class="executive-comparison-value"><strong id="execCompareGoodCollections">0</strong><span id="execCompareGoodCollectionsTrend" class="executive-trend" data-result="stable">Estável</span></div><small id="execCompareGoodCollectionsPrevious">Período anterior: 0</small></div>
+      </div>
+      <div class="executive-comparison-grid">
+        <div class="chart-card executive-comparison-chart"><h3 id="execMonthlyChartTitle">Evolução Mensal dos Registros</h3><canvas id="executiveMonthlyChart"></canvas></div>
+        <div class="card-box executive-summary-box">
+          <h3>Leitura Executiva</h3>
+          <p id="execComparisonSummary">Os indicadores serão interpretados conforme o período selecionado.</p>
+          <div class="executive-summary-list">
+            <div class="executive-summary-item"><span>Indicadores que melhoraram</span><strong id="execImprovedCount">0</strong></div>
+            <div class="executive-summary-item"><span>Indicadores que pioraram</span><strong id="execWorsenedCount">0</strong></div>
+            <div class="executive-summary-item"><span>Indicadores estáveis</span><strong id="execStableCount">0</strong></div>
+            <div class="executive-summary-item"><span>Base da comparação</span><strong id="execComparisonBase">Período anterior</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><div><h3>Comparativo por Indicador</h3><span>Menos riscos e pendências é melhora; mais ações preventivas e resultados conformes é melhora.</span></div></div>
+        <div class="table-wrap"><table class="table executive-comparison-table"><thead><tr><th>Módulo</th><th>Indicador</th><th>Período atual</th><th>Comparação</th><th>Variação</th><th>Leitura</th></tr></thead><tbody id="execComparisonTable"></tbody></table></div>
+      </div>
+
       <div class="table-card">
         <div class="table-header"><div><h3>Prioridades Integradas</h3><span id="execPriorityCount">0 itens exigem atenção</span></div></div>
         <div class="table-wrap"><table class="table"><thead><tr><th>Código / Origem</th><th>Colaborador / Setor</th><th>Descrição</th><th>Prazo</th><th>Status</th></tr></thead><tbody id="execPriorityTable"></tbody></table></div>
       </div>
 
       <div class="table-card executive-activity">
-        <div class="table-header"><div><h3>Atividade Recente</h3><span id="execActivityCount">0 movimentações encontradas</span></div></div>
+        <div class="table-header"><div><h3>Atividade do Período</h3><span id="execActivityCount">0 movimentações encontradas</span></div></div>
         <div class="table-wrap"><table class="table"><thead><tr><th>Data</th><th>Módulo</th><th>Registro</th><th>Colaborador / Contexto</th><th>Situação</th></tr></thead><tbody id="execActivityTable"></tbody></table></div>
       </div>
     </section>
