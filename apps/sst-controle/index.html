@@ -1331,7 +1331,7 @@
                 <th>Setor / Unidade</th>
                 <th>Tipo de Ocorrência</th>
                 <th>Severidade</th>
-                <th>Descrição</th>
+                <th>Descrição / Situação</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -1678,9 +1678,9 @@ document.addEventListener('DOMContentLoaded', () => {
     employees: [],
     exams: [],
     sectorExamRequirements: [],
-    occurrenceTypes: dataStore.get('sst_ctrl_occurrence_types_v1', []),
+    occurrenceTypes: [],
     collections: [],
-    risks: dataStore.get('sst_ctrl_risks_v1', []),
+    risks: [],
     epis: [],
     epiMovements: [],
     trainingTypes: [],
@@ -1689,11 +1689,6 @@ document.addEventListener('DOMContentLoaded', () => {
     epiPurchases: [],
     settings: dataStore.get('sst_ctrl_settings_v1', { schemaVersion: 5, tenantId: APP_CONFIG.tenantId })
   };
-
-  const completelyEmpty = ['collections','risks','epiMovements','trainingRecords','matrixRules'].every(k => !state[k].length);
-  if(completelyEmpty) {
-    state.occurrenceTypes = [{id:'ot1',name:'Quase-Acidente'},{id:'ot2',name:'Falha de Procedimento'}];
-  }
 
   // Apply theme & font
   document.body.setAttribute('data-theme', state.theme);
@@ -1726,7 +1721,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1751,6 +1746,12 @@ document.addEventListener('DOMContentLoaded', () => {
     else if(s.includes('MÉDIA')) cls = 'badge-atencao';
     else if(s.includes('BAIXA')) cls = 'badge-bom';
     return `<span class="badge ${cls}">${esc(severity)}</span>`;
+  }
+
+  function riskStatusBadge(status) {
+    return status === 'CANCELLED'
+      ? '<span class="badge badge-sem">Cancelada</span>'
+      : '<span class="badge badge-atencao">Registrada</span>';
   }
   
   function epiBadge(status, isActive = false) {
@@ -2052,7 +2053,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!el) return;
     const current = el.value;
     el.innerHTML = `<option value="">Selecione o Tipo de Ocorrência...</option>` + state.occurrenceTypes.map(ot => {
-      return `<option value="${esc(ot.name)}">${esc(ot.name)}</option>`;
+      return `<option value="${esc(ot.id)}">${esc(ot.name)}</option>`;
     }).join('');
     if([...el.options].some(o => o.value === current)) el.value = current;
   }
@@ -2117,12 +2118,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } else if(type === 'riscos') {
       title = "Relatório Consolidado de Riscos e Incidentes";
-      theadHTML = `<tr><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Descrição</th></tr>`;
+      theadHTML = `<tr><th>Data</th><th>Colaborador</th><th>Setor / Unidade</th><th>Tipo de Ocorrência</th><th>Severidade</th><th>Situação</th><th>Descrição / Motivo</th></tr>`;
       const data = state.risks.filter(risk => employee(risk.employeeId));
       tbodyHTML = data.length ? data.map(r => {
-        const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
-        return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${esc(r.desc)}</td></tr>`;
-      }).join('') : `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
+        const emp = employee(r.employeeId), sec = sector(r.sectorId || emp?.sectorId), un = unit(r.unitId || emp?.unitId);
+        const details = r.status === 'CANCELLED' ? `${r.desc} | Cancelamento: ${r.cancelReason || 'Motivo não informado no registro legado'}` : r.desc;
+        return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${riskStatusBadge(r.status)}</td><td>${esc(details)}</td></tr>`;
+      }).join('') : `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
 
     } else if(type === 'treinamentos') {
       title = "Relatório de Treinamentos";
@@ -2194,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
     $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
     if(window.NexusExams?.renderExamList) window.NexusExams.renderExamList(); else $('examList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
-    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
+    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong><small>Tipo ativo no Supabase</small></span><button type="button" class="ghost" onclick="deactivateOccurrenceType('${esc(ot.id)}')">Desativar</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
     
     // Catálogo e estoque calculado pelas compras. O prazo nunca fica no EPI, somente na Matriz.
     $('epiList').innerHTML = state.epis.length ? state.epis.map(e => {
@@ -2210,18 +2212,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('occurrenceTypeForm').onsubmit = e => {
     e.preventDefault();
-    state.occurrenceTypes.push({ id: uid(), name: $('ocTypeName').value.trim() });
-    e.target.reset();
-    save();
-    renderAll();
+    alert('Aguarde o carregamento dos tipos de ocorrência no Supabase.');
   };
 
   $('riskForm').onsubmit = e => {
     e.preventDefault();
-    state.risks.push({ id: uid(), employeeId: $('riskEmployee').value, type: $('riskType').value, severity: $('riskSeverity').value, date: $('riskDate').value, desc: $('riskDesc').value.trim() });
-    e.target.reset();
-    save();
-    renderAll();
+    alert('Aguarde o carregamento das ocorrências no Supabase.');
   };
 
   $('epiMovementForm').onsubmit = e => {
@@ -2233,16 +2229,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = state.risks.filter(risk => employee(risk.employeeId));
     $('riskCount').textContent = `${data.length} registro${data.length === 1 ? '' : 's'} encontrado${data.length === 1 ? '' : 's'}`;
     $('riskTable').innerHTML = data.length ? data.sort((a,b) => String(b.date).localeCompare(String(a.date))).map(r => {
-      const emp = employee(r.employeeId), sec = sector(emp?.sectorId), un = unit(emp?.unitId);
-      return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${esc(r.desc)}</td><td><button type="button" class="ghost" onclick="deleteRisk('${r.id}')">Excluir</button></td></tr>`;
+      const emp = employee(r.employeeId), sec = sector(r.sectorId || emp?.sectorId), un = unit(r.unitId || emp?.unitId);
+      const cancelled = r.status === 'CANCELLED';
+      const details = cancelled
+        ? `${esc(r.desc)}<small style="display:block;margin-top:6px">Motivo do cancelamento: ${esc(r.cancelReason || 'Não informado no registro legado')}</small>`
+        : esc(r.desc);
+      const action = cancelled
+        ? '<span class="badge badge-sem">Histórico preservado</span>'
+        : `<button type="button" class="ghost" onclick="cancelOccurrence('${esc(r.id)}')">Cancelar registro</button>`;
+      return `<tr><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${details}<div style="margin-top:8px">${riskStatusBadge(r.status)}</div></td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
   }
 
-  window.deleteRisk = id => {
-    state.risks = state.risks.filter(r => r.id != id);
-    save();
-    renderAll();
-  };
+  window.deleteRisk = id => window.cancelOccurrence?.(id);
   
   window.deleteEpiMove = id => window.NexusEpiDeliveries?.prepareReturn?.(id);
 
@@ -2516,12 +2515,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const trainings = requiredTrainingRows().filter(r => employeeIds.has(String(r.employee?.id)));
     const trainingCritical = trainings.filter(r => r.status === 'CRÍTICO');
     const epiAlerts = executiveEpiAlerts();
-    const highRisks = state.risks.filter(r => employeeIds.has(String(r.employeeId)) && String(r.severity).toUpperCase().includes('ALTA'));
+    const activeRisks = state.risks.filter(r => r.status !== 'CANCELLED' && employeeIds.has(String(r.employeeId)));
+    const highRisks = activeRisks.filter(r => String(r.severity).toUpperCase().includes('ALTA'));
     const collectionCompliance = collections.length ? Math.round(collections.filter(c => statusOf(c.status) === 'BOM').length / collections.length * 100) : 100;
     const trainingCompliance = trainings.length ? Math.round(trainings.filter(r => r.status === 'BOM').length / trainings.length * 100) : 100;
     const epiTotal = activeEpiMovements().filter(m => employeeIds.has(String(m.employeeId))).length;
     const epiCompliance = epiTotal ? Math.max(0,Math.round((epiTotal-epiAlerts.length)/epiTotal*100)) : 100;
-    const riskCompliance = state.risks.filter(r => employeeIds.has(String(r.employeeId))).length ? Math.max(0,100-highRisks.length*20) : 100;
+    const riskCompliance = activeRisks.length ? Math.max(0,100-highRisks.length*20) : 100;
     const score = Math.round((collectionCompliance+trainingCompliance+epiCompliance+riskCompliance)/4);
     $('execEmployees').textContent = employees.length;
     $('execCollectionsCritical').textContent = collectionCritical.length;
@@ -2609,6 +2609,8 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.employees;
         delete restoredData.matrixRules;
         delete restoredData.epiMovements;
+        delete restoredData.occurrenceTypes;
+        delete restoredData.risks;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2698,6 +2700,7 @@ if (logout) {
 <script src="supabase-epis.js"></script>
 <script src="supabase-control-matrix.js"></script>
 <script src="supabase-epi-deliveries.js"></script>
+<script src="supabase-occurrences.js"></script>
 <script src="supabase-company.js"></script>
 </body>
 </html>
