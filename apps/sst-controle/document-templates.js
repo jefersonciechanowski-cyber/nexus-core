@@ -38,7 +38,7 @@
       .document-header .company-brand { min-width:0; }
       .document-header .nexus-brand { text-align:right; }
       .company-logo { display:block; max-width:48mm; max-height:18mm; object-fit:contain; object-position:left center; }
-      .nexus-logo { display:block; width:62mm; max-width:100%; max-height:18mm; margin-left:auto; object-fit:contain; object-position:right center; }
+      .nexus-logo { display:block; width:50mm; max-width:100%; max-height:18mm; margin-left:auto; object-fit:contain; object-position:right center; }
       .logo-fallback { display:flex; align-items:center; min-height:14mm; color:var(--ink); font-weight:800; font-size:12pt; line-height:1.15; }
       .logo-fallback.nexus-logo { justify-content:flex-end; color:#9b7b28; }
       .header-divider { width:1px; height:15mm; background:var(--line); }
@@ -127,7 +127,7 @@
       .certificate-frame { min-height:194mm; border:1.2mm solid var(--ink); padding:2mm; position:relative; }
       .certificate-inner { min-height:187.5mm; border:.45mm solid var(--gold); padding:8mm 12mm 7mm; display:flex; flex-direction:column; }
       .certificate-brands { display:grid; grid-template-columns:1fr auto 1fr; gap:10mm; align-items:center; min-height:20mm; }
-      .certificate-brands .nexus-logo { width:62mm; }
+      .certificate-brands .nexus-logo { width:50mm; }
       .certificate-label { margin-top:5mm; color:#987620; text-align:center; font-size:8pt; font-weight:800; letter-spacing:.23em; text-transform:uppercase; }
       .certificate h1 { margin:2mm 0 1mm; text-align:center; font-size:25pt; letter-spacing:.03em; }
       .certificate-code { text-align:center; color:var(--muted); font-size:7.5pt; }
