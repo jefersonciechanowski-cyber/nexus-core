@@ -1815,9 +1815,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function activeEpiMovements() {
-    const latest = new Map();
-    [...state.epiMovements].sort((a,b) => String(a.date).localeCompare(String(b.date))).forEach(m => latest.set(`${m.employeeId}|${m.epiId}`, m));
-    return [...latest.values()].filter(m => m.status === 'Entregue' && employee(m.employeeId));
+    return state.epiMovements.filter(m =>
+      m.status === 'Entregue'
+      && m.isActive
+      && employee(m.employeeId)
+    );
   }
   function discardedEpiMovements() { return state.epiMovements.filter(m => m.status === 'Descartado'); }
   function totalPurchased(epiId) { return state.epiPurchases.filter(p => String(p.epiId) === String(epiId)).reduce((sum,p) => sum + Number(p.quantity || 0), 0); }
