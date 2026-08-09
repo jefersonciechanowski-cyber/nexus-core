@@ -14,6 +14,13 @@
     ONLINE: 'Online',
     HYBRID: 'Híbrido'
   };
+  const trainingKindLabels = {
+    INITIAL: 'Inicial',
+    PERIODIC: 'Periódico',
+    EVENTUAL: 'Eventual',
+    UNSPECIFIED: 'Não informado (registro legado)'
+  };
+  const recordSelect = 'id,record_code,employee_id,training_type_id,training_name,unit_id,sector_id,job_role_id,matrix_rule_id,applied_validity_days,completed_at,expires_at,certificate_number,certificate_path,instructor_name,instructor_entity,instructor_document,workload_hours,modality,training_location,program_content,notes,status,created_by,created_at,cancelled_at,cancel_reason,cancelled_by,training_kind,technical_responsible_name,technical_responsible_qualification,employee_name_snapshot,company_name_snapshot,company_registration_type_snapshot,company_registration_number_snapshot';
 
   function recordFromRow(row) {
     return {
@@ -39,6 +46,13 @@
       location: row.training_location || '',
       programContent: row.program_content || '',
       notes: row.notes || '',
+      trainingKind: row.training_kind || 'UNSPECIFIED',
+      technicalResponsible: row.technical_responsible_name || '',
+      technicalResponsibleQualification: row.technical_responsible_qualification || '',
+      employeeNameSnapshot: row.employee_name_snapshot || '',
+      companyNameSnapshot: row.company_name_snapshot || '',
+      companyRegistrationTypeSnapshot: row.company_registration_type_snapshot || '',
+      companyRegistrationNumberSnapshot: row.company_registration_number_snapshot || '',
       status: row.status,
       createdBy: row.created_by || '',
       createdAt: row.created_at,
@@ -65,6 +79,17 @@
     return 'BOM';
   }
 
+  function certificateReady(record) {
+    return Boolean(record
+      && record.status === 'COMPLETED'
+      && record.trainingKind !== 'UNSPECIFIED'
+      && record.programContent
+      && record.location
+      && record.instructorDocument
+      && record.technicalResponsible
+      && record.technicalResponsibleQualification);
+  }
+
   function errorMessage(error, fallback) {
     console.error(fallback, error);
     const cause = error?.cause || error;
@@ -76,7 +101,7 @@
       const rows = await window.NexusData.list({
         table: 'training_records',
         label: 'os registros de treinamento',
-        select: 'id,record_code,employee_id,training_type_id,training_name,unit_id,sector_id,job_role_id,matrix_rule_id,applied_validity_days,completed_at,expires_at,certificate_number,certificate_path,instructor_name,instructor_entity,instructor_document,workload_hours,modality,training_location,program_content,notes,status,created_by,created_at,cancelled_at,cancel_reason,cancelled_by',
+        select: recordSelect,
         order: { column: 'completed_at', ascending: false }
       });
 
@@ -101,6 +126,7 @@
     const employeeId = byId('trainingEmployee')?.value;
     const trainingTypeId = byId('trainingType')?.value;
     const completedAt = byId('trainingDate')?.value;
+    const trainingKind = byId('trainingKind')?.value;
     const certificateNumber = byId('trainingCertificate')?.value.trim();
     const instructorName = byId('trainingInstructor')?.value.trim();
     const instructorEntity = byId('trainingInstructorEntity')?.value.trim();
@@ -110,9 +136,11 @@
     const trainingLocation = byId('trainingLocation')?.value.trim();
     const programContent = byId('trainingContent')?.value.trim();
     const notes = byId('trainingNotes')?.value.trim();
+    const technicalResponsible = byId('trainingTechnicalResponsible')?.value.trim();
+    const technicalResponsibleQualification = byId('trainingTechnicalQualification')?.value.trim();
 
-    if (!employeeId || !trainingTypeId || !completedAt || !instructorName || !workloadHours || !modality) {
-      return window.alert('Informe colaborador, treinamento, data, instrutor, carga horária e modalidade.');
+    if (!employeeId || !trainingTypeId || !completedAt || !trainingKind || !instructorName || !instructorDocument || !workloadHours || !modality || !trainingLocation || !programContent || !technicalResponsible || !technicalResponsibleQualification) {
+      return window.alert('Preencha todos os dados obrigatórios do certificado: treinamento, natureza, data, instrutor e qualificação, carga horária, modalidade, local, conteúdo programático e responsável técnico com qualificação.');
     }
 
     if (completedAt > new Date().toISOString().slice(0, 10)) {
@@ -132,6 +160,7 @@
             employee_id: employeeId,
             training_type_id: trainingTypeId,
             completed_at: completedAt,
+            training_kind: trainingKind,
             certificate_number: certificateNumber || null,
             instructor_name: instructorName,
             instructor_entity: instructorEntity || null,
@@ -140,9 +169,11 @@
             modality,
             training_location: trainingLocation || null,
             program_content: programContent || null,
-            notes: notes || null
+            notes: notes || null,
+            technical_responsible_name: technicalResponsible,
+            technical_responsible_qualification: technicalResponsibleQualification
           },
-          select: 'id,record_code,employee_id,training_type_id,training_name,unit_id,sector_id,job_role_id,matrix_rule_id,applied_validity_days,completed_at,expires_at,certificate_number,certificate_path,instructor_name,instructor_entity,instructor_document,workload_hours,modality,training_location,program_content,notes,status,created_by,created_at,cancelled_at,cancel_reason,cancelled_by'
+          select: recordSelect
         });
 
         if (!rows[0]) throw new Error('O treinamento foi salvo, mas não pôde ser confirmado.');
@@ -179,7 +210,7 @@
             status: 'CANCELLED',
             cancel_reason: reason.trim()
           },
-          select: 'id,record_code,employee_id,training_type_id,training_name,unit_id,sector_id,job_role_id,matrix_rule_id,applied_validity_days,completed_at,expires_at,certificate_number,certificate_path,instructor_name,instructor_entity,instructor_document,workload_hours,modality,training_location,program_content,notes,status,created_by,created_at,cancelled_at,cancel_reason,cancelled_by'
+          select: recordSelect
         });
 
         if (!rows[0]) throw new Error('O cancelamento foi salvo, mas não pôde ser confirmado.');
@@ -230,17 +261,20 @@
       const cancelled = record.status === 'CANCELLED';
       const entity = record.instructorEntity ? ` · ${escapeHtml(record.instructorEntity)}` : '';
       const reason = cancelled ? `<br><small>Motivo: ${escapeHtml(record.cancelReason)}</small>` : '';
+      const readyForCertificate = certificateReady(record);
       const certificate = record.certificate
         ? escapeHtml(record.certificate)
-        : '<span style="color:var(--text-muted)">Será emitido na etapa documental</span>';
+        : (readyForCertificate
+          ? '<span class="badge badge-bom">Nexus disponível</span>'
+          : '<span style="color:var(--text-muted)">Dados documentais pendentes</span>');
       const action = cancelled
         ? '<span style="color:var(--text-muted)">Histórico preservado</span>'
-        : `<button type="button" class="ghost" onclick="cancelTrainingRecord('${escapeHtml(record.id)}')">Cancelar registro</button>`;
+        : `${readyForCertificate ? `<button type="button" class="ghost" onclick="window.NexusDocuments?.printTrainingCertificate('${escapeHtml(record.id)}')">Emitir certificado</button> ` : ''}<button type="button" class="ghost" onclick="cancelTrainingRecord('${escapeHtml(record.id)}')">Cancelar registro</button>`;
 
       return `<tr>
         <td><strong>${escapeHtml(record.code)}</strong><br><small>${formatDate(record.date)}</small></td>
         <td><strong>${escapeHtml(employee?.name || 'Colaborador não encontrado')}</strong></td>
-        <td>${escapeHtml(record.trainingName)}<br><small>Vence em ${formatDate(record.due)}</small></td>
+        <td>${escapeHtml(record.trainingName)}<br><small>${escapeHtml(trainingKindLabels[record.trainingKind] || record.trainingKind)} · vence em ${formatDate(record.due)}</small></td>
         <td>${escapeHtml(record.instructor)}${entity}<br><small>${escapeHtml(record.workloadHours)} h · ${escapeHtml(modalityLabels[record.modality] || record.modality)}</small></td>
         <td>${certificate}</td>
         <td>${cancelled ? '<span class="badge badge-sem">Cancelado</span>' : '<span class="badge badge-bom">Válido</span>'}${reason}</td>
@@ -258,7 +292,8 @@
       loadRecords,
       createRecord,
       cancelRecord,
-      renderHistory
+      renderHistory,
+      certificateReady
     };
     loadRecords();
   }

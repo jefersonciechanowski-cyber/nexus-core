@@ -524,6 +524,19 @@
     .modal-header h3 { font-size: 18px; font-weight: 600; }
     .modal-header button { background: var(--surface-subtle); color: var(--text); padding: 4px 10px; font-size: 16px; height: 32px; width: 32px; border-radius: 6px; border: 1px solid var(--border); box-shadow: none; }
 
+    .company-branding { margin-top:18px; padding:18px; border:1px solid var(--border); border-radius:10px; background:var(--surface-subtle); }
+    .company-branding-grid { display:grid; grid-template-columns:160px minmax(0,1fr); gap:18px; align-items:center; }
+    .company-logo-preview { min-height:92px; display:flex; align-items:center; justify-content:center; padding:12px; border:1px dashed var(--border); border-radius:9px; background:#fff; overflow:hidden; }
+    .company-logo-preview img { display:block; max-width:100%; max-height:84px; object-fit:contain; }
+    .company-logo-placeholder { color:#64748b; font-size:10px; line-height:1.45; text-align:center; }
+    .company-branding-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+    .company-branding-actions input[type="file"] { max-width:320px; }
+    .document-center { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(240px,.8fr); gap:18px; align-items:stretch; }
+    .document-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+    .document-readiness { border:1px solid var(--border); border-radius:9px; background:var(--surface-subtle); padding:15px; }
+    .document-readiness strong { display:block; margin-bottom:8px; font-size:12px; }
+    .document-readiness p { color:var(--text-muted); font-size:10px; line-height:1.55; }
+
     @media print {
       body { background: #fff !important; color: #000 !important; font-size: 11pt; }
       .sidebar, .page-header, .filter-panel, .subtabs, button, .table-header input, .no-print { display: none !important; }
@@ -589,6 +602,7 @@
       .table-header input { min-width:0; width:100%; }
       .modal-content { padding:19px; border-radius:12px; }
       .form { grid-template-columns:1fr !important; }
+      .company-branding-grid, .document-center { grid-template-columns:1fr; }
       .requirement-grid { grid-template-columns:1fr; }
       .subtabs { overflow-x:auto; flex-wrap:nowrap; padding-bottom:10px; }
       .subtab { white-space:nowrap; }
@@ -1085,6 +1099,23 @@
             <div style="grid-column: 1 / -1;"><button type="submit">Salvar Dados da Empresa</button></div>
           </form>
           <p id="companyFormMessage" class="form-helper" role="status" aria-live="polite"></p>
+          <div class="company-branding">
+            <div class="company-branding-grid">
+              <div id="companyLogoPreview" class="company-logo-preview">
+                <span class="company-logo-placeholder">A logo da empresa será exibida aqui.</span>
+              </div>
+              <div>
+                <h4 style="margin-bottom:6px;">Identidade nos Documentos</h4>
+                <p class="form-helper" style="margin:0;">Envie a logo oficial da empresa para os relatórios, dossiês de fiscalização e certificados. Formatos aceitos: PNG, JPG ou WebP, com até 2 MB.</p>
+                <div class="company-branding-actions">
+                  <input id="companyLogoInput" type="file" accept="image/png,image/jpeg,image/webp">
+                  <button id="companyLogoUpload" type="button">Salvar Logo</button>
+                  <button id="companyLogoRemove" type="button" class="ghost" hidden>Remover Logo</button>
+                </div>
+                <p id="companyLogoMessage" class="form-helper" role="status" aria-live="polite" style="margin:8px 0 0;"></p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1381,14 +1412,17 @@
           <select id="trainingEmployee" required></select>
           <select id="trainingType" required></select>
           <input id="trainingDate" type="date" title="Data de realização" required>
+          <select id="trainingKind" title="Natureza do treinamento" required><option value="">Tipo: inicial, periódico ou eventual</option><option value="INITIAL">Inicial</option><option value="PERIODIC">Periódico</option><option value="EVENTUAL">Eventual</option></select>
           <input id="trainingHours" type="number" min="0.5" step="0.5" placeholder="Carga horária" title="Carga horária em horas" required>
           <select id="trainingModality" title="Modalidade" required><option value="IN_PERSON">Presencial</option><option value="ONLINE">Online</option><option value="HYBRID">Híbrido</option></select>
-          <input id="trainingInstructor" placeholder="Instrutor / responsável" required>
+          <input id="trainingInstructor" placeholder="Nome do instrutor" required>
           <input id="trainingInstructorEntity" placeholder="Entidade / empresa do instrutor">
-          <input id="trainingInstructorDocument" placeholder="CPF, registro ou qualificação">
-          <input id="trainingLocation" placeholder="Local do treinamento">
+          <input id="trainingInstructorDocument" maxlength="240" placeholder="Qualificação / registro do instrutor" required>
+          <input id="trainingLocation" maxlength="240" placeholder="Local do treinamento" required>
+          <input id="trainingTechnicalResponsible" maxlength="180" placeholder="Responsável técnico do treinamento" required>
+          <input id="trainingTechnicalQualification" maxlength="240" placeholder="Qualificação / registro do responsável técnico" required>
           <input id="trainingCertificate" placeholder="Certificado externo (opcional)">
-          <textarea id="trainingContent" placeholder="Conteúdo programático para o certificado" style="grid-column:1 / -1;"></textarea>
+          <textarea id="trainingContent" maxlength="1200" placeholder="Conteúdo programático para o certificado (até 1.200 caracteres)" style="grid-column:1 / -1;" required></textarea>
           <input id="trainingNotes" placeholder="Observações / evidências">
           <div><button type="submit">Salvar Treinamento</button></div>
         </form>
@@ -1630,7 +1664,42 @@
     <section id="relatorios" class="tab-content">
       <div style="margin-bottom: 24px;">
         <h2>Relatórios Especializados</h2>
-        <p class="subtitle">Gere relatórios focados: Médias por Setor, Divisão por Turno, Histórico Completo ou Relatório Consolidado de Riscos.</p>
+        <p class="subtitle">Gere relatórios operacionais, certificados e um dossiê organizado para apresentação em fiscalizações.</p>
+      </div>
+
+      <div class="card-box no-print" style="max-width:100%; margin-bottom:18px;">
+        <div class="document-center">
+          <div>
+            <div class="filter-heading" style="margin-bottom:14px;">
+              <h3>Central de Documentos e Fiscalização</h3>
+              <p>Consolide a situação atual e os registros do período em um documento profissional com as marcas da empresa e do NexusSST.</p>
+            </div>
+            <div class="filters">
+              <label>Unidade
+                <select id="documentUnit"><option value="">Todas as unidades</option></select>
+              </label>
+              <label>Setor
+                <select id="documentSector"><option value="">Todos os setores</option></select>
+              </label>
+              <label>Colaborador
+                <select id="documentEmployee"><option value="">Todos os colaboradores</option></select>
+              </label>
+              <label>Data Inicial
+                <input id="documentStartDate" type="date">
+              </label>
+              <label>Data Final
+                <input id="documentEndDate" type="date">
+              </label>
+            </div>
+            <div class="document-actions">
+              <button id="generateInspectionDossier" type="button">Gerar Dossiê para Fiscalização</button>
+            </div>
+          </div>
+          <div id="documentReadiness" class="document-readiness">
+            <strong>Preparando central documental...</strong>
+            <p>Os dados da empresa e os registros operacionais serão verificados antes da emissão.</p>
+          </div>
+        </div>
       </div>
 
       <div class="filter-panel no-print">
@@ -1662,7 +1731,7 @@
 
       <div class="card-box card-stack no-print" style="max-width:100%; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
         <button id="exportCsv" style="height:44px;" type="button">Exportar Dados (Excel/CSV)</button>
-        <button id="printReport" class="ghost" style="height:44px;" type="button">Imprimir Relatório Profissional (PDF)</button>
+        <button id="printReport" class="ghost" style="height:44px;" type="button">Abrir Relatório Personalizado (PDF)</button>
       </div>
 
       <div class="report-print-header">
@@ -2273,7 +2342,7 @@ document.addEventListener('DOMContentLoaded', () => {
       title = "Relatório de Treinamentos";
       theadHTML = `<tr><th>Código</th><th>Colaborador</th><th>Unidade / Setor</th><th>Treinamento</th><th>Realização / Vencimento</th><th>Instrutor / Carga</th><th>Certificado</th><th>Status</th></tr>`;
       const data = requiredTrainingRows();
-      tbodyHTML = data.length ? data.map(r => `<tr><td><strong>${esc(r.record?.code || '—')}</strong></td><td><strong>${esc(r.employee?.name || '')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name || '—')} / ${esc(sector(r.employee?.sectorId)?.name || '—')}</td><td>${esc(r.rule.itemName)}</td><td>${esc(r.record?.date || 'Não realizado')}<br><small>Vence: ${esc(r.record?.due || '—')}</small></td><td>${esc(r.record?.instructor || '—')}<br><small>${r.record?.workloadHours ? `${esc(r.record.workloadHours)} h` : 'Carga não informada'}</small></td><td>${esc(r.record?.certificate || 'Emissão Nexus pendente')}</td><td>${statusBadge(r.status)}</td></tr>`).join('') : `<tr><td colspan="8" style="text-align:center;padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
+      tbodyHTML = data.length ? data.map(r => `<tr><td><strong>${esc(r.record?.code || '—')}</strong></td><td><strong>${esc(r.employee?.name || '')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name || '—')} / ${esc(sector(r.employee?.sectorId)?.name || '—')}</td><td>${esc(r.rule.itemName)}</td><td>${esc(r.record?.date || 'Não realizado')}<br><small>Vence: ${esc(r.record?.due || '—')}</small></td><td>${esc(r.record?.instructor || '—')}<br><small>${r.record?.workloadHours ? `${esc(r.record.workloadHours)} h` : 'Carga não informada'}</small></td><td>${r.record?.certificate ? `Externo: ${esc(r.record.certificate)}` : (r.record ? (window.NexusTrainingRecords?.certificateReady?.(r.record) ? 'Certificado Nexus disponível' : 'Dados documentais pendentes') : 'Não emitido')}</td><td>${statusBadge(r.status)}</td></tr>`).join('') : `<tr><td colspan="8" style="text-align:center;padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
     } else if(type === 'matriz') {
       title = "Relatório da Matriz de Controle";
       theadHTML = `<tr><th>Unidade</th><th>Setor</th><th>Função</th><th>Tipo</th><th>Requisito</th><th>Validade</th></tr>`;
@@ -2642,7 +2711,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitId=$('trainingUnit').value,sectorId=$('trainingSector').value,typeId=$('trainingFilterType').value,status=$('trainingStatus').value,q=$('trainingSearch').value.toLowerCase();
     let rows=requiredTrainingRows().filter(r=>(!unitId||String(r.employee?.unitId)===unitId)&&(!sectorId||String(r.employee?.sectorId)===sectorId)&&(!typeId||String(r.rule.itemId)===typeId)&&(!status||r.status===status)&&(!q||[r.employee?.name,r.rule.itemName].join(' ').toLowerCase().includes(q)));
     $('trainingKpiGood').textContent=rows.filter(r=>r.status==='BOM').length;$('trainingKpiAttention').textContent=rows.filter(r=>r.status==='ATENÇÃO').length;$('trainingKpiCritical').textContent=rows.filter(r=>r.status==='CRÍTICO'&&!r.missing).length;$('trainingKpiMissing').textContent=rows.filter(r=>r.missing).length;$('trainingCount').textContent=`${rows.length} requisito(s) encontrado(s)`;
-    $('trainingTable').innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td><strong>${esc(r.rule.itemName)}</strong>${r.record?.code?`<br><small>${esc(r.record.code)}</small>`:''}</td><td>${esc(r.record?.date||'Não realizado')}${r.record?.instructor?`<br><small>${esc(r.record.instructor)}</small>`:''}</td><td>${esc(r.record?.due||'—')}</td><td>${esc(r.record?.certificate||'Emissão Nexus pendente')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`<button type="button" class="ghost" onclick="cancelTrainingRecord('${r.record.id}')">Cancelar registro</button>`:'—'}</td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
+    $('trainingTable').innerHTML=rows.length?rows.map(r=>{const certificateAvailable=window.NexusTrainingRecords?.certificateReady?.(r.record);return `<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td><strong>${esc(r.rule.itemName)}</strong>${r.record?.code?`<br><small>${esc(r.record.code)}</small>`:''}</td><td>${esc(r.record?.date||'Não realizado')}${r.record?.instructor?`<br><small>${esc(r.record.instructor)}</small>`:''}</td><td>${esc(r.record?.due||'—')}</td><td>${r.record?.certificate?`Externo: ${esc(r.record.certificate)}`:(r.record?(certificateAvailable?'Disponível na emissão Nexus':'Dados documentais pendentes'):'Não emitido')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`${certificateAvailable?`<button type="button" class="ghost" onclick="window.NexusDocuments?.printTrainingCertificate('${r.record.id}')">Emitir certificado</button> `:''}<button type="button" class="ghost" onclick="cancelTrainingRecord('${r.record.id}')">Cancelar registro</button>`:'—'}</td></tr>`;}).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
   }
   function updateMatrixItems() {
     const type=$('matrixType').value,select=$('matrixItem'),custom=$('matrixCustomItem');
@@ -2723,6 +2792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderEpiDashboard();
     renderTrainingModule();
     window.NexusTrainingRecords?.renderHistory?.();
+    window.NexusDocuments?.render?.();
     renderMatrixModule();
     renderExecutive();
     renderEmployeeRequirementPreview();
@@ -2794,6 +2864,8 @@ if (logout) {
 <script src="supabase-epi-deliveries.js"></script>
 <script src="supabase-occurrences.js"></script>
 <script src="supabase-company.js"></script>
+<script src="document-templates.js"></script>
+<script src="supabase-documents.js"></script>
 <script src="supabase-executive-dashboard.js"></script>
 </body>
 </html>

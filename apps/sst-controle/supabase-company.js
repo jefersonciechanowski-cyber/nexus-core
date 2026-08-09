@@ -2,6 +2,9 @@
   'use strict';
 
   let installed = false;
+  let currentCompany = null;
+  let currentLogoUrl = '';
+  let logoUrlExpiresAt = 0;
 
   const byId = id => document.getElementById(id);
   const fields = [
@@ -64,6 +67,33 @@
     if (!element) return;
     element.textContent = text;
     element.style.color = isError ? 'var(--danger, #b91c1c)' : 'var(--success, #15803d)';
+  }
+
+  function setLogoMessage(text, isError = false) {
+    const element = byId('companyLogoMessage');
+    if (!element) return;
+    element.textContent = text;
+    element.style.color = isError ? 'var(--danger, #b91c1c)' : 'var(--success, #15803d)';
+  }
+
+  function renderLogo() {
+    const preview = byId('companyLogoPreview');
+    const removeButton = byId('companyLogoRemove');
+    if (!preview) return;
+    preview.innerHTML = currentLogoUrl
+      ? `<img src="${currentLogoUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}" alt="Logo da empresa cliente">`
+      : '<span class="company-logo-placeholder">Nenhuma logo cadastrada. A emissão personalizada ficará disponível após o envio da marca oficial.</span>';
+    if (removeButton) removeButton.hidden = !currentCompany?.logo_path;
+  }
+
+  async function loadLogoUrl(path) {
+    currentLogoUrl = '';
+    logoUrlExpiresAt = 0;
+    if (!path) return;
+    const { data, error } = await getClient().storage.from('sst-documents').createSignedUrl(path, 3600);
+    if (error) throw error;
+    currentLogoUrl = data?.signedUrl || '';
+    logoUrlExpiresAt = currentLogoUrl ? Date.now() + (55 * 60 * 1000) : 0;
   }
 
   function applyMasks() {
@@ -129,14 +159,87 @@
     try {
       setMessage('Carregando dados da empresa...');
       const organizationId = getOrganizationId();
-      const { data, error } = await getClient().from('organizations').select('id, name, ' + fields.join(', ')).eq('id', organizationId).single();
+      const { data, error } = await getClient().from('organizations').select('id, name, logo_path, ' + fields.join(', ')).eq('id', organizationId).single();
       if (error) throw error;
+      currentCompany = data;
+      try {
+        await loadLogoUrl(data.logo_path);
+      } catch (logoError) {
+        console.error('Falha ao carregar a logo da empresa.', logoError);
+        currentLogoUrl = '';
+        setLogoMessage('A logo cadastrada não pôde ser carregada.', true);
+      }
       fillForm(data);
+      renderLogo();
       setMessage('Dados da empresa carregados.');
+      document.dispatchEvent(new CustomEvent('nexus:company-loaded', { detail: { company: data } }));
+      return { ...data, logoUrl: currentLogoUrl };
     } catch (cause) {
       console.error('Falha ao carregar o cadastro legal da empresa.', cause);
       setMessage('Não foi possível carregar os dados da empresa.', true);
     }
+  }
+
+  async function uploadLogo() {
+    const input = byId('companyLogoInput');
+    const button = byId('companyLogoUpload');
+    const file = input?.files?.[0];
+    if (!file) return setLogoMessage('Selecione uma imagem antes de salvar.', true);
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return setLogoMessage('Use uma imagem PNG, JPG ou WebP.', true);
+    if (file.size > 2097152) return setLogoMessage('A imagem deve possuir no máximo 2 MB.', true);
+
+    button.disabled = true;
+    try {
+      const organizationId = String(currentCompany?.id || getOrganizationId()).toLowerCase();
+      const path = `${organizationId}/branding/company-logo`;
+      const { error: uploadError } = await getClient().storage.from('sst-documents').upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+        cacheControl: '3600'
+      });
+      if (uploadError) throw uploadError;
+      const { error: updateError } = await getClient().from('organizations').update({ logo_path: path }).eq('id', organizationId);
+      if (updateError) throw updateError;
+      input.value = '';
+      await load();
+      setLogoMessage('Logo salva e pronta para os documentos.');
+    } catch (cause) {
+      console.error('Falha ao salvar a logo da empresa.', cause);
+      setLogoMessage(cause.message || 'Não foi possível salvar a logo.', true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function removeLogo() {
+    if (!currentCompany?.logo_path) return;
+    if (!window.confirm('Remover a logo da empresa dos próximos documentos?')) return;
+    const button = byId('companyLogoRemove');
+    button.disabled = true;
+    try {
+      const organizationId = getOrganizationId();
+      const path = currentCompany.logo_path;
+      const { error: updateError } = await getClient().from('organizations').update({ logo_path: null }).eq('id', organizationId);
+      if (updateError) throw updateError;
+      const { error: removeError } = await getClient().storage.from('sst-documents').remove([path]);
+      if (removeError) console.error('A referência da logo foi removida, mas o arquivo antigo não pôde ser excluído.', removeError);
+      await load();
+      setLogoMessage('Logo removida. Envie uma nova marca para voltar a emitir documentos personalizados.');
+    } catch (cause) {
+      console.error('Falha ao remover a logo da empresa.', cause);
+      setLogoMessage(cause.message || 'Não foi possível remover a logo.', true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function getProfile() {
+    if (!currentCompany) await load();
+    if (currentCompany?.logo_path && Date.now() >= logoUrlExpiresAt) {
+      await loadLogoUrl(currentCompany.logo_path);
+      renderLogo();
+    }
+    return currentCompany ? { ...currentCompany, logoUrl: currentLogoUrl } : null;
   }
 
   async function submit(event) {
@@ -164,9 +267,11 @@
     if (!form) return;
     installed = true;
     form.addEventListener('submit', submit);
+    byId('companyLogoUpload')?.addEventListener('click', uploadLogo);
+    byId('companyLogoRemove')?.addEventListener('click', removeLogo);
     applyMasks();
   }
 
-  window.NexusCompany = { load };
+  window.NexusCompany = { load, getProfile, uploadLogo, removeLogo };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true }); else install();
 })();
