@@ -1375,7 +1375,7 @@
         </div>
       </div>
 
-      <div class="cards" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 24px;">
+      <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px;">
         <div class="card card-blue">
           <span>Total no Estoque (Livre)</span>
           <div class="card-main-val">
@@ -1398,11 +1398,18 @@
           <small>Vencidos ou a vencer (15 dias)</small>
         </div>
         <div class="card card-good">
-          <span>Total de Devoluções</span>
+          <span>Retornos ao Estoque</span>
           <div class="card-main-val">
             <strong id="kpiEpiReturned">0</strong>
           </div>
-          <small>Equipamentos já retornados</small>
+          <small>EPIs reutilizáveis devolvidos</small>
+        </div>
+        <div class="card card-critical">
+          <span>Descartes / Baixas</span>
+          <div class="card-main-val">
+            <strong id="kpiEpiDiscarded">0</strong>
+          </div>
+          <small>Não retornam ao estoque</small>
         </div>
       </div>
 
@@ -1437,16 +1444,18 @@
       </div>
 
       <div class="card-box">
-        <h3 style="margin-bottom: 14px; font-size: 14px; font-weight: 600;">Registrar Entrega / Devolução de EPI</h3>
+        <h3 style="margin-bottom: 14px; font-size: 14px; font-weight: 600;">Registrar Entrega / Finalizar Uso de EPI</h3>
         <form id="epiMovementForm" class="form" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
           <select id="epiMoveEmp" required></select>
           <select id="epiMoveEpi" required></select>
           <input id="epiMoveDate" type="date" title="Data da Movimentação" required>
           <select id="epiMoveStatus" required>
             <option value="Entregue">Entregar ao Colaborador (Sai do Estoque)</option>
-            <option value="Devolvido">Registrar Devolução / Descarte</option>
+            <option value="Devolvido">Retornar ao Estoque (EPI Reutilizável)</option>
+            <option value="Descartado">Descartar / Dar Baixa (Não Retorna)</option>
           </select>
-          <div><button type="submit">Salvar Movimentação</button></div>
+          <input id="epiMoveReason" placeholder="Motivo / condição do EPI" style="display:none;">
+          <div><button type="submit">Salvar Entrega</button></div>
         </form>
         <div id="epiMoveRulePreview" class="requirements-preview compact"></div>
       </div>
@@ -1673,7 +1682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     collections: [],
     risks: dataStore.get('sst_ctrl_risks_v1', []),
     epis: [],
-    epiMovements: dataStore.get('sst_ctrl_epimoves_v1', []),
+    epiMovements: [],
     trainingTypes: [],
     trainingRecords: dataStore.get('sst_ctrl_trainingRecords_v1', []),
     matrixRules: [],
@@ -1717,7 +1726,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 
   function save() {
-    ['parameters','occurrenceTypes','risks','epiMovements','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
+    ['parameters','occurrenceTypes','risks','trainingRecords','settings'].forEach(key => dataStore.set(`sst_ctrl_${key}_v1`, state[key]));
   }
   function uid() { return Date.now() + Math.random(); }
 
@@ -1744,10 +1753,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<span class="badge ${cls}">${esc(severity)}</span>`;
   }
   
-  function epiBadge(status) {
+  function epiBadge(status, isActive = false) {
     const s = String(status || '').toUpperCase();
-    if(s.includes('ENTRE')) return `<span class="badge badge-atencao">Em Uso</span>`;
-    if(s.includes('DEV') || s.includes('DESC')) return `<span class="badge badge-bom">Devolvido</span>`;
+    if(s.includes('ENTRE')) {
+      return isActive
+        ? `<span class="badge badge-atencao">Em Uso</span>`
+        : `<span class="badge badge-sem">Entrega registrada</span>`;
+    }
+    if(s.includes('DESC')) return `<span class="badge badge-critico">Descartado / Baixa</span>`;
+    if(s.includes('DEV')) return `<span class="badge badge-bom">Retornou ao Estoque</span>`;
     return `<span class="badge badge-sem">${esc(status)}</span>`;
   }
 
@@ -1805,12 +1819,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function activeEpiMovements() {
-    const latest = new Map();
-    [...state.epiMovements].sort((a,b) => String(a.date).localeCompare(String(b.date))).forEach(m => latest.set(`${m.employeeId}|${m.epiId}`, m));
-    return [...latest.values()].filter(m => m.status === 'Entregue' && employee(m.employeeId));
+    return state.epiMovements.filter(m =>
+      m.status === 'Entregue'
+      && m.isActive
+      && employee(m.employeeId)
+    );
   }
+  function discardedEpiMovements() { return state.epiMovements.filter(m => m.status === 'Descartado'); }
   function totalPurchased(epiId) { return state.epiPurchases.filter(p => String(p.epiId) === String(epiId)).reduce((sum,p) => sum + Number(p.quantity || 0), 0); }
-  function currentStock(epiId) { return totalPurchased(epiId) - activeEpiMovements().filter(m => String(m.epiId) === String(epiId)).length; }
+  function currentStock(epiId) {
+    const active = activeEpiMovements().filter(m => String(m.epiId) === String(epiId)).length;
+    const discarded = discardedEpiMovements().filter(m => String(m.epiId) === String(epiId)).length;
+    return totalPurchased(epiId) - active - discarded;
+  }
   function latestTechnicalResponsible(epiId) {
     const purchase = [...state.epiPurchases]
       .filter(p => p.technicalResponsible && (!epiId || String(p.epiId) === String(epiId)))
@@ -1872,6 +1893,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function populateEpiMoveOptions() {
     const emp = employee($('epiMoveEmp').value);
+    const movementStatus = $('epiMoveStatus').value;
+    const isClosure = movementStatus !== 'Entregue';
+    if (isClosure) {
+      const activeItems = activeEpiMovements()
+        .filter(move => String(move.employeeId) === String(emp?.id))
+        .map(move => epi(move.epiId))
+        .filter(Boolean);
+      const uniqueItems = [...new Map(activeItems.map(item => [String(item.id), item])).values()];
+      renderSelect('epiMoveEpi', uniqueItems, uniqueItems.length ? 'Selecione o EPI em uso...' : 'Nenhum EPI em uso para finalizar');
+      const instruction = movementStatus === 'Descartado'
+        ? 'O EPI será descartado e continuará abatido do estoque. Informe obrigatoriamente o motivo da baixa.'
+        : 'Use esta opção somente se o EPI puder ser reutilizado. A unidade voltará ao estoque disponível.';
+      $('epiMoveRulePreview').innerHTML = emp
+        ? (uniqueItems.length
+          ? `<div class="requirements-empty">${instruction} O histórico da entrega será preservado.</div>`
+          : '<div class="requirements-empty">Este colaborador não possui EPI em uso para finalizar.</div>')
+        : '<div class="requirements-empty">Selecione um colaborador para carregar os EPIs em uso.</div>';
+      return;
+    }
+
     const rules = emp ? requirementsForEmployee(emp).filter(r => r.type==='EPI') : [];
     const items = rules.map(r => epi(r.itemId)).filter(Boolean);
     renderSelect('epiMoveEpi', items, items.length ? 'Selecione o EPI obrigatório...' : 'Nenhum EPI obrigatório na Matriz');
@@ -2185,16 +2226,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('epiMovementForm').onsubmit = e => {
     e.preventDefault();
-    const employeeId=$('epiMoveEmp').value, epiId=$('epiMoveEpi').value, date=$('epiMoveDate').value, status=$('epiMoveStatus').value;
-    if(status==='Entregue') {
-      const rule=matchingMatrixRules(employee(employeeId),'EPI',epiId)[0];
-      if(!rule || !Number(rule.validity)) { alert('Não existe prazo de troca na Matriz para este EPI, setor e função. Cadastre a regra antes da entrega.'); return; }
-      if(currentStock(epiId)<=0) { alert('Não há estoque disponível para este EPI. Registre uma compra antes da entrega.'); return; }
-      state.epiMovements.push({id:uid(),employeeId,epiId,date,status,appliedValidity:Number(rule.validity),matrixRuleId:rule.id,dueDate:addDaysISO(date,rule.validity)});
-    } else {
-      state.epiMovements.push({id:uid(),employeeId,epiId,date,status});
-    }
-    e.target.reset(); save(); renderAll();
+    alert('Aguarde o carregamento das entregas de EPIs no Supabase.');
   };
 
   function renderRiskTable() {
@@ -2212,11 +2244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   };
   
-  window.deleteEpiMove = id => {
-    state.epiMovements = state.epiMovements.filter(m => m.id != id);
-    save();
-    renderAll();
-  };
+  window.deleteEpiMove = id => window.NexusEpiDeliveries?.prepareReturn?.(id);
 
   function renderCollectionTable() {
     window.NexusCollections?.renderCollectionTable?.();
@@ -2274,10 +2302,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeFilteredMovements = filteredMovements.filter(m => activeIds.has(m.id));
     const active = activeFilteredMovements.length;
     const returned = filteredMovements.filter(m => m.status === 'Devolvido').length;
+    const discarded = filteredMovements.filter(m => m.status === 'Descartado').length;
     
     $('kpiEpiTotalStock').textContent = totalStock;
     $('kpiEpiActive').textContent = active;
     $('kpiEpiReturned').textContent = returned;
+    $('kpiEpiDiscarded').textContent = discarded;
 
     // ALERTA DE TROCAS (baseado nas movimentações filtradas)
     const today = new Date();
@@ -2333,7 +2363,12 @@ document.addEventListener('DOMContentLoaded', () => {
     $('epiMovementTable').innerHTML = filteredMovements.length ? filteredMovements.sort((a,b) => String(b.date).localeCompare(String(a.date))).map(m => {
       const emp = employee(m.employeeId);
       const e = epi(m.epiId);
-      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status)}</td><td><button type="button" class="ghost" onclick="deleteEpiMove('${m.id}')">Excluir</button></td></tr>`;
+      const responsible = m.technicalResponsible ? `<br><small>Responsável técnico: ${esc(m.technicalResponsible)}</small>` : '';
+      const reason = m.returnReason ? `<br><small>Motivo: ${esc(m.returnReason)}</small>` : '';
+      const action = m.status === 'Entregue' && m.isActive
+        ? `<button type="button" class="ghost" onclick="prepareEpiClosure('${esc(m.deliveryId)}')">Finalizar uso</button>`
+        : '<span style="color:var(--text-muted)">Histórico preservado</span>';
+      return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status, m.isActive)}${responsible}${reason}</td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma movimentação de EPI encontrada com os filtros atuais.</td></tr>`;
 
     // Gráfico de EPIs filtrado
@@ -2573,6 +2608,7 @@ document.addEventListener('DOMContentLoaded', () => {
         delete restoredData.jobRoles;
         delete restoredData.employees;
         delete restoredData.matrixRules;
+        delete restoredData.epiMovements;
         Object.assign(state, restoredData);
         save();
         renderAll();
@@ -2661,6 +2697,7 @@ if (logout) {
 <script src="supabase-training-types.js"></script>
 <script src="supabase-epis.js"></script>
 <script src="supabase-control-matrix.js"></script>
+<script src="supabase-epi-deliveries.js"></script>
 <script src="supabase-company.js"></script>
 </body>
 </html>
