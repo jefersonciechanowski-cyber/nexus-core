@@ -39,6 +39,13 @@ function trustedOrigin(request: Request) {
   }
 }
 
+async function ensureBrazilTaxId(stripe: Stripe, customerId: string, registrationNumber: string) {
+  const taxType = registrationNumber.length === 14 ? 'br_cnpj' : 'br_cpf';
+  const existing = await stripe.customers.listTaxIds(customerId, { limit: 100 });
+  const found = existing.data.some((item: any) => item.type === taxType && digits(item.value) === registrationNumber);
+  if (!found) await stripe.customers.createTaxId(customerId, { type: taxType as any, value: registrationNumber });
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -101,9 +108,7 @@ Deno.serve(async request => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existingCheckout?.provider_checkout_url) {
-    return json({ checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true, provider: 'stripe', environment });
-  }
+  if (existingCheckout?.provider_checkout_url) return json({ checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true, provider: 'stripe', environment });
 
   const registrationNumber = digits(organization?.registration_number);
   if (![11, 14].includes(registrationNumber.length)) return json({ error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
@@ -129,10 +134,13 @@ Deno.serve(async request => {
           nexus_access_id: access.id,
           nexus_organization_id: access.organization_id,
           registration_type: registrationNumber.length === 14 ? 'CNPJ' : 'CPF',
+          registration_number: registrationNumber,
         },
       });
       customerId = customer.id;
     }
+
+    await ensureBrazilTaxId(stripe, customerId, registrationNumber);
 
     const { error: customerSaveError } = await adminClient
       .from('organization_product_access')
@@ -168,7 +176,6 @@ Deno.serve(async request => {
       mode: 'subscription',
       customer: customerId,
       client_reference_id: checkoutId,
-      payment_method_types: ['card'],
       success_url: `${callback}?pagamento=sucesso&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${callback}?pagamento=cancelado`,
       line_items: [{
