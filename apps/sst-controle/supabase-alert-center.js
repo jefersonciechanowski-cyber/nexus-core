@@ -22,7 +22,23 @@
   function session() { try { return JSON.parse(sessionStorage.getItem('nexus_demo_session') || '{}'); } catch { return {}; } }
   function readableError(error, fallback = 'Não foi possível concluir a operação.') {
     const cause = error?.cause;
-    return cause?.message || cause?.details || error?.message || fallback;
+    const raw = cause?.message || cause?.details || error?.message || '';
+    const text = String(raw);
+
+    if (/notification_email_preferences/i.test(text) && /(could not find the table|schema cache|pgrst205)/i.test(text)) {
+      return 'A tabela de preferências de e-mail ainda não foi criada no Supabase. Aplique a atualização de banco do PR #36 e tente novamente.';
+    }
+    if (/notification_delivery_logs/i.test(text) && /(could not find the table|schema cache|pgrst205)/i.test(text)) {
+      return 'A tabela de histórico de envios ainda não foi criada no Supabase. Aplique a atualização de banco do PR #36 e tente novamente.';
+    }
+    if (/send-alert-emails/i.test(text) && /(not found|404|function)/i.test(text)) {
+      return 'A função de envio de e-mails ainda não foi publicada no Supabase.';
+    }
+    if (/failed to fetch|networkerror|network request failed/i.test(text)) {
+      return 'Não foi possível conectar ao serviço agora. Verifique a conexão e tente novamente.';
+    }
+
+    return text && !/[A-Za-z]{3,}\s[A-Za-z]{3,}/.test(text) ? text : fallback;
   }
 
   function configureAlertButton() {
