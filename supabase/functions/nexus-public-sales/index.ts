@@ -48,9 +48,23 @@ function stripeMessage(error: unknown) {
   return clean(value?.raw?.message || value?.message || 'Não foi possível comunicar com a Stripe.', 700);
 }
 
-async function sendLeadNotification(admin: any, resendKey: string | undefined, fromEmail: string | undefined, sale: any, planName: string) {
+async function ensureBrazilTaxId(stripe: Stripe, customerId: string, registrationType: string, registrationNumber: string) {
+  const taxType = registrationType === 'CNPJ' ? 'br_cnpj' : 'br_cpf';
+  try {
+    const existing = await stripe.customers.listTaxIds(customerId, { limit: 100 });
+    const found = existing.data.some((item: any) => item.type === taxType && digits(item.value) === registrationNumber);
+    if (!found) await stripe.customers.createTaxId(customerId, { type: taxType as any, value: registrationNumber });
+  } catch (error) {
+    throw new Error(`Não foi possível validar o CPF/CNPJ na Stripe: ${stripeMessage(error)}`);
+  }
+}
+
+async function sendLeadNotification(admin: any, sale: any, planName: string) {
+  const resendKey = Deno.env.get('RESEND_API_KEY');
+  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL');
   if (!resendKey || !fromEmail) return;
-  const { data: admins } = await admin.from('profiles').select('id,full_name').eq('role', 'nexus_admin').eq('active', true).limit(1);
+
+  const { data: admins } = await admin.from('profiles').select('id').eq('role', 'nexus_admin').eq('active', true).limit(1);
   const profile = admins?.[0];
   if (!profile?.id) return;
   const { data: userData } = await admin.auth.admin.getUserById(profile.id);
@@ -60,7 +74,6 @@ async function sendLeadNotification(admin: any, resendKey: string | undefined, f
   const subject = sale.sale_status === 'checkout_created'
     ? `Nova contratação iniciada · ${clean(sale.company_name, 100)}`
     : `Novo lead Nexus SST · ${clean(sale.company_name, 100)}`;
-
   const html = `
     <div style="font-family:Arial,sans-serif;color:#172026;line-height:1.55">
       <h2>${sale.sale_status === 'checkout_created' ? 'Nova contratação iniciada' : 'Novo lead pelo site'}</h2>
@@ -127,9 +140,7 @@ Deno.serve(async request => {
   const honeypot = clean(body.website, 100);
 
   if (honeypot) return json({ ok: true });
-  if (companyName.length < 2 || responsibleName.length < 2 || !validEmail(email)) {
-    return json({ error: 'Preencha empresa, responsável e e-mail válidos.' }, 400);
-  }
+  if (companyName.length < 2 || responsibleName.length < 2 || !validEmail(email)) return json({ error: 'Preencha empresa, responsável e e-mail válidos.' }, 400);
 
   const { data: product } = await admin.from('nexus_products').select('id,name,code').eq('code', 'sst').eq('status', 'active').maybeSingle();
   if (!product?.id) return json({ error: 'Produto indisponível.' }, 503);
@@ -166,7 +177,7 @@ Deno.serve(async request => {
     }).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
     if (error || !sale) return json({ error: 'Não foi possível registrar seu interesse.' }, 500);
 
-    await sendLeadNotification(admin, Deno.env.get('RESEND_API_KEY'), Deno.env.get('RESEND_FROM_EMAIL'), sale, plan?.name || planCode);
+    await sendLeadNotification(admin, sale, plan?.name || planCode);
     return json({ ok: true, saleId: sale.id });
   }
 
@@ -174,9 +185,7 @@ Deno.serve(async request => {
   if (!stripeSecretKey) return json({ error: 'Checkout temporariamente indisponível.' }, 503);
   if (!body.acceptedTerms) return json({ error: 'Confirme os dados e a cobrança recorrente para continuar.' }, 400);
   if (!plan?.id || !plan.public_visible || Number(plan.price_cents) <= 0) return json({ error: 'Este plano exige atendimento comercial.' }, 409);
-  if (plan.employee_limit && employeeCount > Number(plan.employee_limit)) {
-    return json({ error: 'A quantidade de colaboradores informada ultrapassa o limite deste plano.' }, 409);
-  }
+  if (plan.employee_limit && employeeCount > Number(plan.employee_limit)) return json({ error: 'A quantidade de colaboradores informada ultrapassa o limite deste plano.' }, 409);
 
   const registrationNumber = digits(body.registrationNumber);
   const registrationType = registrationNumber.length === 14 ? 'CNPJ' : registrationNumber.length === 11 ? 'CPF' : '';
@@ -190,18 +199,14 @@ Deno.serve(async request => {
 
   if (!registrationType) return json({ error: 'Informe um CPF ou CNPJ válido.' }, 400);
   if (phone.length < 10) return json({ error: 'Informe um telefone válido.' }, 400);
-  if (postalCode.length !== 8 || !street || !streetNumber || !district || !city || !states.has(state)) {
-    return json({ error: 'Preencha o endereço completo para gerar a cobrança.' }, 400);
-  }
+  if (postalCode.length !== 8 || !street || !streetNumber || !district || !city || !states.has(state)) return json({ error: 'Preencha o endereço completo para gerar a cobrança.' }, 400);
 
   const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
   const [{ count: recentEmail }, { count: recentRegistration }] = await Promise.all([
     admin.from('nexus_sales').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', tenMinutesAgo),
     admin.from('nexus_sales').select('id', { count: 'exact', head: true }).eq('registration_number', registrationNumber).gte('created_at', tenMinutesAgo),
   ]);
-  if ((recentEmail || 0) >= 5 || (recentRegistration || 0) >= 5) {
-    return json({ error: 'Muitas tentativas recentes. Aguarde alguns minutos e tente novamente.' }, 429);
-  }
+  if ((recentEmail || 0) >= 5 || (recentRegistration || 0) >= 5) return json({ error: 'Muitas tentativas recentes. Aguarde alguns minutos e tente novamente.' }, 429);
 
   const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
   const { data: reusable } = await admin.from('nexus_sales')
@@ -281,11 +286,13 @@ Deno.serve(async request => {
           nexus_sale_id: saleId,
           nexus_source: 'site-captacao',
           registration_type: registrationType,
+          registration_number: registrationNumber,
         },
       });
       customerId = customer.id;
     }
 
+    await ensureBrazilTaxId(stripe, customerId, registrationType, registrationNumber);
     await admin.from('nexus_sales').update({ provider_customer_id: customerId }).eq('id', saleId);
 
     const callback = `${origin}/apps/site-captacao/obrigado.html?venda=${saleId}`;
@@ -294,7 +301,6 @@ Deno.serve(async request => {
       mode: 'subscription',
       customer: customerId,
       client_reference_id: saleId,
-      payment_method_types: ['card'],
       success_url: `${callback}&resultado=sucesso&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${callback}&resultado=cancelado`,
       line_items: [{
@@ -333,7 +339,7 @@ Deno.serve(async request => {
       last_error: null,
     }).eq('id', saleId).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
 
-    if (saved) await sendLeadNotification(admin, Deno.env.get('RESEND_API_KEY'), Deno.env.get('RESEND_FROM_EMAIL'), saved, plan.name);
+    if (saved) await sendLeadNotification(admin, saved, plan.name);
     return json({ saleId, link: session.url, environment, provider: 'stripe' });
   } catch (error) {
     const message = stripeMessage(error);
