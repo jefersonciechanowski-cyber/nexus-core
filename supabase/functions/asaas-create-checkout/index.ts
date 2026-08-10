@@ -59,7 +59,7 @@ Deno.serve(async request => {
 
   const { data: profile, error: profileError } = await userClient
     .from('profiles')
-    .select('organization_id,role,name')
+    .select('organization_id,role,full_name')
     .eq('id', user.id)
     .single();
   if (profileError || !profile?.organization_id) return json({ error: 'Perfil sem organização.' }, 403);
@@ -138,7 +138,7 @@ Deno.serve(async request => {
       value: price,
     }],
     customerData: {
-      name: clean(profile.name || user.user_metadata?.name || organization?.name || user.email, 100),
+      name: clean(profile.full_name || user.user_metadata?.name || organization?.name || user.email, 100),
       email: clean(user.email, 150),
     },
     subscription: { cycle, nextDueDate: `${dueDate}T12:00:00-03:00` },
