@@ -35,10 +35,10 @@ O contrato usado durante os testes do PR #40 permanece preservado como plano leg
 
 Novas vendas usam:
 
-- Nexus SST Essencial — R$ 197,00/mês — até 50 colaboradores ativos;
-- Nexus SST Profissional — R$ 397,00/mês — até 200 colaboradores ativos;
-- Nexus SST Empresarial — R$ 697,00/mês — até 500 colaboradores ativos;
-- Nexus SST Corporativo — acima de 500 colaboradores — sob consulta.
+- Nexus SST Essencial — R$ 97,00/mês — até 50 colaboradores ativos;
+- Nexus SST Profissional — R$ 197,00/mês — até 100 colaboradores ativos;
+- Nexus SST Empresarial — R$ 297,00/mês — até 250 colaboradores ativos;
+- Nexus SST Corporativo — acima de 250 colaboradores — sob consulta.
 
 A diferenciação comercial da V1 é principalmente pelo volume de colaboradores ativos; os módulos principais permanecem disponíveis nas faixas publicadas.
 
