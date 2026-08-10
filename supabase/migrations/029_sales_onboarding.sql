@@ -25,7 +25,7 @@ select
   'essencial',
   'Nexus SST Essencial',
   'Gestão completa de SST para operações com até 50 colaboradores ativos.',
-  19700,
+  9700,
   'BRL',
   1,
   'active',
