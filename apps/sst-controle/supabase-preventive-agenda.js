@@ -113,7 +113,7 @@
     $('preventiveToday').onclick = () => { calendarDate = new Date(); render(); };
     const originalRender = window.NEXUS_SST_APP.render;
     window.NEXUS_SST_APP.render = (...args) => { const result = originalRender(...args); render(); return result; };
-    window.NexusPreventiveAgenda = { render };
+    window.NexusPreventiveAgenda = { render, getDeadlines: buildDeadlines, openModule };
     render();
   }
 
