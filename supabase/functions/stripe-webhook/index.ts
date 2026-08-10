@@ -9,6 +9,12 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const clean = (value: unknown, size = 500) => String(value ?? '').trim().slice(0, size);
 const dateFromUnix = (value: unknown) => Number(value) > 0 ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : null;
 
+function addMonthsDate(months: number) {
+  const date = new Date();
+  date.setUTCMonth(date.getUTCMonth() + Math.max(1, Number(months) || 1));
+  return date.toISOString().slice(0, 10);
+}
+
 function escapeHtml(value: unknown) {
   return clean(value, 500)
     .replace(/&/g, '&amp;')
@@ -82,7 +88,7 @@ async function findSale(admin: any, criteria: { saleId?: string | null; checkout
 }
 
 async function findAccess(admin: any, criteria: { accessId?: string | null; subscriptionId?: string | null; customerId?: string | null }) {
-  const columns = 'id,organization_id,product_id,plan_id,renews_at,contracted_price_cents,contracted_currency,plan:nexus_plans(id,name,billing_interval_months,status)';
+  const columns = 'id,organization_id,product_id,plan_id,renews_at,contracted_price_cents,contracted_currency,billing_mode,billing_cycle_months,plan:nexus_plans(id,name,billing_interval_months,status)';
   if (criteria.accessId) {
     const { data } = await admin.from('organization_product_access').select(columns).eq('id', criteria.accessId).maybeSingle();
     if (data) return data;
@@ -98,10 +104,24 @@ async function findAccess(admin: any, criteria: { accessId?: string | null; subs
   return null;
 }
 
+async function auditEmailFailure(admin: any, sale: any, reason: string) {
+  await admin.from('audit_logs').insert({
+    organization_id: sale.organization_id || null,
+    user_id: sale.user_id || null,
+    action: 'NEXUS_ONBOARDING_EMAIL_FAILED',
+    entity: 'nexus_sales',
+    entity_id: sale.id,
+    metadata: { email: sale.email, provider: 'resend', reason: clean(reason, 700) },
+  });
+}
+
 async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   const fromEmail = Deno.env.get('RESEND_FROM_EMAIL');
-  if (!resendKey || !fromEmail || !sale?.email) return false;
+  if (!resendKey || !fromEmail || !sale?.email) {
+    await auditEmailFailure(admin, sale, 'RESEND_API_KEY, RESEND_FROM_EMAIL ou e-mail do cliente ausente.');
+    return false;
+  }
 
   const { data: previous } = await admin.from('audit_logs')
     .select('id')
@@ -116,7 +136,10 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
   const redirectTo = `${publicUrl}/apps/portal-cliente/redefinir-senha.html`;
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email: sale.email, options: { redirectTo } });
   const actionLink = linkData?.properties?.action_link;
-  if (linkError || !actionLink) return false;
+  if (linkError || !actionLink) {
+    await auditEmailFailure(admin, sale, linkError?.message || 'Supabase não gerou o link de primeiro acesso.');
+    return false;
+  }
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#182126;line-height:1.6;max-width:620px;margin:auto">
@@ -135,7 +158,10 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: fromEmail, to: [sale.email], subject: 'Seu acesso ao Nexus SST está pronto', html }),
   });
-  if (!response.ok) return false;
+  if (!response.ok) {
+    await auditEmailFailure(admin, sale, `Resend ${response.status}: ${clean(await response.text(), 500)}`);
+    return false;
+  }
 
   await admin.from('audit_logs').insert({
     organization_id: sale.organization_id || null,
@@ -236,22 +262,30 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
     return { access: null, error: 'Perfil não criado.' };
   }
 
+  const billingMode = sale.billing_mode === 'prepaid' ? 'prepaid' : 'recurring';
+  const billingCycleMonths = Math.max(1, Number(sale.billing_cycle_months || plan.billing_interval_months || 1));
+  const contractedPrice = Math.max(0, Number(sale.checkout_amount_cents || plan.price_cents || 0));
+  const renewsAt = context.renewsAt || (billingMode === 'prepaid' ? addMonthsDate(billingCycleMonths) : null);
+  const planName = billingMode === 'prepaid' ? `${plan.name} · Anual à vista` : plan.name;
+
   let { data: access } = await admin.from('organization_product_access').select('id,organization_id,plan_id,renews_at').eq('organization_id', organizationId).eq('product_id', plan.product_id).maybeSingle();
   const accessPayload: Record<string, unknown> = {
     plan_id: plan.id,
-    plan_name: plan.name,
-    contracted_price_cents: plan.price_cents,
+    plan_name: planName,
+    contracted_price_cents: contractedPrice,
     contracted_currency: plan.currency || 'BRL',
+    billing_mode: billingMode,
+    billing_cycle_months: billingCycleMonths,
     subscription_status: 'active',
     access_status: 'active',
     billing_provider: 'stripe',
     provider_customer_id: sale.provider_customer_id || context.customerId || null,
-    provider_subscription_id: sale.provider_subscription_id || context.subscriptionId || null,
+    provider_subscription_id: billingMode === 'prepaid' ? null : (sale.provider_subscription_id || context.subscriptionId || null),
     last_payment_status: context.eventType || 'checkout.session.completed',
     last_payment_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
-  if (context.renewsAt) accessPayload.renews_at = context.renewsAt;
+  if (renewsAt) accessPayload.renews_at = renewsAt;
 
   if (!access?.id) {
     const { data: createdAccess, error: accessError } = await admin.from('organization_product_access').insert({ organization_id: organizationId, product_id: plan.product_id, starts_at: new Date().toISOString().slice(0, 10), ...accessPayload }).select('id,organization_id,plan_id,renews_at').single();
@@ -277,11 +311,11 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
         provider_checkout_id: sale.provider_checkout_id,
         provider_checkout_url: sale.provider_checkout_url,
         provider_customer_id: sale.provider_customer_id || context.customerId || null,
-        provider_subscription_id: sale.provider_subscription_id || context.subscriptionId || null,
+        provider_subscription_id: billingMode === 'prepaid' ? null : (sale.provider_subscription_id || context.subscriptionId || null),
         status: 'paid',
-        amount_cents: plan.price_cents,
+        amount_cents: contractedPrice,
         currency: plan.currency || 'BRL',
-        billing_interval_months: plan.billing_interval_months,
+        billing_interval_months: billingCycleMonths,
         completed_at: new Date().toISOString(),
       });
     }
@@ -293,7 +327,7 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
     organization_id: organizationId,
     user_id: userId,
     provider_customer_id: sale.provider_customer_id || context.customerId || null,
-    provider_subscription_id: sale.provider_subscription_id || context.subscriptionId || null,
+    provider_subscription_id: billingMode === 'prepaid' ? null : (sale.provider_subscription_id || context.subscriptionId || null),
     paid_at: sale.paid_at || provisionedAt,
     provisioned_at: sale.provisioned_at || provisionedAt,
     last_error: null,
@@ -301,7 +335,7 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
 
   sale.organization_id = organizationId;
   sale.user_id = userId;
-  await admin.from('audit_logs').insert({ organization_id: organizationId, user_id: userId, action: 'NEXUS_SALE_PROVISIONED', entity: 'nexus_sales', entity_id: sale.id, metadata: { plan_id: plan.id, product_id: plan.product_id, provider: 'stripe' } });
+  await admin.from('audit_logs').insert({ organization_id: organizationId, user_id: userId, action: 'NEXUS_SALE_PROVISIONED', entity: 'nexus_sales', entity_id: sale.id, metadata: { plan_id: plan.id, product_id: plan.product_id, provider: 'stripe', billing_mode: billingMode, billing_cycle_months: billingCycleMonths } });
   await sendFirstAccessEmail(admin, sale, plan);
   return { access, error: null };
 }
@@ -350,6 +384,7 @@ Deno.serve(async request => {
       const accessId = clean(session.metadata?.nexus_access_id, 80) || null;
       const internalCheckoutId = clean(session.metadata?.nexus_checkout_id, 80) || null;
       const expired = eventType === 'checkout.session.expired';
+      const paid = !expired && session.payment_status === 'paid';
       let renewsAt: string | null = null;
 
       if (subscriptionId && !expired) {
@@ -362,8 +397,8 @@ Deno.serve(async request => {
           provider_customer_id: customerId || undefined,
           provider_subscription_id: subscriptionId || undefined,
           provider_checkout_url: clean(session.url, 1000) || undefined,
-          status: expired ? 'expired' : 'paid',
-          completed_at: expired ? null : new Date().toISOString(),
+          status: expired ? 'expired' : paid ? 'paid' : 'active',
+          completed_at: paid ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         });
         query = internalCheckoutId ? query.eq('id', internalCheckoutId) : query.eq('provider', 'stripe').eq('provider_checkout_id', checkoutId);
@@ -375,14 +410,93 @@ Deno.serve(async request => {
         if (sale?.id) {
           const patch: Record<string, unknown> = { provider_checkout_id: checkoutId, provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId || undefined, provider_checkout_url: clean(session.url, 1000) || undefined, last_error: null };
           if (expired) patch.sale_status = 'expired';
-          else if (session.payment_status === 'paid') { patch.sale_status = 'paid'; patch.paid_at = new Date().toISOString(); }
+          else if (paid) { patch.sale_status = 'paid'; patch.paid_at = new Date().toISOString(); }
           await admin.from('nexus_sales').update(patch).eq('id', sale.id);
-          if (!expired && session.payment_status === 'paid') await provisionSale(admin, { ...sale, ...patch }, { customerId, subscriptionId, renewsAt, eventType });
+          if (paid) await provisionSale(admin, { ...sale, ...patch }, { customerId, subscriptionId, renewsAt, eventType });
         }
-      } else if (accessId && !expired) {
+      } else if (accessId && paid) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
-        if (access?.id && session.payment_status === 'paid') {
+        if (access?.id) {
           await admin.from('organization_product_access').update({ billing_provider: 'stripe', provider_customer_id: customerId, provider_subscription_id: subscriptionId, subscription_status: 'active', access_status: 'active', last_payment_status: eventType, last_payment_at: new Date().toISOString(), renews_at: renewsAt || undefined, updated_at: new Date().toISOString() }).eq('id', access.id);
+        }
+      }
+    }
+
+    if (eventType === 'checkout.session.async_payment_succeeded' || eventType === 'checkout.session.async_payment_failed') {
+      const session: any = resource;
+      const checkoutId = clean(session.id, 255);
+      const customerId = clean(session.customer, 255) || null;
+      const subscriptionId = clean(session.subscription, 255) || null;
+      const saleId = clean(session.metadata?.nexus_sale_id, 80) || null;
+      const accessId = clean(session.metadata?.nexus_access_id, 80) || null;
+      const internalCheckoutId = clean(session.metadata?.nexus_checkout_id, 80) || null;
+      const succeeded = eventType === 'checkout.session.async_payment_succeeded';
+
+      if (internalCheckoutId || checkoutId) {
+        let query = admin.from('nexus_payment_checkouts').update({
+          provider_customer_id: customerId || undefined,
+          provider_subscription_id: subscriptionId || undefined,
+          status: succeeded ? 'paid' : 'failed',
+          completed_at: succeeded ? new Date().toISOString() : null,
+          error_message: succeeded ? null : 'Pagamento por boleto não confirmado antes do vencimento.',
+          updated_at: new Date().toISOString(),
+        });
+        query = internalCheckoutId ? query.eq('id', internalCheckoutId) : query.eq('provider', 'stripe').eq('provider_checkout_id', checkoutId);
+        await query;
+      }
+
+      if (saleId) {
+        let sale = await findSale(admin, { saleId, checkoutId, subscriptionId, customerId });
+        if (sale?.id) {
+          if (!succeeded) {
+            await admin.from('nexus_sales').update({ sale_status: 'expired', last_error: 'Boleto vencido ou pagamento não concluído.' }).eq('id', sale.id);
+          } else {
+            const salePatch: Record<string, unknown> = { sale_status: 'paid', paid_at: new Date().toISOString(), provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId || undefined, last_error: null };
+            await admin.from('nexus_sales').update(salePatch).eq('id', sale.id);
+            sale = { ...sale, ...salePatch };
+            let renewsAt: string | null = null;
+            if (sale.billing_mode === 'prepaid') renewsAt = addMonthsDate(Number(sale.billing_cycle_months || 12));
+            else if (subscriptionId) {
+              try { renewsAt = subscriptionPeriodEnd(await stripe.subscriptions.retrieve(subscriptionId)); } catch { /* invoice/subscription event reconciles later */ }
+            }
+            const provisioned = await provisionSale(admin, sale, { customerId, subscriptionId, renewsAt, eventType });
+            if (sale.billing_mode === 'prepaid' && provisioned.access?.id) {
+              const eventTime = new Date().toISOString();
+              const providerPaymentId = clean(session.payment_intent || session.id, 255);
+              const { data: checkoutRow } = await admin.from('nexus_payment_checkouts').select('id').eq('provider', 'stripe').eq('provider_checkout_id', checkoutId).maybeSingle();
+              await admin.from('nexus_payments').upsert({
+                organization_id: provisioned.access.organization_id,
+                access_id: provisioned.access.id,
+                checkout_id: checkoutRow?.id || null,
+                provider: 'stripe',
+                provider_payment_id: providerPaymentId,
+                provider_subscription_id: null,
+                provider_customer_id: customerId,
+                billing_type: 'boleto',
+                provider_status: 'paid',
+                amount_cents: Number(session.amount_total || sale.checkout_amount_cents || 0),
+                net_amount_cents: null,
+                currency: String(session.currency || 'brl').toUpperCase(),
+                due_date: null,
+                confirmed_at: eventTime,
+                received_at: eventTime,
+                external_reference: sale.external_reference || null,
+                invoice_url: null,
+                updated_at: eventTime,
+              }, { onConflict: 'provider_payment_id' });
+            }
+          }
+        }
+      } else if (accessId) {
+        const access = await findAccess(admin, { accessId, subscriptionId, customerId });
+        if (access?.id) {
+          await admin.from('organization_product_access').update({
+            subscription_status: succeeded ? 'active' : 'past_due',
+            access_status: succeeded ? 'active' : 'suspended',
+            last_payment_status: eventType,
+            last_payment_at: succeeded ? new Date().toISOString() : undefined,
+            updated_at: new Date().toISOString(),
+          }).eq('id', access.id);
         }
       }
     }
@@ -413,6 +527,8 @@ Deno.serve(async request => {
         const eventTime = new Date().toISOString();
         const amount = Number(invoice.amount_paid ?? invoice.amount_due ?? invoice.total ?? 0);
         const dueDate = dateFromUnix(invoice.due_date);
+        const methods = Array.isArray(invoice.payment_settings?.payment_method_types) ? invoice.payment_settings.payment_method_types : [];
+        const billingType = methods.includes('boleto') ? 'boleto' : 'card';
         await admin.from('nexus_payments').upsert({
           organization_id: access.organization_id,
           access_id: access.id,
@@ -420,7 +536,7 @@ Deno.serve(async request => {
           provider_payment_id: clean(invoice.id, 255),
           provider_subscription_id: subscriptionId,
           provider_customer_id: customerId,
-          billing_type: 'card',
+          billing_type: billingType,
           provider_status: clean(invoice.status || eventType, 120),
           amount_cents: Math.max(0, amount),
           net_amount_cents: null,
@@ -433,8 +549,17 @@ Deno.serve(async request => {
           updated_at: eventTime,
         }, { onConflict: 'provider_payment_id' });
 
-        const update: Record<string, unknown> = { billing_provider: 'stripe', provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId || undefined, subscription_status: paid ? 'active' : 'past_due', last_payment_status: eventType, last_payment_due_date: dueDate, updated_at: eventTime };
-        if (paid) { update.access_status = 'active'; update.last_payment_at = eventTime; }
+        const update: Record<string, unknown> = {
+          billing_provider: 'stripe',
+          provider_customer_id: customerId || undefined,
+          provider_subscription_id: subscriptionId || undefined,
+          subscription_status: paid ? 'active' : 'past_due',
+          access_status: paid ? 'active' : 'suspended',
+          last_payment_status: eventType,
+          last_payment_due_date: dueDate,
+          updated_at: eventTime,
+        };
+        if (paid) update.last_payment_at = eventTime;
         if (renewsAt) update.renews_at = renewsAt;
         await admin.from('organization_product_access').update(update).eq('id', access.id);
       }
@@ -457,7 +582,8 @@ Deno.serve(async request => {
         const patch: Record<string, unknown> = { billing_provider: 'stripe', provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId, updated_at: new Date().toISOString() };
         if (renewsAt) patch.renews_at = renewsAt;
         if (internalStatus) patch.subscription_status = internalStatus;
-        if (internalStatus === 'cancelled') patch.access_status = 'suspended';
+        if (internalStatus === 'cancelled' || internalStatus === 'past_due') patch.access_status = 'suspended';
+        if (internalStatus === 'active' || internalStatus === 'trial') patch.access_status = 'active';
         await admin.from('organization_product_access').update(patch).eq('id', access.id);
       }
     }
