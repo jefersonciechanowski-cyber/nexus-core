@@ -32,6 +32,19 @@ function callbackBase(request: Request) {
   }
 }
 
+async function asaasRequest(baseUrl: string, apiKey: string, path: string, init: RequestInit = {}) {
+  return fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'access_token': apiKey,
+      'User-Agent': 'NexusCore/1.0 (Supabase Edge Function)',
+      ...(init.headers || {}),
+    },
+  });
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -67,7 +80,7 @@ Deno.serve(async request => {
 
   const { data: access, error: accessError } = await userClient
     .from('organization_product_access')
-    .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,organization:organizations(name,registration_number,phone),product:nexus_products(name),plan:nexus_plans(id,name,billing_interval_months,status)')
+    .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,asaas_customer_id,organization:organizations(name,legal_name,trade_name,registration_number,email,phone,postal_code,street,street_number,address_complement,district),product:nexus_products(name),plan:nexus_plans(id,name,billing_interval_months,status)')
     .eq('id', accessId)
     .single();
   if (accessError || !access) return json({ error: 'Assinatura não encontrada ou sem permissão.' }, 404);
@@ -98,8 +111,61 @@ Deno.serve(async request => {
   const product = Array.isArray(access.product) ? access.product[0] : access.product;
   const cpfCnpj = digits(organization?.registration_number);
   const phone = digits(organization?.phone);
+  const postalCode = digits(organization?.postal_code);
   if (![11, 14].includes(cpfCnpj.length)) {
     return json({ error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
+  }
+
+  const customerExternalReference = `nexus-org-${access.organization_id}`;
+  let asaasCustomerId = clean(access.asaas_customer_id, 200);
+
+  try {
+    if (!asaasCustomerId) {
+      const params = new URLSearchParams({
+        limit: '1',
+        cpfCnpj,
+        externalReference: customerExternalReference,
+      });
+      const lookupResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, `/customers?${params.toString()}`, { method: 'GET' });
+      const lookupResult = await lookupResponse.json();
+      if (lookupResponse.ok && Array.isArray(lookupResult?.data) && lookupResult.data[0]?.id) {
+        asaasCustomerId = clean(lookupResult.data[0].id, 200);
+      }
+    }
+
+    if (!asaasCustomerId) {
+      const customerPayload: Record<string, unknown> = {
+        name: clean(organization?.legal_name || organization?.trade_name || organization?.name || profile.full_name || user.email, 100),
+        cpfCnpj,
+        email: clean(organization?.email || user.email, 150),
+        externalReference: customerExternalReference,
+      };
+      if (phone.length >= 10) customerPayload.mobilePhone = phone;
+      if (postalCode.length === 8) customerPayload.postalCode = postalCode;
+      if (clean(organization?.street, 120)) customerPayload.address = clean(organization?.street, 120);
+      if (clean(organization?.street_number, 30)) customerPayload.addressNumber = clean(organization?.street_number, 30);
+      if (clean(organization?.address_complement, 255)) customerPayload.complement = clean(organization?.address_complement, 255);
+      if (clean(organization?.district, 100)) customerPayload.province = clean(organization?.district, 100);
+
+      const customerResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, '/customers', {
+        method: 'POST',
+        body: JSON.stringify(customerPayload),
+      });
+      const customerResult = await customerResponse.json();
+      if (!customerResponse.ok || !customerResult?.id) {
+        const message = clean(customerResult?.errors?.[0]?.description || customerResult?.message || 'Não foi possível cadastrar o cliente no Asaas.', 700);
+        return json({ error: message }, customerResponse.status >= 400 && customerResponse.status < 500 ? 400 : 502);
+      }
+      asaasCustomerId = clean(customerResult.id, 200);
+    }
+
+    const { error: customerSaveError } = await adminClient
+      .from('organization_product_access')
+      .update({ asaas_customer_id: asaasCustomerId })
+      .eq('id', access.id);
+    if (customerSaveError) return json({ error: 'Cliente criado no Asaas, mas não foi possível salvar o vínculo no Nexus.' }, 500);
+  } catch {
+    return json({ error: 'Não foi possível criar ou localizar o cliente no Asaas.' }, 502);
   }
 
   const checkoutId = crypto.randomUUID();
@@ -118,6 +184,7 @@ Deno.serve(async request => {
     provider: 'asaas',
     environment,
     external_reference: externalReference,
+    provider_customer_id: asaasCustomerId,
     status: 'created',
     amount_cents: access.contracted_price_cents,
     currency: access.contracted_currency || 'BRL',
@@ -127,13 +194,6 @@ Deno.serve(async request => {
   if (insertError) return json({ error: 'Não foi possível iniciar o checkout.' }, 500);
 
   const callback = `${origin}/apps/portal-cliente/`;
-  const customerData: Record<string, string> = {
-    name: clean(profile.full_name || user.user_metadata?.name || organization?.name || user.email, 100),
-    cpfCnpj,
-    email: clean(user.email, 150),
-  };
-  if (phone.length >= 10) customerData.phone = phone;
-
   const payload = {
     billingTypes: ['CREDIT_CARD'],
     chargeTypes: ['RECURRENT'],
@@ -151,19 +211,13 @@ Deno.serve(async request => {
       quantity: 1,
       value: price,
     }],
-    customerData,
+    customer: asaasCustomerId,
     subscription: { cycle, nextDueDate: `${dueDate}T12:00:00-03:00` },
   };
 
   try {
-    const response = await fetch(`${asaasBaseUrl}/checkouts`, {
+    const response = await asaasRequest(asaasBaseUrl, asaasApiKey, '/checkouts', {
       method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        'access_token': asaasApiKey,
-        'User-Agent': 'NexusCore/1.0 (Supabase Edge Function)',
-      },
       body: JSON.stringify(payload),
     });
     const result = await response.json();
@@ -179,11 +233,12 @@ Deno.serve(async request => {
     await adminClient.from('nexus_payment_checkouts').update({
       provider_checkout_id: clean(result.id, 200),
       provider_checkout_url: link,
+      provider_customer_id: asaasCustomerId,
       status,
       updated_at: new Date().toISOString(),
     }).eq('id', checkoutId);
 
-    return json({ checkoutId, providerCheckoutId: result.id, link, status, environment });
+    return json({ checkoutId, providerCheckoutId: result.id, customerId: asaasCustomerId, link, status, environment });
   } catch (error) {
     const message = clean(error instanceof Error ? error.message : error, 700);
     await adminClient.from('nexus_payment_checkouts').update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() }).eq('id', checkoutId);
