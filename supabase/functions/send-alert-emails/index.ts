@@ -44,6 +44,10 @@ function emailHtml(organizationName: string, alerts: Alert[]) {
   return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:760px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:22px"><h2>Alertas preventivos de ${escapeHtml(organizationName)}</h2><p>Encontramos ${alerts.length} obrigação(ões) que exigem atenção.</p><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:10px;text-align:left">Obrigação</th><th style="padding:10px;text-align:left">Colaborador</th><th style="padding:10px;text-align:left">Prazo</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem automática enviada pela Central de Alertas do SST Controle.</p></div></div>`;
 }
 
+function testEmailHtml(organizationName: string) {
+  return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:620px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:24px"><h2>Teste de envio concluído</h2><p>A integração de e-mail da empresa <strong>${escapeHtml(organizationName)}</strong> está funcionando.</p><p>Esta mensagem é somente um teste da Central de Alertas. Nenhum colaborador, obrigação ou vencimento foi criado ou alterado.</p><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem de teste enviada pelo SST Controle.</p></div></div>`;
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -71,16 +75,39 @@ Deno.serve(async request => {
 
   let body: Record<string, unknown> = {};
   try { body = await request.json(); } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
+
+  const recipients = [...new Set((preferences.recipients as string[]).map(recipient => recipient.trim().toLowerCase()))].slice(0, 10);
+  const organization = Array.isArray(profile.organizations) ? profile.organizations[0] : profile.organizations;
+  const organizationName = clean(organization?.name || 'sua empresa');
+
+  if (body.test === true) {
+    let sent = 0, failed = 0;
+    const errors: string[] = [];
+    for (const recipient of recipients) {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to: [recipient], subject: '[SST Controle] Teste de integração de e-mail', html: testEmailHtml(organizationName) }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(clean(result?.message || 'Falha no provedor de e-mail.', 500));
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        errors.push(clean(error instanceof Error ? error.message : error, 500));
+      }
+    }
+    return json({ test: true, sent, failed, error: sent ? null : (errors[0] || 'Não foi possível enviar o e-mail de teste.') });
+  }
+
   const selectedStatuses = new Set(preferences.deadline_statuses || []);
   const alerts = normalizeAlerts(body.alerts).filter(alert => selectedStatuses.has(alert.status));
   if (!alerts.length) return json({ sent: 0, skipped: 0, failed: 0, message: 'Nenhum alerta atende às preferências.' });
 
-  const recipients = [...new Set((preferences.recipients as string[]).map(recipient => recipient.trim().toLowerCase()))].slice(0, 10);
   const keys = alerts.map(alert => alert.id);
   const { data: previous } = await adminClient.from('notification_delivery_logs').select('alert_key,due_date,recipient,status').eq('organization_id', profile.organization_id).eq('channel', 'email').eq('status', 'sent').in('alert_key', keys);
   const sentKeys = new Set((previous || []).map(row => `${row.recipient}|${row.alert_key}|${row.due_date}`));
-  const organization = Array.isArray(profile.organizations) ? profile.organizations[0] : profile.organizations;
-  const organizationName = clean(organization?.name || 'sua empresa');
   let sent = 0, skipped = 0, failed = 0;
 
   for (const recipient of recipients) {
