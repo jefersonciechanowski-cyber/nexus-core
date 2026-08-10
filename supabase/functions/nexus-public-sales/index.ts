@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import Stripe from 'npm:stripe@22.1.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,13 +14,15 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
 const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-const cycleByMonths: Record<number, string> = { 1: 'MONTHLY', 3: 'QUARTERLY', 6: 'SEMIANNUALLY', 12: 'YEARLY' };
 const states = new Set(['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']);
 
-function checkoutLink(baseUrl: string, id: string) {
-  return baseUrl.includes('api-sandbox')
-    ? `https://sandbox.asaas.com/checkoutSession/show/${id}`
-    : `https://asaas.com/checkoutSession/show/${id}`;
+function escapeHtml(value: unknown) {
+  return clean(value, 500)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function trustedOrigin(request: Request) {
@@ -36,17 +39,13 @@ function trustedOrigin(request: Request) {
   }
 }
 
-async function asaasRequest(baseUrl: string, apiKey: string, path: string, init: RequestInit = {}) {
-  return fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      access_token: apiKey,
-      'User-Agent': 'NexusCore/1.0 (Supabase Edge Function)',
-      ...(init.headers || {}),
-    },
-  });
+function stripeEnvironment(secret: string | undefined) {
+  return secret?.startsWith('sk_live_') ? 'production' : 'sandbox';
+}
+
+function stripeMessage(error: unknown) {
+  const value = error as any;
+  return clean(value?.raw?.message || value?.message || 'Não foi possível comunicar com a Stripe.', 700);
 }
 
 async function sendLeadNotification(admin: any, resendKey: string | undefined, fromEmail: string | undefined, sale: any, planName: string) {
@@ -59,18 +58,18 @@ async function sendLeadNotification(admin: any, resendKey: string | undefined, f
   if (!recipient) return;
 
   const subject = sale.sale_status === 'checkout_created'
-    ? `Nova contratação iniciada · ${sale.company_name}`
-    : `Novo lead Nexus SST · ${sale.company_name}`;
+    ? `Nova contratação iniciada · ${clean(sale.company_name, 100)}`
+    : `Novo lead Nexus SST · ${clean(sale.company_name, 100)}`;
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#172026;line-height:1.55">
       <h2>${sale.sale_status === 'checkout_created' ? 'Nova contratação iniciada' : 'Novo lead pelo site'}</h2>
-      <p><strong>Empresa:</strong> ${sale.company_name}</p>
-      <p><strong>Responsável:</strong> ${sale.responsible_name}</p>
-      <p><strong>E-mail:</strong> ${sale.email}</p>
-      <p><strong>Telefone:</strong> ${sale.phone || 'Não informado'}</p>
-      <p><strong>Plano:</strong> ${planName || 'Não definido'}</p>
-      <p><strong>Colaboradores:</strong> ${sale.employee_count ?? 'Não informado'}</p>
+      <p><strong>Empresa:</strong> ${escapeHtml(sale.company_name)}</p>
+      <p><strong>Responsável:</strong> ${escapeHtml(sale.responsible_name)}</p>
+      <p><strong>E-mail:</strong> ${escapeHtml(sale.email)}</p>
+      <p><strong>Telefone:</strong> ${escapeHtml(sale.phone || 'Não informado')}</p>
+      <p><strong>Plano:</strong> ${escapeHtml(planName || 'Não definido')}</p>
+      <p><strong>Colaboradores:</strong> ${escapeHtml(sale.employee_count ?? 'Não informado')}</p>
       <p style="color:#6b7479;font-size:12px">Registro automático da Central Nexus.</p>
     </div>`;
 
@@ -87,11 +86,11 @@ Deno.serve(async request => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const asaasApiKey = Deno.env.get('ASAAS_API_KEY');
-  const asaasBaseUrl = (Deno.env.get('ASAAS_API_BASE_URL') || 'https://api-sandbox.asaas.com/v3').replace(/\/$/, '');
+  const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'Integração Nexus não configurada.' }, 500);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const environment = stripeEnvironment(stripeSecretKey);
   let body: Record<string, any> = {};
   try { body = await request.json(); } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
 
@@ -132,7 +131,7 @@ Deno.serve(async request => {
     return json({ error: 'Preencha empresa, responsável e e-mail válidos.' }, 400);
   }
 
-  const { data: product } = await admin.from('nexus_products').select('id,name').eq('code', 'sst').eq('status', 'active').maybeSingle();
+  const { data: product } = await admin.from('nexus_products').select('id,name,code').eq('code', 'sst').eq('status', 'active').maybeSingle();
   if (!product?.id) return json({ error: 'Produto indisponível.' }, 503);
 
   let plan: any = null;
@@ -162,7 +161,8 @@ Deno.serve(async request => {
       email,
       phone: phone || null,
       employee_count: employeeCount || null,
-      environment: asaasBaseUrl.includes('api-sandbox') ? 'sandbox' : 'production',
+      provider: 'stripe',
+      environment,
     }).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
     if (error || !sale) return json({ error: 'Não foi possível registrar seu interesse.' }, 500);
 
@@ -171,7 +171,7 @@ Deno.serve(async request => {
   }
 
   if (action !== 'checkout') return json({ error: 'Ação inválida.' }, 400);
-  if (!asaasApiKey) return json({ error: 'Checkout temporariamente indisponível.' }, 503);
+  if (!stripeSecretKey) return json({ error: 'Checkout temporariamente indisponível.' }, 503);
   if (!body.acceptedTerms) return json({ error: 'Confirme os dados e a cobrança recorrente para continuar.' }, 400);
   if (!plan?.id || !plan.public_visible || Number(plan.price_cents) <= 0) return json({ error: 'Este plano exige atendimento comercial.' }, 409);
   if (plan.employee_limit && employeeCount > Number(plan.employee_limit)) {
@@ -195,16 +195,19 @@ Deno.serve(async request => {
   }
 
   const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
-  const { count: recentCount } = await admin
-    .from('nexus_sales')
-    .select('id', { count: 'exact', head: true })
-    .or(`email.eq.${email},registration_number.eq.${registrationNumber}`)
-    .gte('created_at', tenMinutesAgo);
-  if ((recentCount || 0) >= 5) return json({ error: 'Muitas tentativas recentes. Aguarde alguns minutos e tente novamente.' }, 429);
+  const [{ count: recentEmail }, { count: recentRegistration }] = await Promise.all([
+    admin.from('nexus_sales').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', tenMinutesAgo),
+    admin.from('nexus_sales').select('id', { count: 'exact', head: true }).eq('registration_number', registrationNumber).gte('created_at', tenMinutesAgo),
+  ]);
+  if ((recentEmail || 0) >= 5 || (recentRegistration || 0) >= 5) {
+    return json({ error: 'Muitas tentativas recentes. Aguarde alguns minutos e tente novamente.' }, 429);
+  }
 
   const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
   const { data: reusable } = await admin.from('nexus_sales')
-    .select('id,asaas_checkout_url')
+    .select('id,provider_checkout_url')
+    .eq('provider', 'stripe')
+    .eq('environment', environment)
     .eq('email', email)
     .eq('registration_number', registrationNumber)
     .eq('plan_id', plan.id)
@@ -213,11 +216,10 @@ Deno.serve(async request => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (reusable?.asaas_checkout_url) return json({ saleId: reusable.id, link: reusable.asaas_checkout_url, reused: true });
+  if (reusable?.provider_checkout_url) return json({ saleId: reusable.id, link: reusable.provider_checkout_url, reused: true, environment });
 
   const saleId = crypto.randomUUID();
   const externalReference = `nexus-sale-${saleId}`;
-  const environment = asaasBaseUrl.includes('api-sandbox') ? 'sandbox' : 'production';
   const origin = trustedOrigin(request);
 
   const { error: saleInsertError } = await admin.from('nexus_sales').insert({
@@ -240,103 +242,102 @@ Deno.serve(async request => {
     district,
     city,
     state,
-    provider: 'asaas',
+    provider: 'stripe',
     environment,
     return_origin: origin,
     external_reference: externalReference,
   });
   if (saleInsertError) return json({ error: 'Não foi possível iniciar a contratação.' }, 500);
 
-  let asaasCustomerId = '';
-  try {
-    const lookup = await asaasRequest(asaasBaseUrl, asaasApiKey, `/customers?${new URLSearchParams({ limit: '1', cpfCnpj: registrationNumber }).toString()}`, { method: 'GET' });
-    const lookupResult = await lookup.json();
-    if (lookup.ok && Array.isArray(lookupResult?.data) && lookupResult.data[0]?.id) {
-      asaasCustomerId = clean(lookupResult.data[0].id, 200);
-    }
+  const stripe = new Stripe(stripeSecretKey, { httpClient: Stripe.createFetchHttpClient() });
+  let customerId = '';
 
-    if (!asaasCustomerId) {
-      const customerResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, '/customers', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: companyName,
-          cpfCnpj: registrationNumber,
-          email,
-          mobilePhone: phone,
-          postalCode,
-          address: street,
-          addressNumber: streetNumber,
-          complement: addressComplement || undefined,
-          province: district,
-          externalReference: `nexus-prospect-${registrationNumber}`,
-        }),
+  try {
+    const { data: previousCustomer } = await admin.from('nexus_sales')
+      .select('provider_customer_id')
+      .eq('provider', 'stripe')
+      .eq('environment', environment)
+      .eq('registration_number', registrationNumber)
+      .not('provider_customer_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    customerId = clean(previousCustomer?.provider_customer_id, 200);
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        name: companyName,
+        email,
+        phone,
+        address: {
+          line1: `${street}, ${streetNumber}`,
+          line2: addressComplement || undefined,
+          city,
+          state,
+          postal_code: postalCode,
+          country: 'BR',
+        },
+        metadata: {
+          nexus_sale_id: saleId,
+          nexus_source: 'site-captacao',
+          registration_type: registrationType,
+        },
       });
-      const customerResult = await customerResponse.json();
-      if (!customerResponse.ok || !customerResult?.id) {
-        const message = clean(customerResult?.errors?.[0]?.description || customerResult?.message || 'Não foi possível cadastrar o cliente no Asaas.', 700);
-        await admin.from('nexus_sales').update({ sale_status: 'failed', last_error: message }).eq('id', saleId);
-        return json({ error: message }, customerResponse.status >= 400 && customerResponse.status < 500 ? 400 : 502);
-      }
-      asaasCustomerId = clean(customerResult.id, 200);
+      customerId = customer.id;
     }
-  } catch {
-    await admin.from('nexus_sales').update({ sale_status: 'failed', last_error: 'Falha ao criar ou localizar cliente no Asaas.' }).eq('id', saleId);
-    return json({ error: 'Não foi possível comunicar com o Asaas.' }, 502);
-  }
 
-  const interval = Number(plan.billing_interval_months);
-  const cycle = cycleByMonths[interval];
-  if (!cycle) return json({ error: 'Periodicidade do plano não suportada.' }, 409);
+    await admin.from('nexus_sales').update({ provider_customer_id: customerId }).eq('id', saleId);
 
-  const minutesToExpire = 60;
-  const dueDate = new Date().toISOString().slice(0, 10);
-  const callback = `${origin}/apps/site-captacao/obrigado.html?venda=${saleId}`;
-  const payload = {
-    billingTypes: ['CREDIT_CARD'],
-    chargeTypes: ['RECURRENT'],
-    minutesToExpire,
-    externalReference,
-    callback: {
-      successUrl: `${callback}&resultado=sucesso`,
-      cancelUrl: `${callback}&resultado=cancelado`,
-      expiredUrl: `${callback}&resultado=expirado`,
-    },
-    items: [{
-      externalReference: plan.id,
-      name: clean(plan.name, 100),
-      description: clean(`${product.name} · ${companyName}`, 200),
-      quantity: 1,
-      value: Number(plan.price_cents) / 100,
-    }],
-    customer: asaasCustomerId,
-    subscription: { cycle, nextDueDate: `${dueDate}T12:00:00-03:00` },
-  };
-
-  try {
-    const checkoutResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, '/checkouts', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    const callback = `${origin}/apps/site-captacao/obrigado.html?venda=${saleId}`;
+    const intervalMonths = Number(plan.billing_interval_months || 1);
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      client_reference_id: saleId,
+      payment_method_types: ['card'],
+      success_url: `${callback}&resultado=sucesso&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${callback}&resultado=cancelado`,
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: String(plan.currency || 'BRL').toLowerCase(),
+          unit_amount: Number(plan.price_cents),
+          recurring: { interval: 'month', interval_count: intervalMonths },
+          product_data: {
+            name: clean(plan.name, 120),
+            description: clean(`${product.name} · ${companyName}`, 400),
+          },
+        },
+      }],
+      metadata: {
+        nexus_sale_id: saleId,
+        nexus_plan_id: plan.id,
+        nexus_product_code: product.code,
+      },
+      subscription_data: {
+        metadata: {
+          nexus_sale_id: saleId,
+          nexus_plan_id: plan.id,
+          nexus_product_code: product.code,
+        },
+      },
     });
-    const checkoutResult = await checkoutResponse.json();
-    if (!checkoutResponse.ok || !checkoutResult?.id) {
-      const message = clean(checkoutResult?.errors?.[0]?.description || checkoutResult?.message || 'Checkout recusado pelo Asaas.', 700);
-      await admin.from('nexus_sales').update({ sale_status: 'failed', asaas_customer_id: asaasCustomerId, last_error: message }).eq('id', saleId);
-      return json({ error: message }, checkoutResponse.status >= 400 && checkoutResponse.status < 500 ? 400 : 502);
-    }
 
-    const link = clean(checkoutResult.link || checkoutLink(asaasBaseUrl, checkoutResult.id), 1000);
+    if (!session.url) throw new Error('A Stripe não retornou o link do checkout.');
+
     const { data: saved } = await admin.from('nexus_sales').update({
       sale_status: 'checkout_created',
-      asaas_customer_id: asaasCustomerId,
-      asaas_checkout_id: clean(checkoutResult.id, 200),
-      asaas_checkout_url: link,
+      provider_customer_id: customerId,
+      provider_checkout_id: session.id,
+      provider_checkout_url: session.url,
       last_error: null,
     }).eq('id', saleId).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
 
     if (saved) await sendLeadNotification(admin, Deno.env.get('RESEND_API_KEY'), Deno.env.get('RESEND_FROM_EMAIL'), saved, plan.name);
-    return json({ saleId, link, environment });
-  } catch {
-    await admin.from('nexus_sales').update({ sale_status: 'failed', asaas_customer_id: asaasCustomerId, last_error: 'Falha de comunicação com o checkout do Asaas.' }).eq('id', saleId);
-    return json({ error: 'Não foi possível comunicar com o Asaas.' }, 502);
+    return json({ saleId, link: session.url, environment, provider: 'stripe' });
+  } catch (error) {
+    const message = stripeMessage(error);
+    await admin.from('nexus_sales').update({ sale_status: 'failed', provider_customer_id: customerId || null, last_error: message }).eq('id', saleId);
+    return json({ error: message }, 502);
   }
 });
