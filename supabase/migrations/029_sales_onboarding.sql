@@ -59,13 +59,13 @@ select
   product.id,
   'profissional',
   'Nexus SST Profissional',
-  'Gestão completa de SST para operações com até 200 colaboradores ativos.',
-  39700,
+  'Gestão completa de SST para operações com até 100 colaboradores ativos.',
+  19700,
   'BRL',
   1,
   'active',
   20,
-  200,
+  100,
   true,
   'Mais escolhido',
   'Para empresas em crescimento que precisam de visão executiva, certificados, alertas e rastreabilidade.'
@@ -94,13 +94,13 @@ select
   product.id,
   'empresarial',
   'Nexus SST Empresarial',
-  'Gestão completa de SST para operações com até 500 colaboradores ativos.',
-  69700,
+  'Gestão completa de SST para operações com até 250 colaboradores ativos.',
+  29700,
   'BRL',
   1,
   'active',
   30,
-  500,
+  250,
   true,
   null,
   'Para estruturas maiores que precisam consolidar operação, documentos, ocorrências e indicadores em um único ambiente.'
@@ -129,7 +129,7 @@ select
   product.id,
   'corporativo',
   'Nexus SST Corporativo',
-  'Plano para operações acima de 500 colaboradores ativos, com proposta comercial personalizada.',
+  'Plano para operações acima de 250 colaboradores ativos, com proposta comercial personalizada.',
   0,
   'BRL',
   1,
@@ -138,7 +138,7 @@ select
   null,
   true,
   'Sob consulta',
-  'Para grupos e operações de maior porte que exigem análise comercial antes da contratação.'
+  'Para operações acima de 250 colaboradores que exigem análise comercial antes da contratação.'
 from public.nexus_products product
 where product.code = 'sst'
 on conflict (product_id, code) do update set
@@ -178,6 +178,7 @@ create table if not exists public.nexus_sales (
   state text,
   provider text not null default 'asaas' check (provider = 'asaas'),
   environment text not null default 'sandbox' check (environment in ('sandbox','production')),
+  return_origin text,
   external_reference text unique,
   asaas_customer_id text,
   asaas_checkout_id text unique,
@@ -233,5 +234,6 @@ grant select, insert on public.audit_logs to service_role;
 comment on table public.nexus_sales is 'Leads e contratações iniciadas pelo site público, conciliadas com Asaas e provisionadas automaticamente no Nexus.';
 comment on column public.nexus_plans.employee_limit is 'Limite comercial de colaboradores ativos para apresentação pública do plano. Null indica faixa sob consulta.';
 comment on column public.nexus_plans.public_visible is 'Controla se o plano deve aparecer no site público de vendas.';
+comment on column public.nexus_sales.return_origin is 'Origem web validada pela Edge Function para retorno do checkout e links de primeiro acesso.';
 
 commit;
