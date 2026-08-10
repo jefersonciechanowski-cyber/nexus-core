@@ -26,7 +26,7 @@
   <script src="../sst-controle/supabase-auth.js"></script>
   <script>
     const appsElement=document.getElementById('apps');
-    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
     const money=cents=>cents===null||cents===undefined?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(cents)/100);
     const subLabel=v=>({legacy:'Acesso inicial',trial:'Período de teste',active:'Assinatura ativa',past_due:'Pagamento pendente',cancelled:'Assinatura cancelada'}[v]||'Status não informado');
     const billingLabel=v=>({1:'mês',3:'3 meses',6:'6 meses',12:'ano'}[Number(v)]||`${v} meses`);
@@ -36,7 +36,7 @@
     const usable=r=>r.access_status==='active'&&!['cancelled','past_due'].includes(r.subscription_status)&&!expiredPrepaid(r);
     const badgeClass=r=>usable(r)?'good':r.subscription_status==='past_due'?'warn':'bad';
     const statusLabel=r=>expiredPrepaid(r)?'Período encerrado':r.billing_mode==='prepaid'&&r.subscription_status==='active'?'Anual ativo':r.access_status==='active'?subLabel(r.subscription_status):'Acesso suspenso';
-    function planName(record){return record.plan_name||(record.plan?.name)||(record.plan_name==='Acesso existente'?'Plano inicial Nexus':'Sem plano comercial');}
+    function planName(record){return record.plan_name==='Acesso existente'?'Plano inicial Nexus':(record.plan_name||record.plan?.name||'Sem plano comercial');}
     function showReturnNotice(){const state=new URLSearchParams(location.search).get('pagamento'),notice=document.getElementById('paymentNotice');if(state==='sucesso'){notice.className='notice good';notice.textContent='Checkout concluído. A confirmação financeira será atualizada automaticamente assim que a Stripe confirmar o pagamento.';}else if(state==='cancelado'){notice.className='notice warn';notice.textContent='O checkout foi cancelado. Seu acesso anterior não foi alterado.';}else if(state==='expirado'){notice.className='notice warn';notice.textContent='O checkout expirou. Gere um novo link quando quiser continuar.';}}
     async function checkoutErrorMessage(error){try{if(error?.context&&typeof error.context.json==='function'){const payload=await error.context.json();if(payload?.error)return payload.error;if(payload?.message)return payload.message;}}catch{}return error?.message||'Não foi possível gerar o checkout.';}
     async function createCheckout(accessId,button){button.disabled=true;const original=button.textContent;button.textContent='Gerando checkout...';try{const client=window.NexusAuth.getClient();const{data,error}=await client.functions.invoke('stripe-create-checkout',{body:{accessId}});if(error)throw error;if(!data?.link)throw new Error(data?.error||'A Stripe não retornou o link do checkout.');location.href=data.link;}catch(error){alert(await checkoutErrorMessage(error));button.disabled=false;button.textContent=original;}}
