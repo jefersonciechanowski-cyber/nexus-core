@@ -81,7 +81,7 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
     .maybeSingle();
   if (previous?.id) return true;
 
-  const publicUrl = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
+  const publicUrl = (clean(sale?.return_origin, 500) || Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
   const redirectTo = `${publicUrl}/apps/portal-cliente/redefinir-senha.html`;
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
     type: 'recovery',
