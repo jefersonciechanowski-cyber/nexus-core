@@ -603,6 +603,18 @@
     .alert-panel.open { right:0; }
     .alert-panel-header,.alert-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .alert-panel-filters { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0; }
+    .alert-email { margin:0 0 16px; padding:14px; border:1px solid var(--border); border-radius:9px; background:var(--surface-soft); }
+    .alert-email-head,.alert-email-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .alert-email-head strong,.alert-email-history strong { display:block; }
+    .alert-email-head small,.alert-email-status,.alert-email-history small { color:var(--muted); font-size:11px; }
+    .alert-email-grid { display:grid; gap:10px; margin:12px 0; }
+    .alert-email-options { display:flex; flex-wrap:wrap; gap:8px 14px; }
+    .alert-email-options label { display:flex; align-items:center; gap:5px; font-size:11px; }
+    .alert-email-options input { width:auto; }
+    .alert-email-history { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+    .alert-email-history-list { display:grid; gap:7px; margin-top:8px; }
+    .alert-email-history-item { display:flex; justify-content:space-between; gap:10px; font-size:11px; }
+    .alert-email-history-item .sent { color:#16a34a; }.alert-email-history-item .failed { color:#dc2626; }
     .alert-list { display:flex; flex-direction:column; gap:10px; }
     .alert-item { padding:13px; border:1px solid var(--border); border-left:4px solid #2563eb; border-radius:9px; background:var(--surface-soft); }
     .alert-item.OVERDUE { border-left-color:#dc2626; }.alert-item.DUE_7 { border-left-color:#f97316; }.alert-item.DUE_15 { border-left-color:#eab308; }
@@ -862,6 +874,21 @@
     <aside id="alertPanel" class="alert-panel" aria-label="Central de Alertas">
       <div class="alert-panel-header"><div><h2>Central de Alertas</h2><p id="alertSummary" class="subtitle">Carregando alertas...</p></div><button id="alertClose" class="ghost" type="button">Fechar</button></div>
       <div class="alert-panel-filters"><label>Categoria<select id="alertCategory"><option value="">Todas</option><option>Exame</option><option>Treinamento</option><option>EPI</option></select></label><label>Prazo<select id="alertDeadline"><option value="">Todos</option><option value="OVERDUE">Vencidos</option><option value="DUE_7">Até 7 dias</option><option value="DUE_15">8 a 15 dias</option><option value="DUE_30">16 a 30 dias</option></select></label><label>Situação<select id="alertSituation"><option value="UNREAD">Não lidos</option><option value="READ">Lidos</option><option value="ALL">Todos</option></select></label></div>
+      <section class="alert-email" aria-label="Alertas por e-mail">
+        <div class="alert-email-head"><div><strong>Alertas por e-mail</strong><small>Envio automático, sem duplicar a mesma obrigação.</small></div><label><input id="alertEmailEnabled" type="checkbox"> Ativo</label></div>
+        <div class="alert-email-grid">
+          <label>Destinatários<input id="alertEmailRecipients" type="text" placeholder="email@empresa.com.br, outro@empresa.com.br"></label>
+          <div class="alert-email-options" aria-label="Prazos enviados">
+            <label><input class="alert-email-deadline" type="checkbox" value="OVERDUE" checked> Vencidos</label>
+            <label><input class="alert-email-deadline" type="checkbox" value="DUE_7" checked> Até 7 dias</label>
+            <label><input class="alert-email-deadline" type="checkbox" value="DUE_15" checked> Até 15 dias</label>
+            <label><input class="alert-email-deadline" type="checkbox" value="DUE_30" checked> Até 30 dias</label>
+          </div>
+        </div>
+        <div class="alert-email-actions"><button id="alertEmailSave" class="ghost" type="button">Salvar preferências</button><button id="alertEmailSend" type="button">Enviar agora</button></div>
+        <p id="alertEmailStatus" class="alert-email-status">Carregando preferências...</p>
+        <div class="alert-email-history"><strong>Últimos envios</strong><div id="alertEmailHistory" class="alert-email-history-list"><small>Nenhum envio registrado.</small></div></div>
+      </section>
       <div id="alertList" class="alert-list"></div>
     </aside>
 
