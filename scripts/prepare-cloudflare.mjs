@@ -7,6 +7,8 @@ const distRoot = join(projectRoot, 'dist');
 const publicDirectories = [
   'apps/site-captacao',
   'apps/sst-controle',
+  'apps/nexus-admin',
+  'apps/portal-cliente',
 ];
 const publicExtensions = new Set([
   '.avif', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.map',
