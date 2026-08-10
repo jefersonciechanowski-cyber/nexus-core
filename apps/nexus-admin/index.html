@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071015">
+  <title>Central Nexus | Administração</title>
+  <style>
+    :root{--bg:#081014;--surface:#111a1f;--surface2:#172228;--line:#2f393f;--text:#f5eee0;--muted:#98a2a7;--gold:#e0b84a;--good:#72a875;--danger:#dc6c67}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#070d11,#0a1419);color:var(--text)}
+    button,input,select{font:inherit}button{cursor:pointer}.shell{min-height:100vh;display:grid;grid-template-columns:245px 1fr}.side{padding:26px 20px;border-right:1px solid rgba(224,184,74,.13);background:#070c0f}.logo{width:190px;max-width:100%;display:block}.product{margin:10px 0 28px;color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.18em}.nav{display:grid;gap:8px}.nav button{border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;padding:12px 14px;border-radius:9px}.nav button.active{color:#fff;background:linear-gradient(90deg,rgba(224,184,74,.15),transparent);border-left-color:var(--gold)}.side-footer{position:fixed;bottom:22px;width:200px;color:var(--muted);font-size:12px;line-height:1.5}.main{padding:28px 32px 48px;min-width:0}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}.top h1{margin:0;font-size:28px}.top p{margin:7px 0 0;color:var(--muted)}.profile{text-align:right}.profile strong{display:block}.profile button{margin-top:7px;background:transparent;border:0;color:var(--gold);padding:0}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}.card,.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px}.card{padding:18px}.card span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.card strong{display:block;font-size:28px;margin-top:9px}.panel{padding:20px}.toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:16px}.toolbar h2{margin:0;font-size:17px}.search{width:min(360px,100%);padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0b1419;color:var(--text)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:820px}th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{background:#162127;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}tr:last-child td{border-bottom:0}.badge{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:700}.badge.good{background:rgba(114,168,117,.15);color:#91c094}.badge.warn{background:rgba(224,184,74,.14);color:var(--gold)}.badge.bad{background:rgba(220,108,103,.14);color:#ec8d88}.action{border:1px solid var(--line);background:#0d171c;color:var(--text);padding:7px 9px;border-radius:7px}.empty,.error{padding:28px;text-align:center;color:var(--muted)}.error{color:#ec8d88}@media(max-width:900px){.shell{grid-template-columns:1fr}.side{display:none}.main{padding:22px}.cards{grid-template-columns:1fr}.top{flex-direction:column}.profile{text-align:left}.toolbar{align-items:stretch;flex-direction:column}.search{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <img class="logo" src="../sst-controle/logo-nexus-core.png" alt="Nexus Core">
+      <div class="product">CENTRAL NEXUS</div>
+      <nav class="nav">
+        <button class="active" type="button">Visão Geral</button>
+        <button type="button" disabled>Clientes e Acessos</button>
+        <button type="button" disabled>Produtos e Planos</button>
+      </nav>
+      <div class="side-footer">Administração interna da operação multi-app do Nexus Core.</div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <div><h1>Central Nexus</h1><p>Empresas, apps contratados e situação de acesso em uma única visão.</p></div>
+        <div class="profile"><strong id="profileName">Carregando...</strong><span id="profileRole"></span><button id="logout" type="button">Sair</button></div>
+      </header>
+
+      <section class="cards">
+        <article class="card"><span>Empresas</span><strong id="companyCount">—</strong></article>
+        <article class="card"><span>Acessos ativos</span><strong id="activeAccessCount">—</strong></article>
+        <article class="card"><span>Apps disponíveis</span><strong id="productCount">—</strong></article>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar"><div><h2>Empresas e apps</h2><p style="margin:5px 0 0;color:var(--muted);font-size:12px">Base real do Supabase. Sem dados simulados.</p></div><input class="search" id="search" type="search" placeholder="Buscar empresa ou app"></div>
+        <div class="table-wrap"><table><thead><tr><th>Empresa</th><th>App</th><th>Plano</th><th>Assinatura</th><th>Acesso</th><th>Ação</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Carregando...</td></tr></tbody></table></div>
+        <div id="message" class="error" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../sst-controle/supabase-config.js"></script>
+  <script src="../sst-controle/supabase-auth.js"></script>
+  <script>
+    const rowsElement=document.getElementById('rows'),searchInput=document.getElementById('search'),message=document.getElementById('message');let rows=[];
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    const subscriptionLabel=v=>({legacy:'Legado',trial:'Teste',active:'Ativa',past_due:'Em atraso',cancelled:'Cancelada'}[v]||v||'—');
+    const subscriptionClass=v=>v==='active'?'good':v==='past_due'||v==='cancelled'?'bad':'warn';
+    function render(){const q=searchInput.value.trim().toLowerCase();const filtered=rows.filter(r=>[r.organization?.name,r.product?.name,r.plan_name].join(' ').toLowerCase().includes(q));rowsElement.innerHTML=filtered.length?filtered.map(r=>`<tr><td><strong>${esc(r.organization?.name||'—')}</strong></td><td>${esc(r.product?.name||'—')}</td><td>${esc(r.plan_name||'—')}</td><td><span class="badge ${subscriptionClass(r.subscription_status)}">${esc(subscriptionLabel(r.subscription_status))}</span></td><td><span class="badge ${r.access_status==='active'?'good':'bad'}">${r.access_status==='active'?'Liberado':'Suspenso'}</span></td><td><button class="action" data-id="${esc(r.id)}" data-status="${esc(r.access_status)}">${r.access_status==='active'?'Suspender':'Liberar'}</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">Nenhum registro encontrado.</td></tr>';rowsElement.querySelectorAll('.action').forEach(btn=>btn.onclick=()=>toggleAccess(btn));}
+    async function toggleAccess(button){const next=button.dataset.status==='active'?'suspended':'active';button.disabled=true;try{const client=window.NexusAuth.getClient();const{error}=await client.from('organization_product_access').update({access_status:next,updated_at:new Date().toISOString()}).eq('id',button.dataset.id);if(error)throw error;await loadData();}catch(e){alert(e.message||'Não foi possível atualizar o acesso.');}finally{button.disabled=false;}}
+    async function loadData(){const client=window.NexusAuth.getClient();const[{data:organizations,error:orgError},{data:products,error:productError},{data:access,error:accessError}]=await Promise.all([client.from('organizations').select('id,name,status').order('name'),client.from('nexus_products').select('id,name,code,status').order('sort_order'),client.from('organization_product_access').select('id,organization_id,product_id,access_status,subscription_status,plan_name,renews_at,organization:organizations(name),product:nexus_products(name,code)').order('created_at')]);if(orgError||productError||accessError)throw orgError||productError||accessError;rows=access||[];document.getElementById('companyCount').textContent=organizations?.length||0;document.getElementById('productCount').textContent=products?.filter(p=>p.status==='active').length||0;document.getElementById('activeAccessCount').textContent=rows.filter(r=>r.access_status==='active').length;render();}
+    async function start(){try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html');return;}if(session.role!=='nexus_admin'){throw new Error('Esta área é exclusiva da administração Nexus.');}document.getElementById('profileName').textContent=session.name||session.email;document.getElementById('profileRole').textContent=session.roleLabel||'Administrador Nexus';await loadData();}catch(e){rowsElement.innerHTML='<tr><td colspan="6" class="error">Não foi possível carregar a Central Nexus.</td></tr>';message.hidden=false;message.textContent=e.message||'Falha de acesso.';}}
+    searchInput.addEventListener('input',render);document.getElementById('logout').onclick=async()=>{await window.NexusAuth.logout();location.replace('login.html');};start();
+  </script>
+</body>
+</html>
