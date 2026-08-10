@@ -20,6 +20,31 @@
   function formatDateTime(value) { return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—'; }
   function label(status) { return { OVERDUE: 'Vencido', DUE_7: 'Até 7 dias', DUE_15: '8 a 15 dias', DUE_30: '16 a 30 dias' }[status] || 'Atenção'; }
   function session() { try { return JSON.parse(sessionStorage.getItem('nexus_demo_session') || '{}'); } catch { return {}; } }
+  function readableError(error, fallback = 'Não foi possível concluir a operação.') {
+    const cause = error?.cause;
+    return cause?.message || cause?.details || error?.message || fallback;
+  }
+
+  function configureAlertButton() {
+    const button = $('alertButton');
+    if (!button) return;
+    const badge = $('alertBadge');
+    const textNode = [...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+    if (textNode) textNode.nodeValue = 'Alertas';
+    else button.insertBefore(document.createTextNode('Alertas'), badge || null);
+
+    if (!document.getElementById('nexusAlertTextButtonStyles')) {
+      const style = document.createElement('style');
+      style.id = 'nexusAlertTextButtonStyles';
+      style.textContent = `
+        .alert-button { width:auto !important; min-width:82px !important; padding:0 12px !important; font-size:12px !important; }
+        @media (min-width:1181px) { .nexus-topbar { grid-template-columns:220px minmax(280px,1fr) auto auto !important; } }
+        @media (min-width:901px) and (max-width:1180px) { .nexus-topbar { grid-template-columns:210px minmax(220px,1fr) auto !important; } }
+        @media (min-width:761px) and (max-width:900px) { .nexus-topbar { grid-template-columns:minmax(190px,.8fr) minmax(230px,1.2fr) auto !important; } }
+      `;
+      document.head.appendChild(style);
+    }
+  }
 
   async function loadStates() {
     const rows = await window.NexusData.list({ table: 'notification_alert_states', select: 'id,alert_key,category,due_date,read_at,email_sent_at,whatsapp_sent_at', label: 'alertas' });
@@ -90,10 +115,15 @@
     if (recipients.length > 10 || recipients.some(recipient => !validEmail(recipient))) throw new Error('Informe até 10 endereços de e-mail válidos.');
     if (enabled && (!recipients.length || !deadlineStatuses.length)) throw new Error('Informe ao menos um destinatário e um prazo para ativar o envio.');
     const values = { enabled, recipients, deadline_statuses: deadlineStatuses };
-    const rows = emailPreferences?.id
-      ? await window.NexusData.update({ table: 'notification_email_preferences', id: emailPreferences.id, values: { ...values, updated_at: new Date().toISOString() }, select: 'id,enabled,recipients,deadline_statuses,updated_at', label: 'preferências de e-mail' })
-      : await window.NexusData.insert({ table: 'notification_email_preferences', values, select: 'id,enabled,recipients,deadline_statuses,updated_at', label: 'preferências de e-mail' });
-    emailPreferences = rows[0];
+
+    if (emailPreferences?.id) {
+      await window.NexusData.update({ table: 'notification_email_preferences', id: emailPreferences.id, values: { ...values, updated_at: new Date().toISOString() }, label: 'preferências de e-mail' });
+    } else {
+      await window.NexusData.insert({ table: 'notification_email_preferences', values, label: 'preferências de e-mail' });
+    }
+
+    await loadEmailPreferences();
+    if (!emailPreferences?.id) throw new Error('As preferências não puderam ser confirmadas após o salvamento.');
     renderEmail();
   }
 
@@ -124,26 +154,27 @@
       renderEmail();
       if (!autoEmailAttempted && emailPreferences.enabled) {
         autoEmailAttempted = true;
-        try { await sendEmailAlerts(false); } catch (error) { console.error('Falha no envio automático por e-mail.', error); $('alertEmailStatus').textContent = error.message; }
+        try { await sendEmailAlerts(false); } catch (error) { console.error('Falha no envio automático por e-mail.', error); $('alertEmailStatus').textContent = readableError(error); }
       }
     } catch (error) {
       console.error('Falha ao carregar a Central de Alertas.', error);
       $('alertSummary').textContent = 'Não foi possível carregar os alertas.';
-      $('alertEmailStatus').textContent = error.message || 'Não foi possível carregar a integração de e-mail.';
+      $('alertEmailStatus').textContent = readableError(error, 'Não foi possível carregar a integração de e-mail.');
     }
   }
 
   function install() {
     if (installed || !$('alertButton') || !window.NexusData || !window.NexusPreventiveAgenda) return;
     installed = true;
+    configureAlertButton();
     $('alertButton').onclick = () => $('alertPanel').classList.contains('open') ? close() : open();
     $('alertClose').onclick = close;
     $('alertBackdrop').onclick = close;
     $('alertCategory').onchange = render;
     $('alertDeadline').onchange = render;
     $('alertSituation').onchange = render;
-    $('alertEmailSave').onclick = event => window.NexusData.runLocked('email-preferences', async () => { try { await saveEmailPreferences(); $('alertEmailStatus').textContent = 'Preferências salvas com sucesso.'; } catch (error) { $('alertEmailStatus').textContent = error.message; } }, event.currentTarget);
-    $('alertEmailSend').onclick = event => window.NexusData.runLocked('email-dispatch', async () => { try { $('alertEmailStatus').textContent = 'Enviando alertas...'; await sendEmailAlerts(true); } catch (error) { $('alertEmailStatus').textContent = error.message; } }, event.currentTarget);
+    $('alertEmailSave').onclick = event => window.NexusData.runLocked('email-preferences', async () => { try { await saveEmailPreferences(); $('alertEmailStatus').textContent = 'Preferências salvas com sucesso.'; } catch (error) { $('alertEmailStatus').textContent = readableError(error); } }, event.currentTarget);
+    $('alertEmailSend').onclick = event => window.NexusData.runLocked('email-dispatch', async () => { try { $('alertEmailStatus').textContent = 'Enviando alertas...'; await sendEmailAlerts(true); } catch (error) { $('alertEmailStatus').textContent = readableError(error); } }, event.currentTarget);
     const originalRender = window.NEXUS_SST_APP.render;
     window.NEXUS_SST_APP.render = (...args) => { const result = originalRender(...args); render(); return result; };
     refresh();
