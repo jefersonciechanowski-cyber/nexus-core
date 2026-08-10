@@ -8,8 +8,8 @@ A V1 reúne:
 
 - site comercial para prospecção e contratação;
 - captação de leads de demonstração;
-- checkout recorrente via Asaas;
-- Webhook financeiro com idempotência;
+- checkout recorrente via Stripe para novas vendas;
+- Webhook financeiro com verificação de assinatura e idempotência;
 - criação automática de empresa e usuário após pagamento confirmado;
 - primeiro acesso e definição/recuperação de senha;
 - Minha Central Nexus para sistemas contratados e situação da assinatura;
@@ -44,7 +44,9 @@ A diferenciação comercial da V1 é principalmente pelo volume de colaboradores
 
 ## Fluxo comercial alvo
 
-Site → escolha do plano → cadastro da empresa → checkout Asaas → confirmação por Webhook → criação da organização → criação do administrador → liberação do Nexus SST → e-mail de primeiro acesso → Minha Central Nexus.
+Site → escolha do plano → cadastro da empresa → Stripe Checkout → confirmação por Webhook → criação da organização → criação do administrador → liberação do Nexus SST → e-mail de primeiro acesso → Minha Central Nexus.
+
+O histórico financeiro criado durante a integração anterior com Asaas permanece preservado para auditoria e compatibilidade, mas novas contratações usam Stripe.
 
 ## Próxima etapa obrigatória após validação funcional
 
