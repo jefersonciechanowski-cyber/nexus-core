@@ -6,17 +6,10 @@ alter table public.nexus_plans
   add column if not exists sales_badge text,
   add column if not exists sales_summary text;
 
+-- O plano `mensal` permanece como contrato legado/testado do PR #40.
+-- Novas vendas passam a usar o catálogo público abaixo, preservando o preço contratado existente.
 update public.nexus_plans p
-set
-  name = 'Nexus SST Essencial',
-  description = 'Gestão completa de SST para operações com até 50 colaboradores ativos.',
-  price_cents = 14990,
-  employee_limit = 50,
-  public_visible = true,
-  sales_badge = null,
-  sales_summary = 'Para pequenas operações que precisam sair das planilhas e controlar vencimentos com segurança.',
-  sort_order = 10,
-  updated_at = now()
+set public_visible = false, sales_badge = null, sales_summary = null, employee_limit = null, updated_at = now()
 from public.nexus_products product
 where p.product_id = product.id
   and product.code = 'sst'
@@ -29,10 +22,45 @@ insert into public.nexus_plans (
 )
 select
   product.id,
+  'essencial',
+  'Nexus SST Essencial',
+  'Gestão completa de SST para operações com até 50 colaboradores ativos.',
+  19700,
+  'BRL',
+  1,
+  'active',
+  10,
+  50,
+  true,
+  null,
+  'Para pequenas operações que precisam sair das planilhas e controlar vencimentos com segurança.'
+from public.nexus_products product
+where product.code = 'sst'
+on conflict (product_id, code) do update set
+  name = excluded.name,
+  description = excluded.description,
+  price_cents = excluded.price_cents,
+  currency = excluded.currency,
+  billing_interval_months = excluded.billing_interval_months,
+  status = excluded.status,
+  sort_order = excluded.sort_order,
+  employee_limit = excluded.employee_limit,
+  public_visible = excluded.public_visible,
+  sales_badge = excluded.sales_badge,
+  sales_summary = excluded.sales_summary,
+  updated_at = now();
+
+insert into public.nexus_plans (
+  product_id, code, name, description, price_cents, currency,
+  billing_interval_months, status, sort_order, employee_limit,
+  public_visible, sales_badge, sales_summary
+)
+select
+  product.id,
   'profissional',
   'Nexus SST Profissional',
   'Gestão completa de SST para operações com até 200 colaboradores ativos.',
-  29990,
+  39700,
   'BRL',
   1,
   'active',
@@ -67,7 +95,7 @@ select
   'empresarial',
   'Nexus SST Empresarial',
   'Gestão completa de SST para operações com até 500 colaboradores ativos.',
-  49990,
+  69700,
   'BRL',
   1,
   'active',
@@ -172,47 +200,21 @@ create table if not exists public.nexus_sales (
   )
 );
 
-create index if not exists nexus_sales_status_idx
-  on public.nexus_sales (sale_status, created_at desc);
-create index if not exists nexus_sales_email_idx
-  on public.nexus_sales (lower(email), created_at desc);
-create index if not exists nexus_sales_registration_idx
-  on public.nexus_sales (registration_number, created_at desc)
-  where registration_number is not null;
-create index if not exists nexus_sales_customer_idx
-  on public.nexus_sales (asaas_customer_id)
-  where asaas_customer_id is not null;
-create index if not exists nexus_sales_subscription_idx
-  on public.nexus_sales (asaas_subscription_id)
-  where asaas_subscription_id is not null;
+create index if not exists nexus_sales_status_idx on public.nexus_sales (sale_status, created_at desc);
+create index if not exists nexus_sales_email_idx on public.nexus_sales (lower(email), created_at desc);
+create index if not exists nexus_sales_registration_idx on public.nexus_sales (registration_number, created_at desc) where registration_number is not null;
+create index if not exists nexus_sales_customer_idx on public.nexus_sales (asaas_customer_id) where asaas_customer_id is not null;
+create index if not exists nexus_sales_subscription_idx on public.nexus_sales (asaas_subscription_id) where asaas_subscription_id is not null;
 
 alter table public.nexus_sales enable row level security;
 
 do $$
 begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'nexus_sales'
-      and policyname = 'nexus admin read sales'
-  ) then
-    create policy "nexus admin read sales"
-      on public.nexus_sales for select
-      to authenticated
-      using (public.is_nexus_admin());
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='nexus_sales' and policyname='nexus admin read sales') then
+    create policy "nexus admin read sales" on public.nexus_sales for select to authenticated using (public.is_nexus_admin());
   end if;
-
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'nexus_sales'
-      and policyname = 'nexus admin manage sales'
-  ) then
-    create policy "nexus admin manage sales"
-      on public.nexus_sales for all
-      to authenticated
-      using (public.is_nexus_admin())
-      with check (public.is_nexus_admin());
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='nexus_sales' and policyname='nexus admin manage sales') then
+    create policy "nexus admin manage sales" on public.nexus_sales for all to authenticated using (public.is_nexus_admin()) with check (public.is_nexus_admin());
   end if;
 end;
 $$;
@@ -228,11 +230,8 @@ grant select, insert, update on public.nexus_payment_checkouts to service_role;
 grant select, insert, update on public.nexus_payments to service_role;
 grant select, insert on public.audit_logs to service_role;
 
-comment on table public.nexus_sales is
-  'Leads e contratações iniciadas pelo site público, conciliadas com Asaas e provisionadas automaticamente no Nexus.';
-comment on column public.nexus_plans.employee_limit is
-  'Limite comercial de colaboradores ativos para apresentação pública do plano. Null indica faixa sob consulta.';
-comment on column public.nexus_plans.public_visible is
-  'Controla se o plano deve aparecer no site público de vendas.';
+comment on table public.nexus_sales is 'Leads e contratações iniciadas pelo site público, conciliadas com Asaas e provisionadas automaticamente no Nexus.';
+comment on column public.nexus_plans.employee_limit is 'Limite comercial de colaboradores ativos para apresentação pública do plano. Null indica faixa sob consulta.';
+comment on column public.nexus_plans.public_visible is 'Controla se o plano deve aparecer no site público de vendas.';
 
 commit;
