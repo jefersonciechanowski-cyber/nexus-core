@@ -74,6 +74,7 @@ async function sendLeadNotification(admin: any, sale: any, planName: string) {
   const subject = sale.sale_status === 'checkout_created'
     ? `Nova contratação iniciada · ${clean(sale.company_name, 100)}`
     : `Novo lead Nexus SST · ${clean(sale.company_name, 100)}`;
+  const billingText = sale.billing_mode === 'prepaid' ? 'Anual à vista no boleto' : 'Mensal recorrente';
   const html = `
     <div style="font-family:Arial,sans-serif;color:#172026;line-height:1.55">
       <h2>${sale.sale_status === 'checkout_created' ? 'Nova contratação iniciada' : 'Novo lead pelo site'}</h2>
@@ -82,6 +83,7 @@ async function sendLeadNotification(admin: any, sale: any, planName: string) {
       <p><strong>E-mail:</strong> ${escapeHtml(sale.email)}</p>
       <p><strong>Telefone:</strong> ${escapeHtml(sale.phone || 'Não informado')}</p>
       <p><strong>Plano:</strong> ${escapeHtml(planName || 'Não definido')}</p>
+      <p><strong>Modelo:</strong> ${escapeHtml(billingText)}</p>
       <p><strong>Colaboradores:</strong> ${escapeHtml(sale.employee_count ?? 'Não informado')}</p>
       <p style="color:#6b7479;font-size:12px">Registro automático da Central Nexus.</p>
     </div>`;
@@ -126,9 +128,9 @@ Deno.serve(async request => {
   if (action === 'status') {
     const saleId = clean(body.saleId, 80);
     if (!saleId) return json({ error: 'Venda não informada.' }, 400);
-    const { data } = await admin.from('nexus_sales').select('sale_status,last_error,provisioned_at').eq('id', saleId).maybeSingle();
+    const { data } = await admin.from('nexus_sales').select('sale_status,last_error,provisioned_at,billing_mode,billing_cycle_months,checkout_amount_cents').eq('id', saleId).maybeSingle();
     if (!data) return json({ error: 'Venda não encontrada.' }, 404);
-    return json({ status: data.sale_status, provisioned: data.sale_status === 'provisioned', attention: data.sale_status === 'manual_review' });
+    return json({ status: data.sale_status, provisioned: data.sale_status === 'provisioned', attention: data.sale_status === 'manual_review', billingMode: data.billing_mode, billingCycleMonths: data.billing_cycle_months, amountCents: data.checkout_amount_cents });
   }
 
   const companyName = clean(body.companyName, 140);
@@ -174,7 +176,10 @@ Deno.serve(async request => {
       employee_count: employeeCount || null,
       provider: 'stripe',
       environment,
-    }).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
+      billing_mode: 'recurring',
+      billing_cycle_months: Number(plan?.billing_interval_months || 1),
+      checkout_amount_cents: plan?.price_cents || null,
+    }).select('id,company_name,responsible_name,email,phone,employee_count,sale_status,billing_mode').single();
     if (error || !sale) return json({ error: 'Não foi possível registrar seu interesse.' }, 500);
 
     await sendLeadNotification(admin, sale, plan?.name || planCode);
@@ -183,9 +188,16 @@ Deno.serve(async request => {
 
   if (action !== 'checkout') return json({ error: 'Ação inválida.' }, 400);
   if (!stripeSecretKey) return json({ error: 'Checkout temporariamente indisponível.' }, 503);
-  if (!body.acceptedTerms) return json({ error: 'Confirme os dados e a cobrança recorrente para continuar.' }, 400);
+  if (!body.acceptedTerms) return json({ error: 'Confirme os dados e a cobrança para continuar.' }, 400);
   if (!plan?.id || !plan.public_visible || Number(plan.price_cents) <= 0) return json({ error: 'Este plano exige atendimento comercial.' }, 409);
   if (plan.employee_limit && employeeCount > Number(plan.employee_limit)) return json({ error: 'A quantidade de colaboradores informada ultrapassa o limite deste plano.' }, 409);
+
+  const billingChoice = clean(body.billingChoice, 30).toLowerCase() || 'monthly';
+  if (!['monthly','annual_boleto'].includes(billingChoice)) return json({ error: 'Modelo de cobrança inválido.' }, 400);
+  const annualPrepaid = billingChoice === 'annual_boleto';
+  const billingMode = annualPrepaid ? 'prepaid' : 'recurring';
+  const billingCycleMonths = annualPrepaid ? 12 : Number(plan.billing_interval_months || 1);
+  const checkoutAmountCents = annualPrepaid ? Number(plan.price_cents) * 10 : Number(plan.price_cents);
 
   const registrationNumber = digits(body.registrationNumber);
   const registrationType = registrationNumber.length === 14 ? 'CNPJ' : registrationNumber.length === 11 ? 'CPF' : '';
@@ -216,12 +228,14 @@ Deno.serve(async request => {
     .eq('email', email)
     .eq('registration_number', registrationNumber)
     .eq('plan_id', plan.id)
+    .eq('billing_mode', billingMode)
+    .eq('billing_cycle_months', billingCycleMonths)
     .eq('sale_status', 'checkout_created')
     .gte('created_at', oneHourAgo)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (reusable?.provider_checkout_url) return json({ saleId: reusable.id, link: reusable.provider_checkout_url, reused: true, environment });
+  if (reusable?.provider_checkout_url) return json({ saleId: reusable.id, link: reusable.provider_checkout_url, reused: true, environment, billingMode });
 
   const saleId = crypto.randomUUID();
   const externalReference = `nexus-sale-${saleId}`;
@@ -251,6 +265,9 @@ Deno.serve(async request => {
     environment,
     return_origin: origin,
     external_reference: externalReference,
+    billing_mode: billingMode,
+    billing_cycle_months: billingCycleMonths,
+    checkout_amount_cents: checkoutAmountCents,
   });
   if (saleInsertError) return json({ error: 'Não foi possível iniciar a contratação.' }, 500);
 
@@ -296,39 +313,56 @@ Deno.serve(async request => {
     await admin.from('nexus_sales').update({ provider_customer_id: customerId }).eq('id', saleId);
 
     const callback = `${origin}/apps/site-captacao/obrigado.html?venda=${saleId}`;
-    const intervalMonths = Number(plan.billing_interval_months || 1);
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+    const commonMetadata = {
+      nexus_sale_id: saleId,
+      nexus_plan_id: plan.id,
+      nexus_product_code: product.code,
+      nexus_billing_mode: billingMode,
+      nexus_billing_cycle_months: String(billingCycleMonths),
+      nexus_checkout_amount_cents: String(checkoutAmountCents),
+    };
+
+    const sessionParams: any = {
       customer: customerId,
       client_reference_id: saleId,
       success_url: `${callback}&resultado=sucesso&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${callback}&resultado=cancelado`,
-      line_items: [{
+      metadata: commonMetadata,
+    };
+
+    if (annualPrepaid) {
+      sessionParams.mode = 'payment';
+      sessionParams.payment_method_types = ['boleto'];
+      sessionParams.payment_method_options = { boleto: { expires_after_days: 3 } };
+      sessionParams.line_items = [{
         quantity: 1,
         price_data: {
           currency: String(plan.currency || 'BRL').toLowerCase(),
-          unit_amount: Number(plan.price_cents),
-          recurring: { interval: 'month', interval_count: intervalMonths },
+          unit_amount: checkoutAmountCents,
+          product_data: {
+            name: `${clean(plan.name, 100)} · Anual à vista`,
+            description: clean(`${product.name} · 12 meses · 2 meses de economia · ${companyName}`, 400),
+          },
+        },
+      }];
+    } else {
+      sessionParams.mode = 'subscription';
+      sessionParams.line_items = [{
+        quantity: 1,
+        price_data: {
+          currency: String(plan.currency || 'BRL').toLowerCase(),
+          unit_amount: checkoutAmountCents,
+          recurring: { interval: 'month', interval_count: billingCycleMonths },
           product_data: {
             name: clean(plan.name, 120),
             description: clean(`${product.name} · ${companyName}`, 400),
           },
         },
-      }],
-      metadata: {
-        nexus_sale_id: saleId,
-        nexus_plan_id: plan.id,
-        nexus_product_code: product.code,
-      },
-      subscription_data: {
-        metadata: {
-          nexus_sale_id: saleId,
-          nexus_plan_id: plan.id,
-          nexus_product_code: product.code,
-        },
-      },
-    });
+      }];
+      sessionParams.subscription_data = { metadata: commonMetadata };
+    }
 
+    const session = await stripe.checkout.sessions.create(sessionParams);
     if (!session.url) throw new Error('A Stripe não retornou o link do checkout.');
 
     const { data: saved } = await admin.from('nexus_sales').update({
@@ -337,10 +371,10 @@ Deno.serve(async request => {
       provider_checkout_id: session.id,
       provider_checkout_url: session.url,
       last_error: null,
-    }).eq('id', saleId).select('id,company_name,responsible_name,email,phone,employee_count,sale_status').single();
+    }).eq('id', saleId).select('id,company_name,responsible_name,email,phone,employee_count,sale_status,billing_mode').single();
 
     if (saved) await sendLeadNotification(admin, saved, plan.name);
-    return json({ saleId, link: session.url, environment, provider: 'stripe' });
+    return json({ saleId, link: session.url, environment, provider: 'stripe', billingMode, amountCents: checkoutAmountCents });
   } catch (error) {
     const message = stripeMessage(error);
     await admin.from('nexus_sales').update({ sale_status: 'failed', provider_customer_id: customerId || null, last_error: message }).eq('id', saleId);
