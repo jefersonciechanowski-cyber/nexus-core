@@ -121,7 +121,7 @@ Deno.serve(async request => {
 
   const callback = `${origin}/apps/portal-cliente/`;
   const payload = {
-    billingTypes: ['CREDIT_CARD', 'PIX'],
+    billingTypes: ['CREDIT_CARD'],
     chargeTypes: ['RECURRENT'],
     minutesToExpire,
     externalReference,
