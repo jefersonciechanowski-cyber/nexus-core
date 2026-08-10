@@ -37,8 +37,14 @@
     if (/failed to fetch|networkerror|network request failed/i.test(text)) {
       return 'Não foi possível conectar ao serviço agora. Verifique a conexão e tente novamente.';
     }
+    if (/only send testing emails to your own email address/i.test(text)) {
+      return 'O domínio de teste do Resend só pode enviar para o e-mail da própria conta Resend. Confirme se o destinatário é o e-mail usado no Resend.';
+    }
+    if (/domain is not verified|verify a domain/i.test(text)) {
+      return 'O remetente ainda não está verificado no Resend. Para enviar a outros destinatários, será necessário verificar um domínio.';
+    }
 
-    return text && !/[A-Za-z]{3,}\s[A-Za-z]{3,}/.test(text) ? text : fallback;
+    return text || fallback;
   }
 
   function configureAlertButton() {
@@ -54,12 +60,25 @@
       style.id = 'nexusAlertTextButtonStyles';
       style.textContent = `
         .alert-button { width:auto !important; min-width:82px !important; padding:0 12px !important; font-size:12px !important; }
+        .alert-email-actions { flex-wrap:wrap; justify-content:flex-start !important; }
+        .alert-email-actions button { flex:1 1 120px; }
         @media (min-width:1181px) { .nexus-topbar { grid-template-columns:220px minmax(280px,1fr) auto auto !important; } }
         @media (min-width:901px) and (max-width:1180px) { .nexus-topbar { grid-template-columns:210px minmax(220px,1fr) auto !important; } }
         @media (min-width:761px) and (max-width:900px) { .nexus-topbar { grid-template-columns:minmax(190px,.8fr) minmax(230px,1.2fr) auto !important; } }
       `;
       document.head.appendChild(style);
     }
+  }
+
+  function configureEmailTestButton() {
+    const actions = $('alertEmailSend')?.parentElement;
+    if (!actions || $('alertEmailTest')) return;
+    const button = document.createElement('button');
+    button.id = 'alertEmailTest';
+    button.className = 'ghost';
+    button.type = 'button';
+    button.textContent = 'Enviar teste';
+    actions.insertBefore(button, $('alertEmailSend'));
   }
 
   async function loadStates() {
@@ -148,6 +167,14 @@
     return relevant().map(item => ({ id: item.id, type: item.type, item: item.item, employeeName: item.employee.name, unitName: current.units.find(unit => String(unit.id) === String(item.employee.unitId))?.name || 'Unidade não informada', sectorName: current.sectors.find(sector => String(sector.id) === String(item.employee.sectorId))?.name || 'Setor não informado', due: item.due, status: item.status }));
   }
 
+  async function sendTestEmail() {
+    if (!emailPreferences?.enabled) throw new Error('Ative e salve as preferências de e-mail antes de testar.');
+    if (!(emailPreferences.recipients || []).length) throw new Error('Salve ao menos um destinatário antes de testar.');
+    const { data, error } = await window.NexusData.getClient().functions.invoke('send-alert-emails', { body: { test: true } });
+    if (error || data?.error || data?.failed) throw new Error(data?.error || 'Não foi possível enviar o e-mail de teste.');
+    $('alertEmailStatus').textContent = `E-mail de teste enviado com sucesso para ${data.sent || 0} destinatário(s).`;
+  }
+
   async function sendEmailAlerts(manual = true) {
     if (!emailPreferences?.enabled) { if (manual) throw new Error('Ative e salve as preferências de e-mail antes de enviar.'); return; }
     const alerts = emailPayload();
@@ -183,6 +210,7 @@
     if (installed || !$('alertButton') || !window.NexusData || !window.NexusPreventiveAgenda) return;
     installed = true;
     configureAlertButton();
+    configureEmailTestButton();
     $('alertButton').onclick = () => $('alertPanel').classList.contains('open') ? close() : open();
     $('alertClose').onclick = close;
     $('alertBackdrop').onclick = close;
@@ -190,6 +218,7 @@
     $('alertDeadline').onchange = render;
     $('alertSituation').onchange = render;
     $('alertEmailSave').onclick = event => window.NexusData.runLocked('email-preferences', async () => { try { await saveEmailPreferences(); $('alertEmailStatus').textContent = 'Preferências salvas com sucesso.'; } catch (error) { $('alertEmailStatus').textContent = readableError(error); } }, event.currentTarget);
+    $('alertEmailTest').onclick = event => window.NexusData.runLocked('email-test', async () => { try { $('alertEmailStatus').textContent = 'Enviando e-mail de teste...'; await sendTestEmail(); } catch (error) { $('alertEmailStatus').textContent = readableError(error); } }, event.currentTarget);
     $('alertEmailSend').onclick = event => window.NexusData.runLocked('email-dispatch', async () => { try { $('alertEmailStatus').textContent = 'Enviando alertas...'; await sendEmailAlerts(true); } catch (error) { $('alertEmailStatus').textContent = readableError(error); } }, event.currentTarget);
     const originalRender = window.NEXUS_SST_APP.render;
     window.NEXUS_SST_APP.render = (...args) => { const result = originalRender(...args); render(); return result; };
