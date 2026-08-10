@@ -1,0 +1,247 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+});
+
+const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
+const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
+const cycleByMonths: Record<number, string> = { 1: 'MONTHLY', 3: 'QUARTERLY', 6: 'SEMIANNUALLY', 12: 'YEARLY' };
+
+function checkoutLink(baseUrl: string, id: string) {
+  return baseUrl.includes('api-sandbox')
+    ? `https://sandbox.asaas.com/checkoutSession/show/${id}`
+    : `https://asaas.com/checkoutSession/show/${id}`;
+}
+
+function callbackBase(request: Request) {
+  const origin = clean(request.headers.get('Origin'), 500);
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+async function asaasRequest(baseUrl: string, apiKey: string, path: string, init: RequestInit = {}) {
+  return fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'access_token': apiKey,
+      'User-Agent': 'NexusCore/1.0 (Supabase Edge Function)',
+      ...(init.headers || {}),
+    },
+  });
+}
+
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const asaasApiKey = Deno.env.get('ASAAS_API_KEY');
+  const asaasBaseUrl = (Deno.env.get('ASAAS_API_BASE_URL') || 'https://api-sandbox.asaas.com/v3').replace(/\/$/, '');
+  const authorization = request.headers.get('Authorization');
+  const origin = callbackBase(request);
+
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) return json({ error: 'Integração Supabase não configurada.' }, 500);
+  if (!asaasApiKey) return json({ error: 'Configure ASAAS_API_KEY nos secrets da Edge Function.' }, 503);
+  if (!origin) return json({ error: 'Origem do checkout não permitida.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try { body = await request.json(); } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
+  const accessId = clean(body.accessId, 80);
+  if (!accessId) return json({ error: 'Informe o acesso que será cobrado.' }, 400);
+
+  const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: { user }, error: userError } = await userClient.auth.getUser();
+  if (userError || !user) return json({ error: 'Sessão inválida.' }, 401);
+
+  const { data: profile, error: profileError } = await userClient
+    .from('profiles')
+    .select('organization_id,role,full_name')
+    .eq('id', user.id)
+    .single();
+  if (profileError || !profile?.organization_id) return json({ error: 'Perfil sem organização.' }, 403);
+
+  const { data: access, error: accessError } = await userClient
+    .from('organization_product_access')
+    .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,asaas_customer_id,organization:organizations(name,legal_name,trade_name,registration_number,email,phone,postal_code,street,street_number,address_complement,district),product:nexus_products(name),plan:nexus_plans(id,name,billing_interval_months,status)')
+    .eq('id', accessId)
+    .single();
+  if (accessError || !access) return json({ error: 'Assinatura não encontrada ou sem permissão.' }, 404);
+  if (profile.role !== 'nexus_admin' && access.organization_id !== profile.organization_id) return json({ error: 'Acesso fora da sua organização.' }, 403);
+  if (!access.plan_id || !access.plan || access.plan.status !== 'active') return json({ error: 'Selecione um plano comercial ativo antes de gerar o checkout.' }, 409);
+  if (access.contracted_price_cents === null || Number(access.contracted_price_cents) <= 0) return json({ error: 'A assinatura não possui valor contratado válido.' }, 409);
+
+  const interval = Number(access.plan.billing_interval_months);
+  const cycle = cycleByMonths[interval];
+  if (!cycle) return json({ error: 'Periodicidade não suportada pelo checkout.' }, 409);
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const { data: existingCheckout } = await adminClient
+    .from('nexus_payment_checkouts')
+    .select('id,provider_checkout_url,status,expires_at')
+    .eq('access_id', access.id)
+    .in('status', ['created', 'active'])
+    .gt('expires_at', nowIso)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingCheckout?.provider_checkout_url) {
+    return json({ checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true });
+  }
+
+  const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
+  const product = Array.isArray(access.product) ? access.product[0] : access.product;
+  const cpfCnpj = digits(organization?.registration_number);
+  const phone = digits(organization?.phone);
+  const postalCode = digits(organization?.postal_code);
+  if (![11, 14].includes(cpfCnpj.length)) {
+    return json({ error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
+  }
+
+  const customerExternalReference = `nexus-org-${access.organization_id}`;
+  let asaasCustomerId = clean(access.asaas_customer_id, 200);
+
+  try {
+    if (!asaasCustomerId) {
+      const params = new URLSearchParams({
+        limit: '1',
+        cpfCnpj,
+        externalReference: customerExternalReference,
+      });
+      const lookupResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, `/customers?${params.toString()}`, { method: 'GET' });
+      const lookupResult = await lookupResponse.json();
+      if (lookupResponse.ok && Array.isArray(lookupResult?.data) && lookupResult.data[0]?.id) {
+        asaasCustomerId = clean(lookupResult.data[0].id, 200);
+      }
+    }
+
+    if (!asaasCustomerId) {
+      const customerPayload: Record<string, unknown> = {
+        name: clean(organization?.legal_name || organization?.trade_name || organization?.name || profile.full_name || user.email, 100),
+        cpfCnpj,
+        email: clean(organization?.email || user.email, 150),
+        externalReference: customerExternalReference,
+      };
+      if (phone.length >= 10) customerPayload.mobilePhone = phone;
+      if (postalCode.length === 8) customerPayload.postalCode = postalCode;
+      if (clean(organization?.street, 120)) customerPayload.address = clean(organization?.street, 120);
+      if (clean(organization?.street_number, 30)) customerPayload.addressNumber = clean(organization?.street_number, 30);
+      if (clean(organization?.address_complement, 255)) customerPayload.complement = clean(organization?.address_complement, 255);
+      if (clean(organization?.district, 100)) customerPayload.province = clean(organization?.district, 100);
+
+      const customerResponse = await asaasRequest(asaasBaseUrl, asaasApiKey, '/customers', {
+        method: 'POST',
+        body: JSON.stringify(customerPayload),
+      });
+      const customerResult = await customerResponse.json();
+      if (!customerResponse.ok || !customerResult?.id) {
+        const message = clean(customerResult?.errors?.[0]?.description || customerResult?.message || 'Não foi possível cadastrar o cliente no Asaas.', 700);
+        return json({ error: message }, customerResponse.status >= 400 && customerResponse.status < 500 ? 400 : 502);
+      }
+      asaasCustomerId = clean(customerResult.id, 200);
+    }
+
+    const { error: customerSaveError } = await adminClient
+      .from('organization_product_access')
+      .update({ asaas_customer_id: asaasCustomerId })
+      .eq('id', access.id);
+    if (customerSaveError) return json({ error: 'Cliente criado no Asaas, mas não foi possível salvar o vínculo no Nexus.' }, 500);
+  } catch {
+    return json({ error: 'Não foi possível criar ou localizar o cliente no Asaas.' }, 502);
+  }
+
+  const checkoutId = crypto.randomUUID();
+  const externalReference = `nexus-checkout-${checkoutId}`;
+  const minutesToExpire = 60;
+  const expiresAt = new Date(now.getTime() + minutesToExpire * 60_000).toISOString();
+  const environment = asaasBaseUrl.includes('api-sandbox') ? 'sandbox' : 'production';
+  const price = Number(access.contracted_price_cents) / 100;
+  const dueDate = now.toISOString().slice(0, 10);
+
+  const { error: insertError } = await adminClient.from('nexus_payment_checkouts').insert({
+    id: checkoutId,
+    organization_id: access.organization_id,
+    access_id: access.id,
+    plan_id: access.plan_id,
+    provider: 'asaas',
+    environment,
+    external_reference: externalReference,
+    provider_customer_id: asaasCustomerId,
+    status: 'created',
+    amount_cents: access.contracted_price_cents,
+    currency: access.contracted_currency || 'BRL',
+    billing_interval_months: interval,
+    expires_at: expiresAt,
+  });
+  if (insertError) return json({ error: 'Não foi possível iniciar o checkout.' }, 500);
+
+  const callback = `${origin}/apps/portal-cliente/`;
+  const payload = {
+    billingTypes: ['CREDIT_CARD'],
+    chargeTypes: ['RECURRENT'],
+    minutesToExpire,
+    externalReference,
+    callback: {
+      successUrl: `${callback}?pagamento=sucesso`,
+      cancelUrl: `${callback}?pagamento=cancelado`,
+      expiredUrl: `${callback}?pagamento=expirado`,
+    },
+    items: [{
+      externalReference: access.plan_id,
+      name: clean(access.plan.name, 100),
+      description: clean(`${product?.name || 'Nexus'} · ${organization?.name || 'Assinatura Nexus'}`, 200),
+      quantity: 1,
+      value: price,
+    }],
+    customer: asaasCustomerId,
+    subscription: { cycle, nextDueDate: `${dueDate}T12:00:00-03:00` },
+  };
+
+  try {
+    const response = await asaasRequest(asaasBaseUrl, asaasApiKey, '/checkouts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result?.id) {
+      const message = clean(result?.errors?.[0]?.description || result?.message || 'Checkout recusado pelo Asaas.', 700);
+      await adminClient.from('nexus_payment_checkouts').update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() }).eq('id', checkoutId);
+      return json({ error: message }, response.status >= 400 && response.status < 500 ? 400 : 502);
+    }
+
+    const link = clean(result.link || checkoutLink(asaasBaseUrl, result.id), 1000);
+    const providerStatus = clean(result.status || 'ACTIVE', 30).toUpperCase();
+    const status = providerStatus === 'PAID' ? 'paid' : providerStatus === 'EXPIRED' ? 'expired' : providerStatus === 'CANCELED' ? 'canceled' : 'active';
+    await adminClient.from('nexus_payment_checkouts').update({
+      provider_checkout_id: clean(result.id, 200),
+      provider_checkout_url: link,
+      provider_customer_id: asaasCustomerId,
+      status,
+      updated_at: new Date().toISOString(),
+    }).eq('id', checkoutId);
+
+    return json({ checkoutId, providerCheckoutId: result.id, customerId: asaasCustomerId, link, status, environment });
+  } catch (error) {
+    const message = clean(error instanceof Error ? error.message : error, 700);
+    await adminClient.from('nexus_payment_checkouts').update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() }).eq('id', checkoutId);
+    return json({ error: 'Não foi possível comunicar com o Asaas.' }, 502);
+  }
+});
