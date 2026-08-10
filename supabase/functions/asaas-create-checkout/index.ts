@@ -11,6 +11,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
+const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
 const cycleByMonths: Record<number, string> = { 1: 'MONTHLY', 3: 'QUARTERLY', 6: 'SEMIANNUALLY', 12: 'YEARLY' };
 
 function checkoutLink(baseUrl: string, id: string) {
@@ -66,7 +67,7 @@ Deno.serve(async request => {
 
   const { data: access, error: accessError } = await userClient
     .from('organization_product_access')
-    .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,organization:organizations(name),product:nexus_products(name),plan:nexus_plans(id,name,billing_interval_months,status)')
+    .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,organization:organizations(name,registration_number,phone),product:nexus_products(name),plan:nexus_plans(id,name,billing_interval_months,status)')
     .eq('id', accessId)
     .single();
   if (accessError || !access) return json({ error: 'Assinatura não encontrada ou sem permissão.' }, 404);
@@ -93,6 +94,14 @@ Deno.serve(async request => {
     return json({ checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true });
   }
 
+  const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
+  const product = Array.isArray(access.product) ? access.product[0] : access.product;
+  const cpfCnpj = digits(organization?.registration_number);
+  const phone = digits(organization?.phone);
+  if (![11, 14].includes(cpfCnpj.length)) {
+    return json({ error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
+  }
+
   const checkoutId = crypto.randomUUID();
   const externalReference = `nexus-checkout-${checkoutId}`;
   const minutesToExpire = 60;
@@ -100,8 +109,6 @@ Deno.serve(async request => {
   const environment = asaasBaseUrl.includes('api-sandbox') ? 'sandbox' : 'production';
   const price = Number(access.contracted_price_cents) / 100;
   const dueDate = now.toISOString().slice(0, 10);
-  const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
-  const product = Array.isArray(access.product) ? access.product[0] : access.product;
 
   const { error: insertError } = await adminClient.from('nexus_payment_checkouts').insert({
     id: checkoutId,
@@ -120,6 +127,13 @@ Deno.serve(async request => {
   if (insertError) return json({ error: 'Não foi possível iniciar o checkout.' }, 500);
 
   const callback = `${origin}/apps/portal-cliente/`;
+  const customerData: Record<string, string> = {
+    name: clean(profile.full_name || user.user_metadata?.name || organization?.name || user.email, 100),
+    cpfCnpj,
+    email: clean(user.email, 150),
+  };
+  if (phone.length >= 10) customerData.phone = phone;
+
   const payload = {
     billingTypes: ['CREDIT_CARD'],
     chargeTypes: ['RECURRENT'],
@@ -137,10 +151,7 @@ Deno.serve(async request => {
       quantity: 1,
       value: price,
     }],
-    customerData: {
-      name: clean(profile.full_name || user.user_metadata?.name || organization?.name || user.email, 100),
-      email: clean(user.email, 150),
-    },
+    customerData,
     subscription: { cycle, nextDueDate: `${dueDate}T12:00:00-03:00` },
   };
 
