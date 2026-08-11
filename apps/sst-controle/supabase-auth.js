@@ -13,6 +13,32 @@
 
   let client = null;
 
+  function getRecoveryRedirectTarget() {
+    const hash = window.location.hash || '';
+
+    if (!hash) {
+      return null;
+    }
+
+    const params = new URLSearchParams(hash.slice(1));
+    const isRecovery = params.get('type') === 'recovery';
+    const isRecoveryError = params.get('error_code') === 'otp_expired';
+
+    if (!isRecovery && !isRecoveryError) {
+      return null;
+    }
+
+    if (window.location.pathname.includes('/apps/portal-cliente/')) {
+      return `redefinir-senha.html${hash}`;
+    }
+
+    if (window.location.pathname.includes('/apps/sst-controle/')) {
+      return `../portal-cliente/redefinir-senha.html${hash}`;
+    }
+
+    return null;
+  }
+
   function getClient() {
     const config = window.NEXUS_SUPABASE_CONFIG;
 
@@ -114,6 +140,13 @@
   }
 
   async function restoreSession() {
+    const recoveryRedirectTarget = getRecoveryRedirectTarget();
+
+    if (recoveryRedirectTarget) {
+      window.location.replace(recoveryRedirectTarget);
+      return null;
+    }
+
     const supabaseClient = getClient();
     const { data, error } = await supabaseClient.auth.getUser();
 
