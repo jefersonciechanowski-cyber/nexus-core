@@ -59,11 +59,31 @@ async function ensureBrazilTaxId(stripe: Stripe, customerId: string, registratio
   }
 }
 
-async function sendLeadNotification(admin: any, sale: any, planName: string) {
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL');
-  if (!resendKey || !fromEmail) return;
+async function sendBrevoEmail(to: string, toName: string, subject: string, html: string) {
+  const apiKey = Deno.env.get('BREVO_API_KEY');
+  const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
+  if (!apiKey || !fromEmail) return { ok: false, skipped: true, error: 'BREVO_API_KEY ou BREVO_FROM_EMAIL ausente.' };
 
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Nexus Core', email: fromEmail },
+      to: [{ email: to, name: toName || undefined }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!response.ok) return { ok: false, skipped: false, error: `Brevo ${response.status}: ${clean(await response.text(), 500)}` };
+  return { ok: true, skipped: false, error: null };
+}
+
+async function sendLeadNotification(admin: any, sale: any, planName: string) {
   const { data: admins } = await admin.from('profiles').select('id').eq('role', 'nexus_admin').eq('active', true).limit(1);
   const profile = admins?.[0];
   if (!profile?.id) return;
@@ -88,11 +108,8 @@ async function sendLeadNotification(admin: any, sale: any, planName: string) {
       <p style="color:#6b7479;font-size:12px">Registro automático da Central Nexus.</p>
     </div>`;
 
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: fromEmail, to: [recipient], subject, html }),
-  });
+  const result = await sendBrevoEmail(recipient, 'Administrador Nexus', subject, html);
+  if (!result.ok && !result.skipped) console.error('Falha ao enviar notificação administrativa pela Brevo:', result.error);
 }
 
 Deno.serve(async request => {

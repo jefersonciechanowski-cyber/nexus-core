@@ -111,15 +111,15 @@ async function auditEmailFailure(admin: any, sale: any, reason: string) {
     action: 'NEXUS_ONBOARDING_EMAIL_FAILED',
     entity: 'nexus_sales',
     entity_id: sale.id,
-    metadata: { email: sale.email, provider: 'resend', reason: clean(reason, 700) },
+    metadata: { email: sale.email, provider: 'brevo', reason: clean(reason, 700) },
   });
 }
 
 async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL');
-  if (!resendKey || !fromEmail || !sale?.email) {
-    await auditEmailFailure(admin, sale, 'RESEND_API_KEY, RESEND_FROM_EMAIL ou e-mail do cliente ausente.');
+  const brevoKey = Deno.env.get('BREVO_API_KEY');
+  const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
+  if (!brevoKey || !fromEmail || !sale?.email) {
+    await auditEmailFailure(admin, sale, 'BREVO_API_KEY, BREVO_FROM_EMAIL ou e-mail do cliente ausente.');
     return false;
   }
 
@@ -150,18 +150,30 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
       <p style="margin:28px 0"><a href="${actionLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
       <p style="font-size:13px;color:#68757b">Depois da definição de senha, acesse: ${publicUrl}/apps/portal-cliente/</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
-      <p style="font-size:12px;color:#7b858a">Nexus Core Tecnologia LTDA · acesso criado automaticamente após confirmação financeira da Stripe.</p>
+      <p style="font-size:12px;color:#7b858a">Nexus Core · acesso criado automaticamente após confirmação financeira da Stripe.</p>
     </div>`;
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: fromEmail, to: [sale.email], subject: 'Seu acesso ao Nexus SST está pronto', html }),
+    headers: {
+      'accept': 'application/json',
+      'api-key': brevoKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Nexus Core', email: fromEmail },
+      to: [{ email: sale.email, name: clean(sale.responsible_name, 140) || undefined }],
+      subject: 'Seu acesso ao Nexus SST está pronto',
+      htmlContent: html,
+    }),
   });
   if (!response.ok) {
-    await auditEmailFailure(admin, sale, `Resend ${response.status}: ${clean(await response.text(), 500)}`);
+    await auditEmailFailure(admin, sale, `Brevo ${response.status}: ${clean(await response.text(), 500)}`);
     return false;
   }
+
+  let messageId: string | null = null;
+  try { messageId = clean((await response.json())?.messageId, 255) || null; } catch { /* resposta sem JSON */ }
 
   await admin.from('audit_logs').insert({
     organization_id: sale.organization_id || null,
@@ -169,7 +181,7 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
     action: 'NEXUS_ONBOARDING_EMAIL_SENT',
     entity: 'nexus_sales',
     entity_id: sale.id,
-    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'stripe' },
+    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'brevo', billing_provider: 'stripe', message_id: messageId },
   });
   return true;
 }
