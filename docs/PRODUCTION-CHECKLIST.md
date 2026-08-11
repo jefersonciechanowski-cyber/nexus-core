@@ -98,17 +98,24 @@ Após a troca, testar:
 
 ## 6. Stripe Live
 
+### Conta confirmada
+
+Conta Stripe conectada e conferida para o Nexus Core Industrial Trust.
+
 ### Antes de trocar a chave
 
 No Stripe, ativar os meios de pagamento que serão oferecidos pelo Nexus e confirmar os dados comerciais da conta.
 
-### Endpoint do Webhook
+### Endpoint do Webhook — criado
 
-URL:
+Endpoint live criado em 11/08/2026:
 
-`https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/stripe-webhook`
+- ID Stripe: `we_1U3LA7LM0QdMyG74k8XSkwt1`;
+- status: habilitado;
+- modo: live;
+- URL: `https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/stripe-webhook`.
 
-O endpoint precisa receber os eventos usados pelo Nexus:
+Eventos habilitados:
 
 - `checkout.session.completed`;
 - `checkout.session.expired`;
@@ -116,11 +123,17 @@ O endpoint precisa receber os eventos usados pelo Nexus:
 - `checkout.session.async_payment_failed`;
 - `invoice.paid`;
 - `invoice.payment_failed`;
-- eventos de atualização/cancelamento da assinatura (`customer.subscription.*`) usados para sincronizar o estado de acesso.
+- `customer.subscription.created`;
+- `customer.subscription.updated`;
+- `customer.subscription.deleted`;
+- `customer.subscription.paused`;
+- `customer.subscription.resumed`.
 
-Depois de criar o endpoint **live**, copiar o signing secret `whsec_...` correspondente e salvar como `STRIPE_WEBHOOK_SECRET` no Supabase.
+O signing secret correspondente deve ser salvo diretamente no Supabase como `STRIPE_WEBHOOK_SECRET`. Nunca registrar esse secret no repositório, documentação ou frontend.
 
-Só então trocar `STRIPE_SECRET_KEY` de `sk_test_...` para `sk_live_...`.
+Ainda falta obter/salvar a chave secreta live da conta como `STRIPE_SECRET_KEY=sk_live_...`.
+
+A troca para live só deve acontecer depois que o domínio público e `NEXUS_PUBLIC_URL` estiverem definidos, evitando que um preview ou URL temporária seja usada em uma contratação real.
 
 ## 7. Regra de teste após ativar Live
 
@@ -175,8 +188,9 @@ O Nexus é considerado pronto para os primeiros clientes quando todos os itens a
 - [ ] URLs do Supabase Auth atualizadas;
 - [ ] domínio/remetente Brevo validado;
 - [ ] domínio/remetente Resend validado;
-- [ ] Stripe live configurado;
-- [ ] webhook live configurado e signing secret salvo;
+- [ ] chave secreta Stripe live salva no Supabase;
+- [x] webhook Stripe live criado e habilitado;
+- [ ] signing secret do webhook live salvo no Supabase;
 - [ ] pagamento real controlado testado;
 - [ ] onboarding real testado;
 - [ ] alertas por e-mail testados com remetente final;
