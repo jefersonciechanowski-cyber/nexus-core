@@ -7,9 +7,9 @@ const corsHeaders = {
 
 type Alert = {
   id: string;
-  type: 'Exame' | 'Treinamento' | 'EPI';
+  type: 'Exame' | 'Treinamento' | 'EPI' | 'Documento' | 'Fiscalização';
   item: string;
-  employeeName: string;
+  subjectName: string;
   unitName: string;
   sectorName: string;
   due: string;
@@ -17,7 +17,7 @@ type Alert = {
 };
 
 const allowedRoles = new Set(['nexus_admin', 'org_admin', 'sst_manager', 'sst_technician']);
-const allowedTypes = new Set(['Exame', 'Treinamento', 'EPI']);
+const allowedTypes = new Set(['Exame', 'Treinamento', 'EPI', 'Documento', 'Fiscalização']);
 const allowedStatuses = new Set(['OVERDUE', 'DUE_7', 'DUE_15', 'DUE_30']);
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const clean = (value: unknown, size = 180) => String(value ?? '').trim().slice(0, size);
@@ -30,22 +30,27 @@ function normalizeAlerts(input: unknown): Alert[] {
   return input.slice(0, 100).flatMap(raw => {
     const alert = raw as Record<string, unknown>;
     const normalized = {
-      id: clean(alert.id, 300), type: clean(alert.type, 20), item: clean(alert.item),
-      employeeName: clean(alert.employeeName), unitName: clean(alert.unitName),
-      sectorName: clean(alert.sectorName), due: clean(alert.due, 10), status: clean(alert.status, 20),
+      id: clean(alert.id, 300),
+      type: clean(alert.type, 30),
+      item: clean(alert.item, 240),
+      subjectName: clean(alert.subjectName || alert.employeeName, 180),
+      unitName: clean(alert.unitName, 180),
+      sectorName: clean(alert.sectorName, 180),
+      due: clean(alert.due, 10),
+      status: clean(alert.status, 20),
     };
-    if (!normalized.id || !/^\d{4}-\d{2}-\d{2}$/.test(normalized.due) || !allowedTypes.has(normalized.type) || !allowedStatuses.has(normalized.status)) return [];
+    if (!normalized.id || !normalized.subjectName || !/^\d{4}-\d{2}-\d{2}$/.test(normalized.due) || !allowedTypes.has(normalized.type) || !allowedStatuses.has(normalized.status)) return [];
     return [normalized as Alert];
   });
 }
 
 function emailHtml(organizationName: string, alerts: Alert[]) {
-  const rows = alerts.map(alert => `<tr><td style="padding:10px;border-bottom:1px solid #e5e7eb"><strong>${escapeHtml(alert.item)}</strong><br><small>${escapeHtml(alert.type)}</small></td><td style="padding:10px;border-bottom:1px solid #e5e7eb">${escapeHtml(alert.employeeName)}<br><small>${escapeHtml(alert.unitName)} / ${escapeHtml(alert.sectorName)}</small></td><td style="padding:10px;border-bottom:1px solid #e5e7eb">${formatDate(alert.due)}<br><small>${statusLabel(alert.status)}</small></td></tr>`).join('');
-  return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:760px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:22px"><h2>Alertas preventivos de ${escapeHtml(organizationName)}</h2><p>Encontramos ${alerts.length} obrigação(ões) que exigem atenção.</p><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:10px;text-align:left">Obrigação</th><th style="padding:10px;text-align:left">Colaborador</th><th style="padding:10px;text-align:left">Prazo</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem automática enviada pela Central de Alertas do SST Controle.</p></div></div>`;
+  const rows = alerts.map(alert => `<tr><td style="padding:10px;border-bottom:1px solid #e5e7eb"><strong>${escapeHtml(alert.item)}</strong><br><small>${escapeHtml(alert.type)}</small></td><td style="padding:10px;border-bottom:1px solid #e5e7eb">${escapeHtml(alert.subjectName)}<br><small>${escapeHtml(alert.unitName)} / ${escapeHtml(alert.sectorName)}</small></td><td style="padding:10px;border-bottom:1px solid #e5e7eb">${formatDate(alert.due)}<br><small>${statusLabel(alert.status)}</small></td></tr>`).join('');
+  return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:760px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:22px"><h2>Alertas preventivos de ${escapeHtml(organizationName)}</h2><p>Encontramos ${alerts.length} obrigação(ões) que exigem atenção.</p><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:10px;text-align:left">Obrigação</th><th style="padding:10px;text-align:left">Impactado / escopo</th><th style="padding:10px;text-align:left">Prazo</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem automática enviada pela Central de Alertas do SST Controle.</p></div></div>`;
 }
 
 function testEmailHtml(organizationName: string) {
-  return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:620px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:24px"><h2>Teste de envio concluído</h2><p>A integração de e-mail da empresa <strong>${escapeHtml(organizationName)}</strong> está funcionando.</p><p>Esta mensagem é somente um teste da Central de Alertas. Nenhum colaborador, obrigação ou vencimento foi criado ou alterado.</p><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem de teste enviada pelo SST Controle.</p></div></div>`;
+  return `<div style="font-family:Arial,sans-serif;color:#172026;max-width:620px;margin:auto"><div style="padding:20px;background:#111827;color:#e0b84a"><h1 style="margin:0;font-size:22px">Nexus Core · SST Controle</h1></div><div style="padding:24px"><h2>Teste de envio concluído</h2><p>A integração de e-mail da empresa <strong>${escapeHtml(organizationName)}</strong> está funcionando.</p><p>Esta mensagem é somente um teste da Central de Alertas. Nenhum registro ou vencimento foi criado ou alterado.</p><p style="margin-top:22px;color:#6b7280;font-size:12px">Mensagem de teste enviada pelo SST Controle.</p></div></div>`;
 }
 
 Deno.serve(async request => {

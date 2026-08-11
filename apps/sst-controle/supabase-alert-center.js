@@ -23,23 +23,11 @@
     const cause = error?.cause;
     const raw = cause?.message || cause?.details || error?.message || '';
     const text = String(raw);
-
-    if (/notification_email_preferences/i.test(text) && /(could not find the table|schema cache|pgrst205)/i.test(text)) {
-      return 'A configuração de e-mail ainda não está disponível. Atualize a página e tente novamente.';
-    }
-    if (/send-alert-emails/i.test(text) && /(not found|404|function)/i.test(text)) {
-      return 'O envio de e-mail está temporariamente indisponível.';
-    }
-    if (/failed to fetch|networkerror|network request failed/i.test(text)) {
-      return 'Não foi possível conectar ao serviço agora. Tente novamente.';
-    }
-    if (/only send testing emails to your own email address/i.test(text)) {
-      return 'Este remetente ainda está limitado ao e-mail da conta de envio.';
-    }
-    if (/domain is not verified|verify a domain/i.test(text)) {
-      return 'O remetente de e-mail ainda precisa ser verificado.';
-    }
-
+    if (/notification_email_preferences/i.test(text) && /(could not find the table|schema cache|pgrst205)/i.test(text)) return 'A configuração de e-mail ainda não está disponível. Atualize a página e tente novamente.';
+    if (/send-alert-emails/i.test(text) && /(not found|404|function)/i.test(text)) return 'O envio de e-mail está temporariamente indisponível.';
+    if (/failed to fetch|networkerror|network request failed/i.test(text)) return 'Não foi possível conectar ao serviço agora. Tente novamente.';
+    if (/only send testing emails to your own email address/i.test(text)) return 'Este remetente ainda está limitado ao e-mail da conta de envio.';
+    if (/domain is not verified|verify a domain/i.test(text)) return 'O remetente de e-mail ainda precisa ser verificado.';
     return text || fallback;
   }
 
@@ -87,7 +75,6 @@
     const email = document.querySelector('.alert-email');
     const list = $('alertList');
     if (email && list && list.nextElementSibling !== email) list.after(email);
-
     const emailTitle = email?.querySelector('.alert-email-head strong');
     const emailHelp = email?.querySelector('.alert-email-head small');
     const recipientLabel = $('alertEmailRecipients')?.closest('label');
@@ -101,12 +88,10 @@
     const rows = await window.NexusData.list({ table: 'notification_alert_states', select: 'id,alert_key,category,due_date,read_at,email_sent_at,whatsapp_sent_at', label: 'alertas' });
     states = new Map(rows.map(row => [row.alert_key, row]));
   }
-
   async function loadEmailPreferences() {
     const rows = await window.NexusData.list({ table: 'notification_email_preferences', select: 'id,enabled,recipients,deadline_statuses,updated_at', label: 'preferências de e-mail' });
     emailPreferences = rows[0] || { enabled: false, recipients: session().email ? [session().email] : [], deadline_statuses: defaultDeadlines };
   }
-
   async function loadEmailHistory() {
     const rows = await window.NexusData.list({ table: 'notification_delivery_logs', select: 'id,alert_key,due_date,recipient,status,error_message,sent_at,created_at', filters: [{ column: 'channel', value: 'email' }], order: { column: 'created_at', ascending: false }, label: 'histórico de e-mails' });
     emailHistory = rows.slice(0, 8);
@@ -121,10 +106,7 @@
     states.set(item.id, rows[0]);
   }
 
-  function pending() {
-    return relevant().filter(item => !isRead(item));
-  }
-
+  function pending() { return relevant().filter(item => !isRead(item)); }
   function parsedRecipients() { return [...new Set($('alertEmailRecipients').value.split(/[;,\s]+/).map(value => value.trim().toLowerCase()).filter(Boolean))]; }
   function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
 
@@ -146,9 +128,10 @@
     $('alertSummary').textContent = items.length ? `${items.length} alerta(s) pendente(s)` : 'Nenhum alerta pendente';
     const current = window.NEXUS_SST_APP.getState();
     $('alertList').innerHTML = items.length ? items.map(item => {
-      const unit = current.units.find(candidate => String(candidate.id) === String(item.employee.unitId));
-      const sector = current.sectors.find(candidate => String(candidate.id) === String(item.employee.sectorId));
-      return `<article class="alert-item ${item.status}" data-key="${esc(item.id)}"><div class="alert-item-main"><span class="badge preventive-badge ${esc(item.status)}">${esc(label(item.status))}</span><strong>${esc(item.item)}</strong><p>${esc(item.employee.name)} · ${esc(sector?.name || 'Setor não informado')}<br>Vencimento: ${formatDate(item.due)}${unit?.name ? ` · ${esc(unit.name)}` : ''}</p></div><div class="alert-actions"><button class="ghost alert-open" type="button">Abrir registro</button></div></article>`;
+      const unit = current.units.find(candidate => String(candidate.id) === String(item.unitId));
+      const sector = current.sectors.find(candidate => String(candidate.id) === String(item.sectorId));
+      const location = sector ? `${unit?.name || 'Unidade'} / ${sector.name}` : (unit?.name || (item.source === 'employee' ? 'Local não informado' : 'Empresa inteira'));
+      return `<article class="alert-item ${item.status}" data-key="${esc(item.id)}"><div class="alert-item-main"><span class="badge preventive-badge ${esc(item.status)}">${esc(label(item.status))}</span><strong>${esc(item.item)}</strong><p>${esc(item.subjectName || 'Empresa')} · ${esc(location)}<br>Vencimento: ${formatDate(item.due)}</p></div><div class="alert-actions"><button class="ghost alert-open" type="button">Abrir registro</button></div></article>`;
     }).join('') : '<div class="requirements-empty">Você não tem alertas pendentes.</div>';
 
     $('alertList').querySelectorAll('.alert-item').forEach(element => {
@@ -167,13 +150,8 @@
     if (recipients.length > 10 || recipients.some(recipient => !validEmail(recipient))) throw new Error('Informe um endereço de e-mail válido.');
     if (enabled && !recipients.length) throw new Error('Informe o e-mail que receberá os alertas.');
     const values = { enabled, recipients, deadline_statuses: defaultDeadlines };
-
-    if (emailPreferences?.id) {
-      await window.NexusData.update({ table: 'notification_email_preferences', id: emailPreferences.id, values: { ...values, updated_at: new Date().toISOString() }, label: 'preferências de e-mail' });
-    } else {
-      await window.NexusData.insert({ table: 'notification_email_preferences', values, label: 'preferências de e-mail' });
-    }
-
+    if (emailPreferences?.id) await window.NexusData.update({ table: 'notification_email_preferences', id: emailPreferences.id, values: { ...values, updated_at: new Date().toISOString() }, label: 'preferências de e-mail' });
+    else await window.NexusData.insert({ table: 'notification_email_preferences', values, label: 'preferências de e-mail' });
     await loadEmailPreferences();
     if (!emailPreferences?.id) throw new Error('Não foi possível confirmar a configuração de e-mail.');
     renderEmail();
@@ -181,7 +159,16 @@
 
   function emailPayload() {
     const current = window.NEXUS_SST_APP.getState();
-    return relevant().map(item => ({ id: item.id, type: item.type, item: item.item, employeeName: item.employee.name, unitName: current.units.find(unit => String(unit.id) === String(item.employee.unitId))?.name || 'Unidade não informada', sectorName: current.sectors.find(sector => String(sector.id) === String(item.employee.sectorId))?.name || 'Setor não informado', due: item.due, status: item.status }));
+    return relevant().map(item => ({
+      id: item.id,
+      type: item.type,
+      item: item.item,
+      subjectName: item.subjectName || 'Empresa',
+      unitName: current.units.find(unit => String(unit.id) === String(item.unitId))?.name || (item.source === 'employee' ? 'Unidade não informada' : 'Empresa inteira'),
+      sectorName: current.sectors.find(sector => String(sector.id) === String(item.sectorId))?.name || (item.source === 'employee' ? 'Setor não informado' : 'Obrigação institucional'),
+      due: item.due,
+      status: item.status
+    }));
   }
 
   async function sendEmailAlerts() {
@@ -222,12 +209,8 @@
     $('alertClose').onclick = close;
     $('alertBackdrop').onclick = close;
     $('alertEmailSave').onclick = event => window.NexusData.runLocked('email-preferences', async () => {
-      try {
-        await saveEmailPreferences();
-        $('alertEmailStatus').textContent = 'Configuração salva.';
-      } catch (error) {
-        $('alertEmailStatus').textContent = readableError(error);
-      }
+      try { await saveEmailPreferences(); $('alertEmailStatus').textContent = 'Configuração salva.'; }
+      catch (error) { $('alertEmailStatus').textContent = readableError(error); }
     }, event.currentTarget);
     const originalRender = window.NEXUS_SST_APP.render;
     window.NEXUS_SST_APP.render = (...args) => { const result = originalRender(...args); render(); return result; };
