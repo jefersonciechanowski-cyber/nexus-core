@@ -133,11 +133,11 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
   if (previous?.id) return true;
 
   const publicUrl = (clean(sale.return_origin, 500) || Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
-  const redirectTo = `${publicUrl}/apps/portal-cliente/redefinir-senha.html`;
-  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email: sale.email, options: { redirectTo } });
-  const actionLink = linkData?.properties?.action_link;
-  if (linkError || !actionLink) {
-    await auditEmailFailure(admin, sale, linkError?.message || 'Supabase não gerou o link de primeiro acesso.');
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email: sale.email });
+  const tokenHash = clean(linkData?.properties?.hashed_token, 1000);
+  const firstAccessLink = tokenHash ? `${publicUrl}/apps/portal-cliente/redefinir-senha.html?token_hash=${encodeURIComponent(tokenHash)}&type=recovery` : '';
+  if (linkError || !firstAccessLink) {
+    await auditEmailFailure(admin, sale, linkError?.message || 'Supabase não gerou o token de primeiro acesso.');
     return false;
   }
 
@@ -147,7 +147,7 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
       <p>Olá, ${escapeHtml(sale.responsible_name)}.</p>
       <p>O pagamento da <strong>${escapeHtml(sale.company_name)}</strong> foi confirmado e o acesso ao <strong>${escapeHtml(plan?.name || 'Nexus SST')}</strong> já foi liberado.</p>
       <p>Defina sua senha pessoal para entrar na Minha Central Nexus.</p>
-      <p style="margin:28px 0"><a href="${actionLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
+      <p style="margin:28px 0"><a href="${firstAccessLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
       <p style="font-size:13px;color:#68757b">Depois da definição de senha, acesse: ${publicUrl}/apps/portal-cliente/</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
       <p style="font-size:12px;color:#7b858a">Nexus Core · acesso criado automaticamente após confirmação financeira da Stripe.</p>
