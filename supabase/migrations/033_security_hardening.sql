@@ -39,13 +39,20 @@ revoke execute on function public.enforce_training_certificate_context()
   from public, anon, authenticated;
 revoke execute on function public.enforce_training_record_integrity()
   from public, anon, authenticated;
-revoke execute on function public.rls_auto_enable()
-  from public, anon, authenticated;
 
-alter function public.wait_onboarding_email_dedup()
-  set search_path = public, pg_temp;
-revoke execute on function public.wait_onboarding_email_dedup()
-  from public, anon, authenticated;
+-- These helpers were created only in some repair environments; guard them so a clean install remains reproducible.
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    execute 'revoke execute on function public.rls_auto_enable() from public, anon, authenticated';
+  end if;
+
+  if to_regprocedure('public.wait_onboarding_email_dedup()') is not null then
+    execute 'alter function public.wait_onboarding_email_dedup() set search_path = public, pg_temp';
+    execute 'revoke execute on function public.wait_onboarding_email_dedup() from public, anon, authenticated';
+  end if;
+end;
+$$;
 
 -- Internal counters are intentionally inaccessible to clients; policies document that intent.
 alter table public.occurrence_code_counters enable row level security;
