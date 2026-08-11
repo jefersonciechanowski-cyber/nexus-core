@@ -15,6 +15,49 @@
   function level(due) { const days = daysUntil(due); if (days === null) return 'MISSING'; if (days < 0) return 'OVERDUE'; if (days <= 7) return 'DUE_7'; if (days <= 15) return 'DUE_15'; if (days <= 30) return 'DUE_30'; return 'PLANNED'; }
   function label(status) { return { OVERDUE: 'Vencido', DUE_7: 'Até 7 dias', DUE_15: '8 a 15 dias', DUE_30: '16 a 30 dias', PLANNED: 'Planejado' }[status] || 'Sem prazo'; }
 
+  function installStyles() {
+    if ($('nexusPreventiveCleanStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'nexusPreventiveCleanStyles';
+    style.textContent = `
+      #agenda .preventive-layout { grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr); gap:16px; }
+      #agenda .preventive-people { display:grid; gap:9px; margin-top:12px; }
+      #agenda .preventive-person { padding:13px 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface-subtle); }
+      #agenda .preventive-person strong { font-size:13px; }
+      #agenda .preventive-person small { display:block; margin-top:4px; color:var(--text-muted); }
+      #agenda .table-card, #agenda > .card { box-shadow:none; }
+      #agenda .table-wrap { overflow:visible; }
+      #agenda .table-wrap table { width:100%; border-collapse:separate; border-spacing:0; }
+      #agenda .table-wrap thead { display:none; }
+      #agenda #preventiveTable { display:grid; gap:10px; }
+      #agenda #preventiveTable tr { display:grid; grid-template-columns:155px minmax(210px,1.25fr) minmax(190px,.9fr) 120px; gap:18px; align-items:center; padding:15px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+      #agenda #preventiveTable td { border:0; padding:0; min-width:0; }
+      #agenda .preventive-date { display:flex; align-items:center; gap:10px; }
+      #agenda .preventive-date strong { font-size:16px; white-space:nowrap; }
+      #agenda .preventive-date small { display:block; margin-top:3px; color:var(--text-muted); }
+      #agenda .preventive-obligation strong { display:block; font-size:14px; line-height:1.35; }
+      #agenda .preventive-obligation small, #agenda .preventive-impact small { display:block; color:var(--text-muted); margin-top:4px; line-height:1.4; }
+      #agenda .preventive-impact strong { display:block; font-size:12px; line-height:1.4; }
+      #agenda .preventive-open { width:100%; min-height:36px; }
+      #agenda .table-header { align-items:center; gap:14px; }
+      #agenda .table-header input { max-width:300px; }
+      @media (max-width:1080px) {
+        #agenda .preventive-layout { grid-template-columns:1fr; }
+        #agenda #preventiveTable tr { grid-template-columns:140px minmax(0,1fr) minmax(170px,.8fr); }
+        #agenda #preventiveTable td:last-child { grid-column:1/-1; }
+        #agenda .preventive-open { width:auto; }
+      }
+      @media (max-width:720px) {
+        #agenda #preventiveTable tr { grid-template-columns:1fr; gap:11px; }
+        #agenda #preventiveTable td:last-child { grid-column:auto; }
+        #agenda .table-header { align-items:stretch; }
+        #agenda .table-header input { max-width:none; width:100%; }
+        #agenda .preventive-date { justify-content:space-between; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function ruleMatches(rule, employee) {
     return rule.active !== false
       && (!rule.unitId || same(rule.unitId, employee.unitId))
@@ -24,7 +67,7 @@
 
   function latest(items, dateField) { return items.slice().sort((a, b) => iso(b[dateField]).localeCompare(iso(a[dateField])))[0]; }
 
-  function buildDeadlines() {
+  function buildEmployeeDeadlines() {
     const current = state();
     if (!current) return [];
     const deadlines = [];
@@ -43,10 +86,27 @@
           due = movement?.dueDate || (movement?.date && (movement.appliedValidity || rule.validity) ? addDays(movement.date, movement.appliedValidity || rule.validity) : '');
         }
         if (!due) return;
-        deadlines.push({ id: `${rule.type}:${employee.id}:${rule.id}`, type: rule.type, item: rule.itemName || 'Obrigação SST', employee, due, status: level(due) });
+        deadlines.push({
+          id: `${rule.type}:${employee.id}:${rule.id}`,
+          type: rule.type,
+          item: rule.itemName || 'Obrigação SST',
+          due,
+          status: level(due),
+          source: 'employee',
+          employeeId: employee.id,
+          subjectName: employee.name,
+          unitId: employee.unitId || null,
+          sectorId: employee.sectorId || null,
+          employee
+        });
       });
     });
-    return deadlines.sort((a, b) => a.due.localeCompare(b.due));
+    return deadlines;
+  }
+
+  function buildDeadlines() {
+    const compliance = window.NexusCompanyCompliance?.getDeadlines?.() || [];
+    return [...buildEmployeeDeadlines(), ...compliance].sort((a, b) => String(a.due).localeCompare(String(b.due)));
   }
 
   function options(id, items, placeholder) {
@@ -62,7 +122,16 @@
 
   function filtered(deadlines) {
     const selected = filters();
-    return deadlines.filter(item => (!selected.unit || same(item.employee.unitId, selected.unit)) && (!selected.sector || same(item.employee.sectorId, selected.sector)) && (!selected.employee || same(item.employee.id, selected.employee)) && (!selected.type || item.type === selected.type) && (!selected.status || item.status === selected.status) && (!selected.start || item.due >= selected.start) && (!selected.end || item.due <= selected.end) && (!selected.search || `${item.employee.name} ${item.item} ${item.type}`.toLowerCase().includes(selected.search)));
+    return deadlines.filter(item =>
+      (!selected.unit || same(item.unitId, selected.unit))
+      && (!selected.sector || same(item.sectorId, selected.sector))
+      && (!selected.employee || same(item.employeeId, selected.employee))
+      && (!selected.type || item.type === selected.type)
+      && (!selected.status || item.status === selected.status)
+      && (!selected.start || item.due >= selected.start)
+      && (!selected.end || item.due <= selected.end)
+      && (!selected.search || `${item.subjectName || ''} ${item.item || ''} ${item.type || ''}`.toLowerCase().includes(selected.search))
+    );
   }
 
   function renderCalendar(items) {
@@ -81,8 +150,20 @@
   }
 
   function openModule(type) {
+    if (type === 'Documento' || type === 'Fiscalização') {
+      window.NexusCompanyCompliance?.openModule?.(type);
+      return;
+    }
     const tab = document.querySelector(`[data-tab="${type === 'Treinamento' ? 'treinamentos' : type === 'EPI' ? 'epis' : 'coletas'}"]`);
     tab?.click();
+  }
+
+  function impactLocation(item, current) {
+    const unit = current.units.find(candidate => same(candidate.id, item.unitId));
+    const sector = current.sectors.find(candidate => same(candidate.id, item.sectorId));
+    if (sector) return `${unit?.name || 'Unidade'} / ${sector.name}`;
+    if (unit) return unit.name;
+    return item.source === 'employee' ? 'Local não informado' : 'Empresa inteira';
   }
 
   function render() {
@@ -92,19 +173,65 @@
     options('preventiveSector', current.sectors.filter(item => !unit || same(item.unitId, unit)), 'Todos os setores');
     const sector = $('preventiveSector').value;
     options('preventiveEmployee', current.employees.filter(item => (!unit || same(item.unitId, unit)) && (!sector || same(item.sectorId, sector))), 'Todos os colaboradores');
+
     const all = buildDeadlines();
     const items = filtered(all);
-    ['OVERDUE', 'DUE_7', 'DUE_15', 'DUE_30'].forEach((status, index) => { $(`preventive${status === 'OVERDUE' ? 'Overdue' : [7, 15, 30][index - 1]}`).textContent = items.filter(item => item.status === status).length; });
-    $('preventiveSummary').textContent = `${items.length} obrigação(ões) encontrada(s) · dados atualizados pelo Supabase`;
-    const people = new Map(); items.forEach(item => people.set(item.employee.id, { employee: item.employee, count: (people.get(item.employee.id)?.count || 0) + 1, critical: (people.get(item.employee.id)?.critical || 0) + (item.status === 'OVERDUE' ? 1 : 0) }));
-    $('preventivePeople').innerHTML = people.size ? [...people.values()].sort((a, b) => b.critical - a.critical || b.count - a.count).slice(0, 10).map(({ employee, count, critical }) => `<div class="preventive-person"><div><strong>${esc(employee.name)}</strong><small>${esc(current.sectors.find(item => same(item.id, employee.sectorId))?.name || 'Setor não informado')}</small></div><span class="badge ${critical ? 'badge-critico' : 'badge-atencao'}">${critical ? `${critical} vencido(s)` : `${count} prazo(s)`}</span></div>`).join('') : '<div class="requirements-empty">Nenhum colaborador afetado pelos filtros.</div>';
-    $('preventiveTable').innerHTML = items.length ? items.map(item => `<tr><td><strong>${formatDate(item.due)}</strong><br><small>${daysUntil(item.due)} dia(s)</small></td><td><span class="badge preventive-badge ${item.status}">${label(item.status)}</span></td><td><strong>${esc(item.item)}</strong><br><small>${esc(item.type)}</small></td><td>${esc(item.employee.name)}</td><td>${esc(current.units.find(unitItem => same(unitItem.id, item.employee.unitId))?.name || '—')}<br><small>${esc(current.sectors.find(sectorItem => same(sectorItem.id, item.employee.sectorId))?.name || '—')}</small></td><td><button class="ghost preventive-open" data-type="${esc(item.type)}" type="button">Abrir registro</button></td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;">Nenhuma obrigação encontrada no período selecionado.</td></tr>';
+    ['OVERDUE', 'DUE_7', 'DUE_15', 'DUE_30'].forEach((status, index) => {
+      const target = status === 'OVERDUE' ? 'preventiveOverdue' : `preventive${[7, 15, 30][index - 1]}`;
+      $(target).textContent = items.filter(item => item.status === status).length;
+    });
+
+    $('preventiveSummary').textContent = `${items.length} obrigação${items.length === 1 ? '' : 'ões'} no período selecionado`;
+    const people = new Map();
+    items.forEach(item => {
+      const key = item.employeeId ? `employee:${item.employeeId}` : `${item.source}:${item.subjectName}:${item.unitId || ''}`;
+      const previous = people.get(key) || { subjectName:item.subjectName || 'Empresa', unitId:item.unitId, sectorId:item.sectorId, count:0, critical:0, source:item.source };
+      previous.count += 1;
+      previous.critical += item.status === 'OVERDUE' ? 1 : 0;
+      people.set(key, previous);
+    });
+
+    $('preventivePeople').innerHTML = people.size ? [...people.values()]
+      .sort((a, b) => b.critical - a.critical || b.count - a.count)
+      .slice(0, 10)
+      .map(item => `<div class="preventive-person"><div><strong>${esc(item.subjectName)}</strong><small>${esc(impactLocation(item, current))}</small></div><span class="badge ${item.critical ? 'badge-critico' : 'badge-atencao'}">${item.critical ? `${item.critical} vencido(s)` : `${item.count} prazo(s)`}</span></div>`)
+      .join('') : '<div class="requirements-empty">Nenhum impacto encontrado pelos filtros.</div>';
+
+    $('preventiveTable').innerHTML = items.length ? items.map(item => {
+      const days = daysUntil(item.due);
+      return `<tr>
+        <td><div class="preventive-date"><div><strong>${formatDate(item.due)}</strong><small>${days < 0 ? `${Math.abs(days)} dia(s) vencido` : `${days} dia(s)`}</small></div><span class="badge preventive-badge ${item.status}">${label(item.status)}</span></div></td>
+        <td class="preventive-obligation"><strong>${esc(item.item)}</strong><small>${esc(item.type)}</small></td>
+        <td class="preventive-impact"><strong>${esc(item.subjectName || 'Empresa')}</strong><small>${esc(impactLocation(item, current))}</small></td>
+        <td><button class="ghost preventive-open" data-type="${esc(item.type)}" type="button">Abrir registro</button></td>
+      </tr>`;
+    }).join('') : '<tr><td style="text-align:center;">Nenhuma obrigação encontrada no período selecionado.</td></tr>';
     $('preventiveTable').querySelectorAll('.preventive-open').forEach(button => button.onclick = () => openModule(button.dataset.type));
     renderCalendar(items);
   }
 
+  function ensureComplianceScript() {
+    if (window.NexusCompanyCompliance || document.querySelector('script[data-nexus-compliance]')) return;
+    const script = document.createElement('script');
+    script.src = 'supabase-company-compliance.js';
+    script.dataset.nexusCompliance = 'true';
+    script.onload = () => render();
+    document.body.appendChild(script);
+  }
+
   function install() {
     if (!$('agenda') || !state()) return;
+    installStyles();
+    const typeSelect = $('preventiveType');
+    if (typeSelect && ![...typeSelect.options].some(option => option.value === 'Documento')) {
+      typeSelect.insertAdjacentHTML('beforeend', '<option value="Documento">Documentos da empresa</option><option value="Fiscalização">Fiscalizações</option>');
+    }
+    const agendaSubtitle = $('agenda').querySelector('p.subtitle');
+    if (agendaSubtitle) agendaSubtitle.textContent = 'Centralize exames, treinamentos, EPIs, documentos e exigências oficiais para agir antes do vencimento.';
+    const peopleHeading = $('preventivePeople')?.closest('.card')?.querySelector('h3');
+    if (peopleHeading) peopleHeading.textContent = 'Impactados no período';
+    if ($('preventiveSearch')) $('preventiveSearch').placeholder = 'Pesquisar obrigação ou responsável';
+
     ['preventiveUnit', 'preventiveSector', 'preventiveEmployee', 'preventiveType', 'preventiveStatus', 'preventiveStart', 'preventiveEnd'].forEach(id => $(id).addEventListener('change', render));
     $('preventiveSearch').addEventListener('input', render);
     $('preventiveClear').onclick = () => { ['preventiveUnit', 'preventiveSector', 'preventiveEmployee', 'preventiveType', 'preventiveStatus', 'preventiveStart', 'preventiveEnd', 'preventiveSearch'].forEach(id => { $(id).value = ''; }); render(); };
@@ -114,6 +241,7 @@
     const originalRender = window.NEXUS_SST_APP.render;
     window.NEXUS_SST_APP.render = (...args) => { const result = originalRender(...args); render(); return result; };
     window.NexusPreventiveAgenda = { render, getDeadlines: buildDeadlines, openModule };
+    ensureComplianceScript();
     render();
   }
 
