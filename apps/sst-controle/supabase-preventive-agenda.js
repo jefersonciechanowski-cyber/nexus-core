@@ -30,32 +30,85 @@
       #agenda .table-wrap table { width:100%; border-collapse:separate; border-spacing:0; }
       #agenda .table-wrap thead { display:none; }
       #agenda #preventiveTable { display:grid; gap:10px; }
-      #agenda #preventiveTable tr { display:grid; grid-template-columns:155px minmax(210px,1.25fr) minmax(190px,.9fr) 120px; gap:18px; align-items:center; padding:15px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+      #agenda #preventiveTable tr { display:grid; grid-template-columns:175px minmax(240px,1.25fr) minmax(190px,.9fr) 132px; gap:20px; align-items:center; padding:16px 17px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
       #agenda #preventiveTable td { border:0; padding:0; min-width:0; }
-      #agenda .preventive-date { display:flex; align-items:center; gap:10px; }
+      #agenda .preventive-date { display:grid; gap:7px; justify-items:start; align-content:center; }
       #agenda .preventive-date strong { font-size:16px; white-space:nowrap; }
       #agenda .preventive-date small { display:block; margin-top:3px; color:var(--text-muted); }
-      #agenda .preventive-obligation strong { display:block; font-size:14px; line-height:1.35; }
-      #agenda .preventive-obligation small, #agenda .preventive-impact small { display:block; color:var(--text-muted); margin-top:4px; line-height:1.4; }
-      #agenda .preventive-impact strong { display:block; font-size:12px; line-height:1.4; }
-      #agenda .preventive-open { width:100%; min-height:36px; }
+      #agenda .preventive-date .preventive-badge { display:inline-flex; width:max-content; max-width:100%; white-space:nowrap; }
+      #agenda .preventive-obligation { padding-left:2px; }
+      #agenda .preventive-obligation strong { display:block; font-size:14px; line-height:1.4; overflow-wrap:anywhere; }
+      #agenda .preventive-obligation small, #agenda .preventive-impact small { display:block; color:var(--text-muted); margin-top:5px; line-height:1.4; }
+      #agenda .preventive-impact strong { display:block; font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+      #agenda .preventive-open { width:132px; min-height:38px; padding:7px 12px; white-space:nowrap; }
       #agenda .table-header { align-items:center; gap:14px; }
       #agenda .table-header input { max-width:300px; }
+
+      #documentacao .nexus-file-input { position:absolute !important; width:1px !important; height:1px !important; opacity:0 !important; pointer-events:none !important; }
+      #documentacao .nexus-file-picker { min-height:39px; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:10px; padding:4px 5px; border:1px solid var(--border); border-radius:8px; background:var(--surface-subtle); }
+      #documentacao .nexus-file-button { min-height:30px; width:auto; padding:5px 10px; white-space:nowrap; font-size:11px; }
+      #documentacao .nexus-file-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted); font-size:11px; font-weight:500; }
+
       @media (max-width:1080px) {
         #agenda .preventive-layout { grid-template-columns:1fr; }
-        #agenda #preventiveTable tr { grid-template-columns:140px minmax(0,1fr) minmax(170px,.8fr); }
+        #agenda #preventiveTable tr { grid-template-columns:165px minmax(0,1fr) minmax(170px,.8fr); }
         #agenda #preventiveTable td:last-child { grid-column:1/-1; }
-        #agenda .preventive-open { width:auto; }
+        #agenda .preventive-open { width:auto; min-width:132px; }
       }
       @media (max-width:720px) {
-        #agenda #preventiveTable tr { grid-template-columns:1fr; gap:11px; }
+        #agenda #preventiveTable tr { grid-template-columns:1fr; gap:12px; padding:15px; }
         #agenda #preventiveTable td:last-child { grid-column:auto; }
         #agenda .table-header { align-items:stretch; }
         #agenda .table-header input { max-width:none; width:100%; }
-        #agenda .preventive-date { justify-content:space-between; }
+        #agenda .preventive-date { grid-template-columns:minmax(0,1fr) auto; align-items:center; justify-items:stretch; }
+        #agenda .preventive-date .preventive-badge { justify-self:end; }
+        #agenda .preventive-open { width:100%; }
+        #documentacao .nexus-file-picker { grid-template-columns:1fr; }
+        #documentacao .nexus-file-button { width:100%; }
+        #documentacao .nexus-file-name { padding:1px 5px 4px; }
       }
     `;
     document.head.appendChild(style);
+  }
+
+  function polishComplianceFileInputs() {
+    const configs = [
+      ['companyDocumentFile', 'Selecionar arquivo'],
+      ['inspectionFile', 'Selecionar arquivo'],
+      ['requirementFile', 'Selecionar arquivo']
+    ];
+
+    configs.forEach(([id, buttonLabel]) => {
+      const input = $(id);
+      if (!input || input.dataset.nexusPolished === 'true') return;
+      input.dataset.nexusPolished = 'true';
+      input.classList.add('nexus-file-input');
+
+      const picker = document.createElement('span');
+      picker.className = 'nexus-file-picker';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ghost nexus-file-button';
+      button.textContent = buttonLabel;
+      const fileName = document.createElement('span');
+      fileName.className = 'nexus-file-name';
+
+      const syncName = () => {
+        fileName.textContent = input.files?.[0]?.name || 'Nenhum arquivo selecionado';
+        fileName.title = input.files?.[0]?.name || '';
+      };
+
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        input.click();
+      });
+      input.addEventListener('change', syncName);
+      input.form?.addEventListener('reset', () => setTimeout(syncName, 0));
+
+      syncName();
+      picker.append(button, fileName);
+      input.after(picker);
+    });
   }
 
   function ruleMatches(rule, employee) {
@@ -208,14 +261,22 @@
     }).join('') : '<tr><td style="text-align:center;">Nenhuma obrigação encontrada no período selecionado.</td></tr>';
     $('preventiveTable').querySelectorAll('.preventive-open').forEach(button => button.onclick = () => openModule(button.dataset.type));
     renderCalendar(items);
+    polishComplianceFileInputs();
   }
 
   function ensureComplianceScript() {
-    if (window.NexusCompanyCompliance || document.querySelector('script[data-nexus-compliance]')) return;
+    if (window.NexusCompanyCompliance) {
+      polishComplianceFileInputs();
+      return;
+    }
+    if (document.querySelector('script[data-nexus-compliance]')) return;
     const script = document.createElement('script');
     script.src = 'supabase-company-compliance.js';
     script.dataset.nexusCompliance = 'true';
-    script.onload = () => render();
+    script.onload = () => {
+      polishComplianceFileInputs();
+      render();
+    };
     document.body.appendChild(script);
   }
 
