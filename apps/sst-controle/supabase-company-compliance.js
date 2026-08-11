@@ -308,7 +308,8 @@
 
   async function submitDocument(event) {
     event.preventDefault();
-    const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+    const form = event.currentTarget;
+    const button = event.submitter || form.querySelector('button[type="submit"]');
     await window.NexusData.runLocked('company-document-create', async () => {
       const id = crypto.randomUUID();
       const file = $('companyDocumentFile').files[0];
@@ -317,7 +318,7 @@
       try {
         if (file) await upload(file, path);
         await window.NexusData.insert({ table:'company_documents', values:{ id, unit_id:$('companyDocumentUnit').value || null, document_type:$('companyDocumentType').value, authority_name:$('companyDocumentAuthority').value || null, document_number:$('companyDocumentNumber').value || null, issued_at:$('companyDocumentIssued').value || null, expires_at:$('companyDocumentExpires').value || null, responsible_name:$('companyDocumentResponsible').value || null, status:'ACTIVE', notes:$('companyDocumentNotes').value || null, attachment_path:path }, label:'documento da empresa' });
-        event.currentTarget.reset();
+        form.reset();
         $('companyDocumentStatus').textContent = 'Documento salvo.';
         await refresh();
       } catch (error) {
@@ -329,7 +330,8 @@
 
   async function submitInspection(event) {
     event.preventDefault();
-    const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+    const form = event.currentTarget;
+    const button = event.submitter || form.querySelector('button[type="submit"]');
     await window.NexusData.runLocked('inspection-create', async () => {
       const id = crypto.randomUUID();
       const file = $('inspectionFile').files[0];
@@ -338,7 +340,7 @@
       try {
         if (file) await upload(file, path);
         await window.NexusData.insert({ table:'regulatory_inspections', values:{ id, unit_id:$('inspectionUnit').value || null, authority_name:$('inspectionAuthority').value, inspection_date:$('inspectionDate').value, notice_number:$('inspectionNoticeNumber').value || null, subject:$('inspectionSubject').value, description:$('inspectionDescription').value || null, priority:$('inspectionPriority').value, status:'OPEN', responsible_name:$('inspectionResponsible').value || null, notice_path:path }, label:'fiscalização' });
-        event.currentTarget.reset();
+        form.reset();
         $('inspectionFormStatus').textContent = 'Fiscalização salva.';
         await refresh();
       } catch (error) {
@@ -350,7 +352,8 @@
 
   async function submitRequirement(event) {
     event.preventDefault();
-    const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+    const form = event.currentTarget;
+    const button = event.submitter || form.querySelector('button[type="submit"]');
     await window.NexusData.runLocked('requirement-create', async () => {
       const id = crypto.randomUUID();
       const file = $('requirementFile').files[0];
@@ -359,7 +362,7 @@
       try {
         if (file) await upload(file, path);
         await window.NexusData.insert({ table:'regulatory_requirements', values:{ id, inspection_id:$('requirementInspection').value, description:$('requirementDescription').value, due_at:$('requirementDue').value, responsible_name:$('requirementResponsible').value || null, priority:$('requirementPriority').value, status:'PENDING', completion_notes:null, evidence_path:path }, label:'exigência da fiscalização' });
-        event.currentTarget.reset();
+        form.reset();
         $('requirementFormStatus').textContent = 'Exigência salva e enviada para a Agenda Preventiva.';
         await refresh();
       } catch (error) {
