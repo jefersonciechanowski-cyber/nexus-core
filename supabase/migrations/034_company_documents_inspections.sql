@@ -165,7 +165,98 @@ grant update (
   evidence_path, completed_at, updated_at
 ) on public.regulatory_requirements to authenticated;
 
-create or replace function public.enforce_company_compliance_integrity()
+create or replace function public.enforce_company_document_integrity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  linked_org uuid;
+begin
+  if tg_op = 'UPDATE' and (
+    new.id is distinct from old.id
+    or new.organization_id is distinct from old.organization_id
+    or new.created_by is distinct from old.created_by
+    or new.created_at is distinct from old.created_at
+  ) then
+    raise exception 'Os dados de origem do documento não podem ser alterados.';
+  end if;
+
+  if new.unit_id is not null then
+    select organization_id into linked_org from public.units where id = new.unit_id;
+    if linked_org is null or linked_org <> new.organization_id then
+      raise exception 'A unidade do documento deve pertencer à mesma organização.';
+    end if;
+  end if;
+
+  new.document_type = btrim(new.document_type);
+  new.authority_name = nullif(btrim(new.authority_name), '');
+  new.document_number = nullif(btrim(new.document_number), '');
+  new.responsible_name = nullif(btrim(new.responsible_name), '');
+  new.notes = nullif(btrim(new.notes), '');
+  new.status = upper(btrim(new.status));
+
+  if new.attachment_path is not null
+     and new.attachment_path not like new.organization_id::text || '/compliance/documents/%' then
+    raise exception 'O anexo do documento deve permanecer na pasta privada da organização.';
+  end if;
+
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.enforce_regulatory_inspection_integrity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  linked_org uuid;
+begin
+  if tg_op = 'UPDATE' and (
+    new.id is distinct from old.id
+    or new.organization_id is distinct from old.organization_id
+    or new.created_by is distinct from old.created_by
+    or new.created_at is distinct from old.created_at
+  ) then
+    raise exception 'Os dados de origem da fiscalização não podem ser alterados.';
+  end if;
+
+  if new.unit_id is not null then
+    select organization_id into linked_org from public.units where id = new.unit_id;
+    if linked_org is null or linked_org <> new.organization_id then
+      raise exception 'A unidade da fiscalização deve pertencer à mesma organização.';
+    end if;
+  end if;
+
+  new.authority_name = btrim(new.authority_name);
+  new.notice_number = nullif(btrim(new.notice_number), '');
+  new.subject = btrim(new.subject);
+  new.description = nullif(btrim(new.description), '');
+  new.responsible_name = nullif(btrim(new.responsible_name), '');
+  new.priority = upper(btrim(new.priority));
+  new.status = upper(btrim(new.status));
+
+  if new.status = 'COMPLETED' then
+    new.completed_at = coalesce(new.completed_at, now());
+  else
+    new.completed_at = null;
+  end if;
+
+  if new.notice_path is not null
+     and new.notice_path not like new.organization_id::text || '/compliance/inspections/%' then
+    raise exception 'O anexo da fiscalização deve permanecer na pasta privada da organização.';
+  end if;
+
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.enforce_regulatory_requirement_integrity()
 returns trigger
 language plpgsql
 security definer
@@ -175,72 +266,44 @@ declare
   linked_org uuid;
   inspection_date_value date;
 begin
-  if tg_op = 'UPDATE' then
-    if new.id is distinct from old.id
-       or new.organization_id is distinct from old.organization_id
-       or new.created_by is distinct from old.created_by
-       or new.created_at is distinct from old.created_at then
-      raise exception 'Os dados de origem do registro não podem ser alterados.';
-    end if;
+  if tg_op = 'UPDATE' and (
+    new.id is distinct from old.id
+    or new.organization_id is distinct from old.organization_id
+    or new.inspection_id is distinct from old.inspection_id
+    or new.created_by is distinct from old.created_by
+    or new.created_at is distinct from old.created_at
+  ) then
+    raise exception 'Os dados de origem da exigência não podem ser alterados.';
   end if;
 
-  if new.unit_id is not null then
-    select organization_id into linked_org from public.units where id = new.unit_id;
-    if linked_org is null or linked_org <> new.organization_id then
-      raise exception 'A unidade deve pertencer à mesma organização.';
-    end if;
+  select organization_id, inspection_date
+    into linked_org, inspection_date_value
+  from public.regulatory_inspections
+  where id = new.inspection_id;
+
+  if linked_org is null or linked_org <> new.organization_id then
+    raise exception 'A exigência deve pertencer a uma fiscalização da mesma organização.';
   end if;
 
-  if tg_table_name = 'company_documents' then
-    new.document_type = btrim(new.document_type);
-    new.authority_name = nullif(btrim(new.authority_name), '');
-    new.document_number = nullif(btrim(new.document_number), '');
-    new.responsible_name = nullif(btrim(new.responsible_name), '');
-    new.notes = nullif(btrim(new.notes), '');
-    new.status = upper(btrim(new.status));
-    if new.attachment_path is not null and new.attachment_path not like new.organization_id::text || '/compliance/documents/%' then
-      raise exception 'O anexo do documento deve permanecer na pasta privada da organização.';
-    end if;
-  elsif tg_table_name = 'regulatory_inspections' then
-    new.authority_name = btrim(new.authority_name);
-    new.notice_number = nullif(btrim(new.notice_number), '');
-    new.subject = btrim(new.subject);
-    new.description = nullif(btrim(new.description), '');
-    new.responsible_name = nullif(btrim(new.responsible_name), '');
-    new.priority = upper(btrim(new.priority));
-    new.status = upper(btrim(new.status));
-    if new.status = 'COMPLETED' then
-      new.completed_at = coalesce(new.completed_at, now());
-    else
-      new.completed_at = null;
-    end if;
-    if new.notice_path is not null and new.notice_path not like new.organization_id::text || '/compliance/inspections/%' then
-      raise exception 'O anexo da fiscalização deve permanecer na pasta privada da organização.';
-    end if;
-  elsif tg_table_name = 'regulatory_requirements' then
-    select organization_id, inspection_date
-      into linked_org, inspection_date_value
-    from public.regulatory_inspections
-    where id = new.inspection_id;
-    if linked_org is null or linked_org <> new.organization_id then
-      raise exception 'A exigência deve pertencer a uma fiscalização da mesma organização.';
-    end if;
-    if new.due_at < inspection_date_value then
-      raise exception 'O prazo da exigência não pode ser anterior à fiscalização.';
-    end if;
-    new.description = btrim(new.description);
-    new.responsible_name = nullif(btrim(new.responsible_name), '');
-    new.completion_notes = nullif(btrim(new.completion_notes), '');
-    new.priority = upper(btrim(new.priority));
-    new.status = upper(btrim(new.status));
-    if new.status = 'COMPLETED' then
-      new.completed_at = coalesce(new.completed_at, now());
-    else
-      new.completed_at = null;
-    end if;
-    if new.evidence_path is not null and new.evidence_path not like new.organization_id::text || '/compliance/requirements/%' then
-      raise exception 'A evidência deve permanecer na pasta privada da organização.';
-    end if;
+  if new.due_at < inspection_date_value then
+    raise exception 'O prazo da exigência não pode ser anterior à fiscalização.';
+  end if;
+
+  new.description = btrim(new.description);
+  new.responsible_name = nullif(btrim(new.responsible_name), '');
+  new.completion_notes = nullif(btrim(new.completion_notes), '');
+  new.priority = upper(btrim(new.priority));
+  new.status = upper(btrim(new.status));
+
+  if new.status = 'COMPLETED' then
+    new.completed_at = coalesce(new.completed_at, now());
+  else
+    new.completed_at = null;
+  end if;
+
+  if new.evidence_path is not null
+     and new.evidence_path not like new.organization_id::text || '/compliance/requirements/%' then
+    raise exception 'A evidência deve permanecer na pasta privada da organização.';
   end if;
 
   new.updated_at = now();
@@ -248,18 +311,18 @@ begin
 end;
 $$;
 
-revoke execute on function public.enforce_company_compliance_integrity()
+revoke execute on function public.enforce_company_document_integrity(), public.enforce_regulatory_inspection_integrity(), public.enforce_regulatory_requirement_integrity()
 from public, anon, authenticated;
 
 create trigger company_documents_integrity
 before insert or update on public.company_documents
-for each row execute function public.enforce_company_compliance_integrity();
+for each row execute function public.enforce_company_document_integrity();
 create trigger regulatory_inspections_integrity
 before insert or update on public.regulatory_inspections
-for each row execute function public.enforce_company_compliance_integrity();
+for each row execute function public.enforce_regulatory_inspection_integrity();
 create trigger regulatory_requirements_integrity
 before insert or update on public.regulatory_requirements
-for each row execute function public.enforce_company_compliance_integrity();
+for each row execute function public.enforce_regulatory_requirement_integrity();
 
 create or replace function public.audit_company_compliance_change()
 returns trigger
@@ -267,26 +330,42 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
+declare
+  row_json jsonb := to_jsonb(new);
+  action_name text;
+  metadata_value jsonb;
 begin
+  if tg_table_name = 'company_documents' then
+    action_name := case when tg_op = 'INSERT' then 'COMPANY_DOCUMENT_CREATED' else 'COMPANY_DOCUMENT_UPDATED' end;
+    metadata_value := jsonb_build_object(
+      'document_type', row_json ->> 'document_type',
+      'status', row_json ->> 'status',
+      'expires_at', row_json ->> 'expires_at'
+    );
+  elsif tg_table_name = 'regulatory_inspections' then
+    action_name := case when tg_op = 'INSERT' then 'REGULATORY_INSPECTION_CREATED' else 'REGULATORY_INSPECTION_UPDATED' end;
+    metadata_value := jsonb_build_object(
+      'authority_name', row_json ->> 'authority_name',
+      'subject', row_json ->> 'subject',
+      'status', row_json ->> 'status'
+    );
+  else
+    action_name := case when tg_op = 'INSERT' then 'REGULATORY_REQUIREMENT_CREATED' else 'REGULATORY_REQUIREMENT_UPDATED' end;
+    metadata_value := jsonb_build_object(
+      'inspection_id', row_json ->> 'inspection_id',
+      'status', row_json ->> 'status',
+      'due_at', row_json ->> 'due_at'
+    );
+  end if;
+
   insert into public.audit_logs (organization_id, user_id, action, entity, entity_id, metadata)
   values (
-    new.organization_id,
+    (row_json ->> 'organization_id')::uuid,
     auth.uid(),
-    case
-      when tg_table_name = 'company_documents' and tg_op = 'INSERT' then 'COMPANY_DOCUMENT_CREATED'
-      when tg_table_name = 'company_documents' then 'COMPANY_DOCUMENT_UPDATED'
-      when tg_table_name = 'regulatory_inspections' and tg_op = 'INSERT' then 'REGULATORY_INSPECTION_CREATED'
-      when tg_table_name = 'regulatory_inspections' then 'REGULATORY_INSPECTION_UPDATED'
-      when tg_table_name = 'regulatory_requirements' and tg_op = 'INSERT' then 'REGULATORY_REQUIREMENT_CREATED'
-      else 'REGULATORY_REQUIREMENT_UPDATED'
-    end,
+    action_name,
     tg_table_name,
-    new.id::text,
-    case
-      when tg_table_name = 'company_documents' then jsonb_build_object('document_type', new.document_type, 'status', new.status, 'expires_at', new.expires_at)
-      when tg_table_name = 'regulatory_inspections' then jsonb_build_object('authority_name', new.authority_name, 'subject', new.subject, 'status', new.status)
-      else jsonb_build_object('inspection_id', new.inspection_id, 'status', new.status, 'due_at', new.due_at)
-    end
+    row_json ->> 'id',
+    metadata_value
   );
   return new;
 end;
