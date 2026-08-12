@@ -50,7 +50,7 @@
   function appendImportScript() {
     if (document.querySelector('script[data-nexus-epi-import-loader]')) return;
     const script = document.createElement('script');
-    script.src = 'supabase-epi-import.js';
+    script.src = 'supabase-epi-import.js?v=20260812-3';
     script.async = true;
     script.dataset.nexusEpiImportLoader = 'true';
     document.head.appendChild(script);
@@ -61,7 +61,7 @@
     if (document.querySelector('script[data-nexus-epi-import-compat-loader]')) return;
 
     const compat = document.createElement('script');
-    compat.src = 'supabase-epi-import-compat.js';
+    compat.src = 'supabase-epi-import-compat.js?v=20260812-3';
     compat.async = true;
     compat.dataset.nexusEpiImportCompatLoader = 'true';
     compat.onload = appendImportScript;
