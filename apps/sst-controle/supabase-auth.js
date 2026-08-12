@@ -15,89 +15,40 @@
 
   function getRecoveryRedirectTarget() {
     const hash = window.location.hash || '';
-
-    if (!hash) {
-      return null;
-    }
-
+    if (!hash) return null;
     const params = new URLSearchParams(hash.slice(1));
     const isRecovery = params.get('type') === 'recovery';
     const isRecoveryError = params.get('error_code') === 'otp_expired';
-
-    if (!isRecovery && !isRecoveryError) {
-      return null;
-    }
-
-    if (window.location.pathname.includes('/apps/portal-cliente/')) {
-      return `redefinir-senha.html${hash}`;
-    }
-
-    if (window.location.pathname.includes('/apps/sst-controle/')) {
-      return `../portal-cliente/redefinir-senha.html${hash}`;
-    }
-
+    if (!isRecovery && !isRecoveryError) return null;
+    if (window.location.pathname.includes('/apps/portal-cliente/')) return `redefinir-senha.html${hash}`;
+    if (window.location.pathname.includes('/apps/sst-controle/')) return `../portal-cliente/redefinir-senha.html${hash}`;
     return null;
   }
 
   function getClient() {
     const config = window.NEXUS_SUPABASE_CONFIG;
-
-    if (!config?.url || !config?.publishableKey) {
-      throw new Error('Configuração do Supabase não encontrada.');
-    }
-
-    if (!window.supabase?.createClient) {
-      throw new Error('Biblioteca do Supabase não foi carregada.');
-    }
-
+    if (!config?.url || !config?.publishableKey) throw new Error('Configuração do Supabase não encontrada.');
+    if (!window.supabase?.createClient) throw new Error('Biblioteca do Supabase não foi carregada.');
     if (!client) {
-      client = window.supabase.createClient(
-        config.url,
-        config.publishableKey,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true
-          }
-        }
-      );
+      client = window.supabase.createClient(config.url, config.publishableKey, {
+        auth: { persistSession: true, autoRefreshToken: true }
+      });
     }
-
     return client;
   }
 
   async function loadProfile(user) {
     const supabaseClient = getClient();
-
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select(`
-        id,
-        organization_id,
-        full_name,
-        role,
-        active,
-        organizations (
-          name,
-          slug,
-          status
-        )
-      `)
+      .select(`id,organization_id,full_name,role,active,organizations(name,slug,status)`)
       .eq('id', user.id)
       .single();
 
-    if (error || !data) {
-      throw new Error('Perfil de acesso não encontrado.');
-    }
+    if (error || !data) throw new Error('Perfil de acesso não encontrado.');
+    if (!data.active) throw new Error('Este usuário está inativo.');
 
-    if (!data.active) {
-      throw new Error('Este usuário está inativo.');
-    }
-
-    const organization = Array.isArray(data.organizations)
-      ? data.organizations[0]
-      : data.organizations;
-
+    const organization = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
     const sessionData = {
       userId: user.id,
       email: user.email,
@@ -109,28 +60,18 @@
       organizationSlug: organization?.slug || '',
       provider: 'supabase'
     };
-
-    sessionStorage.setItem(
-      'nexus_demo_session',
-      JSON.stringify(sessionData)
-    );
-
+    sessionStorage.setItem('nexus_demo_session', JSON.stringify(sessionData));
+    window.NEXUS_DEMO_USER = sessionData;
     return sessionData;
   }
 
   async function login(email, password) {
     const supabaseClient = getClient();
-
-    const { data, error } =
-      await supabaseClient.auth.signInWithPassword({
-        email: String(email).trim().toLowerCase(),
-        password
-      });
-
-    if (error || !data.user) {
-      throw new Error('E-mail ou senha inválidos.');
-    }
-
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: String(email).trim().toLowerCase(),
+      password
+    });
+    if (error || !data.user) throw new Error('E-mail ou senha inválidos.');
     try {
       return await loadProfile(data.user);
     } catch (profileError) {
@@ -141,20 +82,16 @@
 
   async function restoreSession() {
     const recoveryRedirectTarget = getRecoveryRedirectTarget();
-
     if (recoveryRedirectTarget) {
       window.location.replace(recoveryRedirectTarget);
       return null;
     }
-
     const supabaseClient = getClient();
     const { data, error } = await supabaseClient.auth.getUser();
-
     if (error || !data.user) {
       sessionStorage.removeItem('nexus_demo_session');
       return null;
     }
-
     return loadProfile(data.user);
   }
 
@@ -164,10 +101,186 @@
     await supabaseClient.auth.signOut({ scope: 'local' });
   }
 
+  async function listOrganizations() {
+    const { data, error } = await getClient().rpc('get_my_organizations');
+    if (error) throw new Error(error.message || 'Não foi possível carregar as empresas da conta.');
+    return (data || []).map(row => ({
+      id: row.organization_id,
+      name: row.organization_name,
+      slug: row.organization_slug,
+      status: row.organization_status,
+      role: row.membership_role,
+      isCurrent: row.is_current,
+      relationshipType: row.relationship_type
+    }));
+  }
+
+  async function getAccountSummary() {
+    const { data, error } = await getClient().rpc('get_my_nexus_account_summary');
+    if (error) throw new Error(error.message || 'Não foi possível carregar a conta Nexus.');
+    return data || null;
+  }
+
+  async function switchOrganization(organizationId) {
+    const id = String(organizationId || '').trim();
+    if (!id) throw new Error('Empresa inválida.');
+    const { error } = await getClient().rpc('switch_organization', { p_organization_id: id });
+    if (error) throw new Error(error.message || 'Não foi possível trocar de empresa.');
+    const { data: { user }, error: userError } = await getClient().auth.getUser();
+    if (userError || !user) throw new Error('Sessão inválida após trocar de empresa.');
+    return loadProfile(user);
+  }
+
+  async function createManagedOrganization({ name, registrationType = null, registrationNumber = null }) {
+    const companyName = String(name || '').trim();
+    if (!companyName) throw new Error('Informe o nome da empresa.');
+    const { data, error } = await getClient().rpc('create_managed_organization', {
+      p_name: companyName,
+      p_registration_type: registrationType || null,
+      p_registration_number: registrationNumber || null
+    });
+    if (error) throw new Error(error.message || 'Não foi possível criar a empresa.');
+    return data;
+  }
+
+  function injectMultiCompanyStyles() {
+    if (document.getElementById('nexusMultiCompanyStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'nexusMultiCompanyStyles';
+    style.textContent = `
+      .nexus-account-panel{margin:0 0 26px;padding:20px;border:1px solid var(--line,#2f393f);border-radius:13px;background:var(--surface,#111a1f)}
+      .nexus-account-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}.nexus-account-head h2{margin:0;font-size:18px}.nexus-account-head p{margin:5px 0 0;color:var(--muted,#98a2a7);font-size:12px;line-height:1.5}
+      .nexus-account-metrics{display:flex;gap:8px;flex-wrap:wrap}.nexus-account-pill{padding:7px 9px;border:1px solid var(--line,#2f393f);border-radius:999px;color:var(--muted,#98a2a7);font-size:11px;white-space:nowrap}.nexus-account-pill b{color:var(--text,#f5eee0)}
+      .nexus-company-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.nexus-company-card{padding:14px;border:1px solid var(--line,#2f393f);border-radius:10px;background:#0d171c;display:flex;justify-content:space-between;gap:12px;align-items:center}.nexus-company-card.current{border-color:rgba(224,184,74,.5);box-shadow:inset 3px 0 0 #e0b84a}.nexus-company-card strong{display:block;font-size:13px}.nexus-company-card small{display:block;margin-top:4px;color:var(--muted,#98a2a7);font-size:10px}.nexus-company-card button,.nexus-new-company{border:1px solid var(--line,#2f393f);background:#111a1f;color:var(--text,#f5eee0);padding:8px 10px;border-radius:8px;cursor:pointer}.nexus-company-card button:hover,.nexus-new-company:hover{border-color:#e0b84a}.nexus-new-company{margin-top:12px;color:#e0b84a}
+      .nexus-company-modal{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.68);display:grid;place-items:center;padding:20px}.nexus-company-modal[hidden]{display:none}.nexus-company-dialog{width:min(620px,100%);padding:20px;border:1px solid var(--line,#2f393f);border-radius:13px;background:var(--surface,#111a1f);color:var(--text,#f5eee0);box-shadow:0 20px 70px rgba(0,0,0,.45)}.nexus-company-dialog h2{margin:0}.nexus-company-dialog p{margin:6px 0 16px;color:var(--muted,#98a2a7);font-size:12px;line-height:1.5}.nexus-company-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.nexus-company-form label{display:grid;gap:6px;color:var(--muted,#98a2a7);font-size:11px}.nexus-company-form label:first-child{grid-column:1/-1}.nexus-company-form input,.nexus-company-form select{width:100%;padding:10px 11px;border:1px solid var(--line,#2f393f);border-radius:8px;background:#0b1419;color:var(--text,#f5eee0)}.nexus-company-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:6px}.nexus-company-actions button{padding:9px 13px;border-radius:8px;border:1px solid var(--line,#2f393f);background:#0d171c;color:var(--text,#f5eee0);cursor:pointer}.nexus-company-actions .primary{background:linear-gradient(180deg,#e0b84a,#c7962f);border-color:#e0b84a;color:#17130a;font-weight:800}
+      @media(max-width:820px){.nexus-account-head{flex-direction:column}.nexus-company-grid{grid-template-columns:1fr}.nexus-company-form{grid-template-columns:1fr}.nexus-company-form label:first-child,.nexus-company-actions{grid-column:auto}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  async function setupGlobalCompanySelector(session) {
+    const select = document.getElementById('globalCompany');
+    if (!select) return;
+    try {
+      const organizations = await listOrganizations();
+      select.innerHTML = organizations.map(org => `<option value="${org.id}">${org.name}</option>`).join('');
+      select.value = session.organizationId;
+      select.disabled = organizations.length <= 1;
+      select.title = organizations.length > 1 ? 'Trocar empresa da conta' : 'Empresa da conta';
+      select.onchange = async () => {
+        const target = select.value;
+        if (!target || target === session.organizationId) return;
+        select.disabled = true;
+        try {
+          await switchOrganization(target);
+          location.reload();
+        } catch (error) {
+          alert(error.message || 'Não foi possível trocar de empresa.');
+          select.value = session.organizationId;
+          select.disabled = organizations.length <= 1;
+        }
+      };
+    } catch (error) {
+      select.innerHTML = `<option>${session.organizationName || 'Empresa'}</option>`;
+      select.disabled = true;
+      console.error('[Nexus multiempresa]', error);
+    }
+  }
+
+  function buildCompanyModal() {
+    let modal = document.getElementById('nexusCompanyModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'nexusCompanyModal';
+    modal.className = 'nexus-company-modal';
+    modal.hidden = true;
+    modal.innerHTML = `<div class="nexus-company-dialog" role="dialog" aria-modal="true" aria-labelledby="nexusCompanyTitle"><h2 id="nexusCompanyTitle">Nova empresa cliente</h2><p>Crie a empresa dentro da conta da consultoria. Os dados completos poderão ser preenchidos depois no módulo Empresa do Nexus SST.</p><form id="nexusCompanyForm" class="nexus-company-form"><label>Nome da empresa<input id="nexusCompanyName" maxlength="160" required placeholder="Ex.: Indústria Cliente Ltda."></label><label>Documento<select id="nexusCompanyDocumentType"><option value="">Não informar agora</option><option value="CNPJ">CNPJ</option><option value="CPF">CPF</option></select></label><label>Número<input id="nexusCompanyDocument" maxlength="20" placeholder="Opcional"></label><div class="nexus-company-actions"><button type="button" data-close-company>Cancelar</button><button class="primary" id="nexusCreateCompany" type="submit">Criar empresa</button></div></form></div>`;
+    document.body.appendChild(modal);
+    const close = () => { modal.hidden = true; document.body.style.overflow = ''; };
+    modal.querySelector('[data-close-company]').onclick = close;
+    modal.addEventListener('click', event => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) close(); });
+    return modal;
+  }
+
+  async function setupPortalMultiCompany(session) {
+    if (!location.pathname.includes('/apps/portal-cliente/') || !document.querySelector('.summary') || document.getElementById('nexusAccountPanel')) return;
+    try {
+      const [summary, organizations] = await Promise.all([getAccountSummary(), listOrganizations()]);
+      if (!summary || summary.accountType !== 'consultancy') return;
+      injectMultiCompanyStyles();
+      const panel = document.createElement('section');
+      panel.id = 'nexusAccountPanel';
+      panel.className = 'nexus-account-panel';
+      const employeeUsage = summary.employeeLimitTotal ? `${summary.activeEmployeeCount} / ${summary.employeeLimitTotal}` : `${summary.activeEmployeeCount} / sob consulta`;
+      panel.innerHTML = `<div class="nexus-account-head"><div><h2>${summary.accountName || 'Conta multiempresa'}</h2><p>Selecione a empresa que deseja administrar. Cada empresa mantém dados, documentos, colaboradores e indicadores isolados.</p></div><div class="nexus-account-metrics"><span class="nexus-account-pill">Empresas <b>${summary.organizationCount} / ${summary.organizationLimit}</b></span><span class="nexus-account-pill">Colaboradores ativos <b>${employeeUsage}</b></span></div></div><div class="nexus-company-grid">${organizations.map(org => `<article class="nexus-company-card ${org.isCurrent ? 'current' : ''}"><div><strong>${org.name}</strong><small>${org.isCurrent ? 'Empresa selecionada' : 'Empresa da conta'}</small></div>${org.isCurrent ? '<span class="nexus-account-pill">Atual</span>' : `<button type="button" data-switch-company="${org.id}">Selecionar</button>`}</article>`).join('')}</div>${['owner','manager'].includes(summary.accountRole) && summary.organizationCount < summary.organizationLimit ? '<button class="nexus-new-company" id="nexusNewCompany" type="button">+ Nova empresa</button>' : ''}`;
+      const summaryElement = document.querySelector('.summary');
+      summaryElement.insertAdjacentElement('afterend', panel);
+
+      panel.querySelectorAll('[data-switch-company]').forEach(button => {
+        button.onclick = async () => {
+          button.disabled = true;
+          button.textContent = 'Abrindo...';
+          try { await switchOrganization(button.dataset.switchCompany); location.reload(); }
+          catch (error) { alert(error.message || 'Não foi possível trocar de empresa.'); button.disabled = false; button.textContent = 'Selecionar'; }
+        };
+      });
+
+      const newButton = document.getElementById('nexusNewCompany');
+      if (newButton) {
+        const modal = buildCompanyModal();
+        newButton.onclick = () => { modal.hidden = false; document.body.style.overflow = 'hidden'; setTimeout(() => document.getElementById('nexusCompanyName')?.focus(), 0); };
+        document.getElementById('nexusCompanyForm').onsubmit = async event => {
+          event.preventDefault();
+          const submit = document.getElementById('nexusCreateCompany');
+          submit.disabled = true;
+          const original = submit.textContent;
+          submit.textContent = 'Criando...';
+          try {
+            const newOrganizationId = await createManagedOrganization({
+              name: document.getElementById('nexusCompanyName').value,
+              registrationType: document.getElementById('nexusCompanyDocumentType').value || null,
+              registrationNumber: document.getElementById('nexusCompanyDocument').value || null
+            });
+            await switchOrganization(newOrganizationId);
+            location.reload();
+          } catch (error) {
+            alert(error.message || 'Não foi possível criar a empresa.');
+            submit.disabled = false;
+            submit.textContent = original;
+          }
+        };
+      }
+    } catch (error) {
+      console.error('[Nexus conta multiempresa]', error);
+    }
+  }
+
+  async function initMultiCompanyUi() {
+    const needsGlobalSelector = !!document.getElementById('globalCompany');
+    const needsPortalPanel = location.pathname.includes('/apps/portal-cliente/') && !!document.querySelector('.summary');
+    if (!needsGlobalSelector && !needsPortalPanel) return;
+    try {
+      const session = await restoreSession();
+      if (!session) return;
+      if (needsGlobalSelector) await setupGlobalCompanySelector(session);
+      if (needsPortalPanel) await setupPortalMultiCompany(session);
+    } catch (error) {
+      console.error('[Nexus multiempresa init]', error);
+    }
+  }
+
   window.NexusAuth = {
     login,
     logout,
     restoreSession,
-    getClient
+    getClient,
+    listOrganizations,
+    getAccountSummary,
+    switchOrganization,
+    createManagedOrganization
   };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMultiCompanyUi, { once: true });
+  else setTimeout(initMultiCompanyUi, 0);
 })();

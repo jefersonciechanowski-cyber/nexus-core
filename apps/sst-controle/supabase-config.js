@@ -8,6 +8,7 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
 (function nexusProductionUi(){
   const supportEmail=window.NEXUS_SUPPORT_EMAIL;
   const supportHref=`mailto:${supportEmail}`;
+  const adminLinkStyle='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
 
   function addSupport(){
     const path=location.pathname;
@@ -31,19 +32,55 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     document.body.appendChild(wrap);
   }
 
+  function decorateAdminLink(link){
+    link.style.cssText=adminLinkStyle;
+    link.addEventListener('mouseenter',()=>{link.style.color='#fff';link.style.background='rgba(255,255,255,.025)'});
+    link.addEventListener('mouseleave',()=>{link.style.color='#98a2a7';link.style.background='transparent'});
+  }
+
   function addAdminLeadsLink(){
     if(!location.pathname.includes('/apps/nexus-admin/'))return;
     const nav=document.querySelector('.nav');
-    if(!nav||nav.querySelector('[data-nexus-leads-link]'))return;
+    if(!nav||nav.querySelector('[data-nexus-leads-link],a[href="leads.html"]'))return;
     const link=document.createElement('a');
     link.href='leads.html';
     link.textContent='CRM Comercial';
     link.dataset.nexusLeadsLink='true';
-    link.style.cssText='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
-    link.addEventListener('mouseenter',()=>{link.style.color='#fff';link.style.background='rgba(255,255,255,.025)'});
-    link.addEventListener('mouseleave',()=>{link.style.color='#98a2a7';link.style.background='transparent'});
+    decorateAdminLink(link);
     const payments=nav.querySelector('[data-view="payments"]');
     if(payments&&payments.nextSibling)nav.insertBefore(link,payments.nextSibling);else nav.appendChild(link);
+  }
+
+  function addAdminAccountsLink(){
+    if(!location.pathname.includes('/apps/nexus-admin/'))return;
+    const nav=document.querySelector('.nav');
+    if(!nav||nav.querySelector('[data-nexus-accounts-link],a[href="accounts.html"]'))return;
+    const link=document.createElement('a');
+    link.href='accounts.html';
+    link.textContent='Contas e Consultorias';
+    link.dataset.nexusAccountsLink='true';
+    decorateAdminLink(link);
+    const crm=nav.querySelector('[data-nexus-leads-link],a[href="leads.html"]');
+    if(crm&&crm.nextSibling)nav.insertBefore(link,crm.nextSibling);else nav.appendChild(link);
+  }
+
+  function addSstCentralLink(){
+    if(!location.pathname.includes('/apps/sst-controle/'))return;
+    if(document.querySelector('[data-nexus-central-link]'))return;
+
+    const logout=[...document.querySelectorAll('button,a')]
+      .find(element=>String(element.textContent||'').trim().toLowerCase()==='sair');
+    if(!logout||!logout.parentElement)return;
+
+    const link=document.createElement('a');
+    link.href='../portal-cliente/';
+    link.textContent='Minha Central';
+    link.dataset.nexusCentralLink='true';
+    link.title='Voltar para Minha Central Nexus';
+    link.style.cssText='display:inline-flex;align-items:center;justify-content:center;margin-top:7px;margin-right:7px;padding:6px 10px;border:1px solid #2f393f;border-radius:7px;background:#0d171c;color:#e0b84a;text-decoration:none;font:600 11px/1.2 Inter,Segoe UI,Arial,sans-serif;white-space:nowrap';
+    link.addEventListener('mouseenter',()=>{link.style.borderColor='#e0b84a';link.style.background='#111a1f'});
+    link.addEventListener('mouseleave',()=>{link.style.borderColor='#2f393f';link.style.background='#0d171c'});
+    logout.parentElement.insertBefore(link,logout);
   }
 
   function enhanceCrmCommercial(){
@@ -153,6 +190,66 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     });
   }
 
-  function init(){addSupport();addAdminLeadsLink();enhanceCrmCommercial();}
+  function enhanceMultiCompanyUi(){
+    const globalCompany=document.getElementById('globalCompany');
+    if(globalCompany){
+      globalCompany.style.colorScheme='dark';
+      if(!document.querySelector('style[data-nexus-company-select]')){
+        const style=document.createElement('style');
+        style.dataset.nexusCompanySelect='true';
+        style.textContent=`
+          #globalCompany{
+            color-scheme:dark!important;
+            background:#111a1f!important;
+            color:#f5eee0!important;
+          }
+          #globalCompany option{
+            background:#111a1f!important;
+            color:#f5eee0!important;
+          }
+          #globalCompany option:checked{
+            background:#1f5fbf!important;
+            color:#ffffff!important;
+          }
+          #nexusCompanyDocument:disabled{
+            opacity:.55;
+            cursor:not-allowed;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+
+    const bindDocumentFields=()=>{
+      const type=document.getElementById('nexusCompanyDocumentType');
+      const number=document.getElementById('nexusCompanyDocument');
+      if(!type||!number)return false;
+      if(type.dataset.nexusDocumentBound)return true;
+
+      const sync=()=>{
+        const enabled=type.value==='CNPJ'||type.value==='CPF';
+        number.disabled=!enabled;
+        number.required=enabled;
+        number.placeholder=enabled
+          ? (type.value==='CNPJ'?'14 caracteres':'11 dígitos')
+          : 'Selecione CPF ou CNPJ';
+        if(!enabled)number.value='';
+      };
+
+      type.dataset.nexusDocumentBound='true';
+      type.addEventListener('change',sync);
+      sync();
+      return true;
+    };
+
+    if(!bindDocumentFields()){
+      const observer=new MutationObserver(()=>{
+        if(bindDocumentFields())observer.disconnect();
+      });
+      observer.observe(document.body,{childList:true,subtree:true});
+    }
+  }
+
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();addSstCentralLink();enhanceCrmCommercial();enhanceMultiCompanyUi();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
