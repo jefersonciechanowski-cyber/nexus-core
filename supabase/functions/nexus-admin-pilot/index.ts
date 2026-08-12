@@ -88,7 +88,7 @@ async function sendFirstAccessEmail(admin: any, email: string, responsibleName: 
       <p>O piloto fica disponível até <strong>${escapeHtml(validDate)}</strong>. Você terá acesso aos módulos do sistema dentro de uma empresa exclusiva e isolada.</p>
       <p>Para começar, defina sua senha pessoal:</p>
       <p style="margin:28px 0"><a href="${firstAccessLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
-      <p style="font-size:13px;color:#68757b">Depois da definição da senha, enviaremos também um e-mail separado com o endereço permanente da sua Central Nexus.</p>
+      <p style="font-size:13px;color:#68757b">Você também receberá um segundo e-mail separado com o endereço permanente da sua Central Nexus. Guarde esse e-mail para os próximos acessos.</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
       <p style="font-size:12px;color:#7b858a">Nexus Core · suporte@nexuscore.app.br</p>
     </div>`;
