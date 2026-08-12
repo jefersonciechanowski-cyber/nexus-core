@@ -37,6 +37,36 @@
     return client;
   }
 
+  async function ensureSstEntitlement(profile) {
+    if (!window.location.pathname.includes('/apps/sst-controle/')) return;
+    if (profile?.role === 'nexus_admin') return;
+    if (!profile?.organization_id) throw new Error('Empresa de acesso não encontrada.');
+
+    const { data: access, error } = await getClient()
+      .from('organization_product_access')
+      .select('access_status,subscription_status,renews_at,billing_mode,product:nexus_products!inner(code,status)')
+      .eq('organization_id', profile.organization_id)
+      .eq('product.code', 'sst')
+      .maybeSingle();
+
+    if (error) throw new Error('Não foi possível validar a liberação do Nexus SST.');
+    const product = Array.isArray(access?.product) ? access.product[0] : access?.product;
+    const hasTimedExpiry = access?.subscription_status === 'trial' || access?.billing_mode === 'prepaid';
+    const expired = Boolean(hasTimedExpiry && access?.renews_at && new Date(`${access.renews_at}T23:59:59`) < new Date());
+    const blocked = !access
+      || product?.status !== 'active'
+      || access.access_status !== 'active'
+      || ['past_due', 'cancelled'].includes(access.subscription_status)
+      || expired;
+
+    if (blocked) {
+      sessionStorage.removeItem('nexus_demo_session');
+      throw new Error(expired
+        ? 'Seu período de acesso ao Nexus SST foi encerrado. Consulte a Minha Central Nexus para continuar.'
+        : 'O Nexus SST não está liberado para esta empresa. Consulte a Minha Central Nexus.');
+    }
+  }
+
   async function loadProfile(user) {
     const supabaseClient = getClient();
     const { data, error } = await supabaseClient
@@ -49,6 +79,9 @@
     if (!data.active) throw new Error('Este usuário está inativo.');
 
     const organization = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
+    if (organization?.status && organization.status !== 'active') throw new Error('Esta empresa está com o acesso suspenso.');
+    await ensureSstEntitlement(data);
+
     const sessionData = {
       userId: user.id,
       email: user.email,
@@ -267,7 +300,23 @@
       if (needsPortalPanel) await setupPortalMultiCompany(session);
     } catch (error) {
       console.error('[Nexus multiempresa init]', error);
+      if (needsGlobalSelector && location.pathname.includes('/apps/sst-controle/')) {
+        await getClient().auth.signOut({ scope: 'local' }).catch(() => undefined);
+        sessionStorage.removeItem('nexus_demo_session');
+        alert(error.message || 'Seu acesso ao Nexus SST não está disponível.');
+        location.replace('../portal-cliente/');
+      }
     }
+  }
+
+  function loadAdminPilotModule() {
+    if (!location.pathname.includes('/apps/nexus-admin/')) return;
+    if (document.querySelector('script[data-nexus-pilot-admin]')) return;
+    const script = document.createElement('script');
+    script.src = 'pilot.js';
+    script.async = true;
+    script.dataset.nexusPilotAdmin = 'true';
+    document.head.appendChild(script);
   }
 
   window.NexusAuth = {
@@ -281,6 +330,7 @@
     createManagedOrganization
   };
 
+  loadAdminPilotModule();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMultiCompanyUi, { once: true });
   else setTimeout(initMultiCompanyUi, 0);
 })();
