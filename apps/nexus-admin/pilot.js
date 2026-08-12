@@ -15,6 +15,61 @@
     document.head.appendChild(style);
   }
 
+  function normalizePilotPresentation() {
+    ['overviewRows', 'clientRows'].forEach(id => {
+      const tbody = document.getElementById(id);
+      if (!tbody) return;
+      [...tbody.querySelectorAll('tr')].forEach(row => {
+        if (!String(row.textContent || '').includes('Nexus SST Piloto')) return;
+        const cells = row.querySelectorAll('td');
+        if (id === 'overviewRows' && cells.length >= 5) {
+          cells[3].textContent = 'Cortesia';
+          const badge = cells[4].querySelector('.badge');
+          if (badge) badge.textContent = 'Piloto';
+        }
+        if (id === 'clientRows' && cells.length >= 6) {
+          cells[3].textContent = 'Cortesia';
+          const badge = cells[4].querySelector('.badge');
+          if (badge) badge.textContent = 'Piloto';
+        }
+      });
+    });
+
+    const detail = document.getElementById('clientDetail');
+    if (detail && !detail.hidden && String(detail.textContent || '').includes('Nexus SST Piloto')) {
+      [...detail.querySelectorAll('.detail-item')].forEach(item => {
+        const label = item.querySelector('span');
+        const value = item.querySelector('strong');
+        if (!label || !value) return;
+        const key = String(label.textContent || '').trim();
+        if (key === 'Valor contratado') value.textContent = 'Cortesia';
+        if (key === 'Modelo') value.textContent = 'Piloto / sem cobrança';
+        if (key === 'Situação') value.textContent = 'Piloto ativo';
+        if (key === 'Última cobrança') value.textContent = 'Não se aplica';
+        if (key === 'Provedor financeiro') value.textContent = 'Não se aplica';
+        if (key === 'Assinatura no provedor') value.textContent = 'Não se aplica';
+      });
+    }
+  }
+
+  function watchPilotPresentation() {
+    let queued = false;
+    const schedule = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        normalizePilotPresentation();
+      });
+    };
+    const observer = new MutationObserver(schedule);
+    ['overviewRows', 'clientRows', 'clientDetail'].forEach(id => {
+      const node = document.getElementById(id);
+      if (node) observer.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    });
+    schedule();
+  }
+
   async function edgeError(error) {
     try {
       if (error?.context && typeof error.context.json === 'function') {
@@ -34,6 +89,7 @@
     const panel = document.querySelector('#view-clients > .panel');
     if (!panel || document.getElementById('pilotForm')) return;
     injectStyles();
+    watchPilotPresentation();
 
     const card = document.createElement('section');
     card.className = 'pilot-card';
@@ -86,6 +142,7 @@
         form.reset();
         card.querySelector('#pilotDays').value = '30';
         if (typeof window.loadData === 'function') await window.loadData();
+        setTimeout(normalizePilotPresentation, 0);
       } catch (error) {
         showMessage(message, await edgeError(error), 'bad');
       } finally {
