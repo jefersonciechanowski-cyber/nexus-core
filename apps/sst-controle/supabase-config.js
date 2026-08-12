@@ -336,6 +336,16 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     }
   }
 
-  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();normalizeAdminNavigation();addSstCentralLink();addPortalAdminShortcuts();enhanceCrmCommercial();enhanceMultiCompanyUi();}
+  function loadEmployeeImportModule(){
+    if(!location.pathname.includes('/apps/sst-controle/'))return;
+    if(document.querySelector('script[data-nexus-employee-import-loader]'))return;
+    const script=document.createElement('script');
+    script.src='supabase-employee-import.js';
+    script.async=true;
+    script.dataset.nexusEmployeeImportLoader='true';
+    document.head.appendChild(script);
+  }
+
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();normalizeAdminNavigation();addSstCentralLink();addPortalAdminShortcuts();enhanceCrmCommercial();enhanceMultiCompanyUi();loadEmployeeImportModule();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
