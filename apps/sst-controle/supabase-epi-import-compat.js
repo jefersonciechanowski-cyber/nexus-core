@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  if (window.__NEXUS_EPI_XLSX_COMPAT_V2__) return;
-  window.__NEXUS_EPI_XLSX_COMPAT_V2__ = true;
+  if (window.__NEXUS_EPI_XLSX_COMPAT_V3__) return;
+  window.__NEXUS_EPI_XLSX_COMPAT_V3__ = true;
 
   const normalize = value => String(value ?? '')
     .normalize('NFD')
@@ -34,7 +34,9 @@
   function normalizeWorkbook(xlsx, workbook) {
     if (!workbook?.Sheets) return workbook;
     const detected = {};
-    for (const sheetName of workbook.SheetNames || Object.keys(workbook.Sheets)) {
+    const names = workbook.SheetNames || Object.keys(workbook.Sheets);
+
+    for (const sheetName of names) {
       const sheet = workbook.Sheets[sheetName];
       if (!sheet) continue;
       const canonical = classifySheet(xlsx, sheetName, sheet);
@@ -43,56 +45,63 @@
         detected[canonical] = sheetName;
       }
     }
+
     workbook.__nexusEpiDetectedSheets = detected;
     return workbook;
   }
 
   function wrapXlsx(base) {
-    if (!base || base.__nexusEpiCompatWrapped || typeof base.read !== 'function') return base;
+    if (!base || typeof base.read !== 'function') return base;
+    if (base.__nexusEpiCompatWrappedV3) return base;
 
+    const originalRead = base.read.bind(base);
     const wrapped = Object.create(base);
-    Object.keys(base).forEach(key => {
-      if (!(key in wrapped)) wrapped[key] = base[key];
-    });
 
     wrapped.read = function nexusReadWithFlexibleEpiSheets(...args) {
-      const workbook = base.read(...args);
+      const workbook = originalRead(...args);
       return normalizeWorkbook(base, workbook);
     };
 
-    Object.defineProperty(wrapped, '__nexusEpiCompatWrapped', { value: true, configurable: true });
+    Object.defineProperty(wrapped, '__nexusEpiCompatWrappedV3', { value: true });
     return wrapped;
   }
 
-  if (window.XLSX) {
-    window.XLSX = wrapXlsx(window.XLSX);
-    return;
+  function patchNow() {
+    if (!window.XLSX || typeof window.XLSX.read !== 'function') return false;
+    try {
+      window.XLSX = wrapXlsx(window.XLSX);
+      return Boolean(window.XLSX?.__nexusEpiCompatWrappedV3);
+    } catch (error) {
+      console.warn('[Nexus EPI] Não foi possível ativar compatibilidade do leitor.', error);
+      return false;
+    }
   }
 
-  let assignedValue;
-  try {
-    Object.defineProperty(window, 'XLSX', {
-      configurable: true,
-      enumerable: true,
-      get() { return assignedValue; },
-      set(value) {
-        assignedValue = wrapXlsx(value);
-        try {
-          Object.defineProperty(window, 'XLSX', {
-            configurable: true,
-            enumerable: true,
-            writable: true,
-            value: assignedValue
-          });
-        } catch {}
-      }
-    });
-  } catch {
-    const timer = setInterval(() => {
-      if (!window.XLSX) return;
-      clearInterval(timer);
-      try { window.XLSX = wrapXlsx(window.XLSX); } catch {}
-    }, 25);
-    setTimeout(() => clearInterval(timer), 10000);
+  if (patchNow()) return;
+
+  // O SheetJS só é carregado quando o usuário seleciona um arquivo.
+  // Observe esse carregamento sem timeout para não depender do tempo entre abrir a tela e escolher o arquivo.
+  const observer = new MutationObserver(() => {
+    const script = document.querySelector('script[data-nexus-xlsx]');
+    if (!script || script.dataset.nexusEpiCompatWatching === 'true') return;
+    script.dataset.nexusEpiCompatWatching = 'true';
+
+    script.addEventListener('load', () => {
+      if (patchNow()) observer.disconnect();
+    }, { once: true });
+  });
+
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // Também cobre o caso em que o script apareceu entre a execução acima e o início do observer.
+  const existingScript = document.querySelector('script[data-nexus-xlsx]');
+  if (existingScript) {
+    if (patchNow()) observer.disconnect();
+    else if (existingScript.dataset.nexusEpiCompatWatching !== 'true') {
+      existingScript.dataset.nexusEpiCompatWatching = 'true';
+      existingScript.addEventListener('load', () => {
+        if (patchNow()) observer.disconnect();
+      }, { once: true });
+    }
   }
 })();
