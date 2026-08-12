@@ -8,6 +8,7 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
 (function nexusProductionUi(){
   const supportEmail=window.NEXUS_SUPPORT_EMAIL;
   const supportHref=`mailto:${supportEmail}`;
+  const adminLinkStyle='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
 
   function addSupport(){
     const path=location.pathname;
@@ -31,19 +32,36 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     document.body.appendChild(wrap);
   }
 
+  function decorateAdminLink(link){
+    link.style.cssText=adminLinkStyle;
+    link.addEventListener('mouseenter',()=>{link.style.color='#fff';link.style.background='rgba(255,255,255,.025)'});
+    link.addEventListener('mouseleave',()=>{link.style.color='#98a2a7';link.style.background='transparent'});
+  }
+
   function addAdminLeadsLink(){
     if(!location.pathname.includes('/apps/nexus-admin/'))return;
     const nav=document.querySelector('.nav');
-    if(!nav||nav.querySelector('[data-nexus-leads-link]'))return;
+    if(!nav||nav.querySelector('[data-nexus-leads-link],a[href="leads.html"]'))return;
     const link=document.createElement('a');
     link.href='leads.html';
     link.textContent='CRM Comercial';
     link.dataset.nexusLeadsLink='true';
-    link.style.cssText='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
-    link.addEventListener('mouseenter',()=>{link.style.color='#fff';link.style.background='rgba(255,255,255,.025)'});
-    link.addEventListener('mouseleave',()=>{link.style.color='#98a2a7';link.style.background='transparent'});
+    decorateAdminLink(link);
     const payments=nav.querySelector('[data-view="payments"]');
     if(payments&&payments.nextSibling)nav.insertBefore(link,payments.nextSibling);else nav.appendChild(link);
+  }
+
+  function addAdminAccountsLink(){
+    if(!location.pathname.includes('/apps/nexus-admin/'))return;
+    const nav=document.querySelector('.nav');
+    if(!nav||nav.querySelector('[data-nexus-accounts-link],a[href="accounts.html"]'))return;
+    const link=document.createElement('a');
+    link.href='accounts.html';
+    link.textContent='Contas e Consultorias';
+    link.dataset.nexusAccountsLink='true';
+    decorateAdminLink(link);
+    const crm=nav.querySelector('[data-nexus-leads-link],a[href="leads.html"]');
+    if(crm&&crm.nextSibling)nav.insertBefore(link,crm.nextSibling);else nav.appendChild(link);
   }
 
   function enhanceCrmCommercial(){
@@ -153,6 +171,6 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     });
   }
 
-  function init(){addSupport();addAdminLeadsLink();enhanceCrmCommercial();}
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();enhanceCrmCommercial();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
