@@ -2,26 +2,17 @@
   'use strict';
 
   const APP_PATH = '/apps/sst-controle/';
-  const MANIFEST_URL = `${APP_PATH}manifest.webmanifest`;
+  const MANIFEST_URL = `${APP_PATH}manifest.webmanifest?v=3`;
   let deferredPrompt = null;
-
   const ua = String(navigator.userAgent || '').toLowerCase();
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   }
 
-  function isIOS() {
-    return /iphone|ipad|ipod/i.test(navigator.userAgent);
-  }
-
-  function isAndroid() {
-    return /android/i.test(navigator.userAgent);
-  }
-
-  function isInAppBrowser() {
-    return /whatsapp|instagram|fbav|fban|messenger|; wv\)|\bwv\b/i.test(ua);
-  }
+  function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+  function isAndroid() { return /android/i.test(navigator.userAgent); }
+  function isInAppBrowser() { return /whatsapp|instagram|fbav|fban|messenger|; wv\)|\bwv\b/i.test(ua); }
 
   function ensureMetadata() {
     if (!document.querySelector('link[rel="manifest"]')) {
@@ -30,14 +21,12 @@
       link.href = MANIFEST_URL;
       document.head.appendChild(link);
     }
-
     if (!document.querySelector('link[rel="apple-touch-icon"]')) {
       const icon = document.createElement('link');
       icon.rel = 'apple-touch-icon';
-      icon.href = `${APP_PATH}icon-192.png`;
+      icon.href = `${APP_PATH}icon-192.png?v=3`;
       document.head.appendChild(icon);
     }
-
     const meta = (name, content) => {
       if (document.querySelector(`meta[name="${name}"]`)) return;
       const node = document.createElement('meta');
@@ -45,7 +34,6 @@
       node.content = content;
       document.head.appendChild(node);
     };
-
     meta('apple-mobile-web-app-capable', 'yes');
     meta('apple-mobile-web-app-status-bar-style', 'black-translucent');
     meta('apple-mobile-web-app-title', 'Nexus SST');
@@ -54,17 +42,14 @@
   async function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || !window.isSecureContext) return null;
     try {
-      const registration = await navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH });
-      await navigator.serviceWorker.ready;
-      window.dispatchEvent(new CustomEvent('nexus:pwa-ready'));
+      const registration = await navigator.serviceWorker.register(`${APP_PATH}sw.js?v=3`, { scope: APP_PATH, updateViaCache: 'none' });
+      navigator.serviceWorker.ready.then(() => window.dispatchEvent(new CustomEvent('nexus:pwa-ready'))).catch(() => undefined);
       return registration;
     } catch (error) {
       console.warn('[Nexus PWA] Service worker não registrado.', error);
       return null;
     }
   }
-
-  const ready = registerServiceWorker();
 
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
@@ -90,9 +75,6 @@
     if (isStandalone()) return { status: 'installed' };
     if (isIOS()) return { status: 'ios-manual' };
     if (isAndroid() && isInAppBrowser()) return { status: 'android-inapp' };
-
-    await ready.catch(() => null);
-
     if (!deferredPrompt) return { status: 'manual' };
 
     const prompt = deferredPrompt;
@@ -109,10 +91,10 @@
     isIOS,
     isAndroid,
     isInAppBrowser,
-    ready,
     get installPromptReady() { return !!deferredPrompt; },
     installerUrl: `${APP_PATH}instalar.html`
   };
 
   ensureMetadata();
+  registerServiceWorker();
 })();
