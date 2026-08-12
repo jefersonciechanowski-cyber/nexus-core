@@ -47,13 +47,29 @@
 
   function showError(message) { window.alert(message); }
 
-  function loadImportModule() {
+  function appendImportScript() {
     if (document.querySelector('script[data-nexus-epi-import-loader]')) return;
     const script = document.createElement('script');
     script.src = 'supabase-epi-import.js';
     script.async = true;
     script.dataset.nexusEpiImportLoader = 'true';
     document.head.appendChild(script);
+  }
+
+  function loadImportModule() {
+    if (document.querySelector('script[data-nexus-epi-import-loader]')) return;
+    if (document.querySelector('script[data-nexus-epi-import-compat-loader]')) return;
+
+    const compat = document.createElement('script');
+    compat.src = 'supabase-epi-import-compat.js';
+    compat.async = true;
+    compat.dataset.nexusEpiImportCompatLoader = 'true';
+    compat.onload = appendImportScript;
+    compat.onerror = () => {
+      console.warn('Compatibilidade avançada do importador de EPI não pôde ser carregada; iniciando modo padrão.');
+      appendImportScript();
+    };
+    document.head.appendChild(compat);
   }
 
   async function listEpis() {
