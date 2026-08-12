@@ -64,6 +64,25 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     if(crm&&crm.nextSibling)nav.insertBefore(link,crm.nextSibling);else nav.appendChild(link);
   }
 
+  function addSstCentralLink(){
+    if(!location.pathname.includes('/apps/sst-controle/'))return;
+    if(document.querySelector('[data-nexus-central-link]'))return;
+
+    const logout=[...document.querySelectorAll('button,a')]
+      .find(element=>String(element.textContent||'').trim().toLowerCase()==='sair');
+    if(!logout||!logout.parentElement)return;
+
+    const link=document.createElement('a');
+    link.href='../portal-cliente/';
+    link.textContent='Minha Central';
+    link.dataset.nexusCentralLink='true';
+    link.title='Voltar para Minha Central Nexus';
+    link.style.cssText='display:inline-flex;align-items:center;justify-content:center;margin-top:7px;margin-right:7px;padding:6px 10px;border:1px solid #2f393f;border-radius:7px;background:#0d171c;color:#e0b84a;text-decoration:none;font:600 11px/1.2 Inter,Segoe UI,Arial,sans-serif;white-space:nowrap';
+    link.addEventListener('mouseenter',()=>{link.style.borderColor='#e0b84a';link.style.background='#111a1f'});
+    link.addEventListener('mouseleave',()=>{link.style.borderColor='#2f393f';link.style.background='#0d171c'});
+    logout.parentElement.insertBefore(link,logout);
+  }
+
   function enhanceCrmCommercial(){
     if(!location.pathname.includes('/apps/nexus-admin/leads'))return;
 
@@ -231,6 +250,6 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     }
   }
 
-  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();enhanceCrmCommercial();enhanceMultiCompanyUi();}
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();addSstCentralLink();enhanceCrmCommercial();enhanceMultiCompanyUi();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
