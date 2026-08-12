@@ -37,7 +37,7 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     if(!nav||nav.querySelector('[data-nexus-leads-link]'))return;
     const link=document.createElement('a');
     link.href='leads.html';
-    link.textContent='Leads e Demonstrações';
+    link.textContent='CRM Comercial';
     link.dataset.nexusLeadsLink='true';
     link.style.cssText='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
     link.addEventListener('mouseenter',()=>{link.style.color='#fff';link.style.background='rgba(255,255,255,.025)'});
