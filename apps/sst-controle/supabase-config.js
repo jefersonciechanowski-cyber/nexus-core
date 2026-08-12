@@ -171,6 +171,66 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     });
   }
 
-  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();enhanceCrmCommercial();}
+  function enhanceMultiCompanyUi(){
+    const globalCompany=document.getElementById('globalCompany');
+    if(globalCompany){
+      globalCompany.style.colorScheme='dark';
+      if(!document.querySelector('style[data-nexus-company-select]')){
+        const style=document.createElement('style');
+        style.dataset.nexusCompanySelect='true';
+        style.textContent=`
+          #globalCompany{
+            color-scheme:dark!important;
+            background:#111a1f!important;
+            color:#f5eee0!important;
+          }
+          #globalCompany option{
+            background:#111a1f!important;
+            color:#f5eee0!important;
+          }
+          #globalCompany option:checked{
+            background:#1f5fbf!important;
+            color:#ffffff!important;
+          }
+          #nexusCompanyDocument:disabled{
+            opacity:.55;
+            cursor:not-allowed;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+
+    const bindDocumentFields=()=>{
+      const type=document.getElementById('nexusCompanyDocumentType');
+      const number=document.getElementById('nexusCompanyDocument');
+      if(!type||!number)return false;
+      if(type.dataset.nexusDocumentBound)return true;
+
+      const sync=()=>{
+        const enabled=type.value==='CNPJ'||type.value==='CPF';
+        number.disabled=!enabled;
+        number.required=enabled;
+        number.placeholder=enabled
+          ? (type.value==='CNPJ'?'14 caracteres':'11 dígitos')
+          : 'Selecione CPF ou CNPJ';
+        if(!enabled)number.value='';
+      };
+
+      type.dataset.nexusDocumentBound='true';
+      type.addEventListener('change',sync);
+      sync();
+      return true;
+    };
+
+    if(!bindDocumentFields()){
+      const observer=new MutationObserver(()=>{
+        if(bindDocumentFields())observer.disconnect();
+      });
+      observer.observe(document.body,{childList:true,subtree:true});
+    }
+  }
+
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();enhanceCrmCommercial();enhanceMultiCompanyUi();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
