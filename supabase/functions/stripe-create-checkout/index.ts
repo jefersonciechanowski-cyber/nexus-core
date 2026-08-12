@@ -24,7 +24,7 @@ function stripeMessage(error: unknown) {
 }
 
 function trustedOrigin(request: Request) {
-  const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
+  const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
   const raw = clean(request.headers.get('Origin'), 500);
   if (!raw) return null;
   try {
@@ -77,6 +77,9 @@ Deno.serve(async request => {
     .eq('id', user.id)
     .single();
   if (profileError || !profile?.organization_id) return json({ error: 'Perfil sem organização.' }, 403);
+  if (!['nexus_admin', 'org_admin'].includes(profile.role)) {
+    return json({ error: 'Seu perfil não possui permissão para gerar cobranças.' }, 403);
+  }
 
   const { data: access, error: accessError } = await userClient
     .from('organization_product_access')

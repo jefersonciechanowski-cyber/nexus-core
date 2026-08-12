@@ -26,14 +26,16 @@ function escapeHtml(value: unknown) {
 }
 
 function trustedOrigin(request: Request) {
-  const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
+  const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
   const raw = clean(request.headers.get('Origin'), 500);
   if (!raw) return fallback;
   try {
     const url = new URL(raw);
+    const fallbackUrl = new URL(fallback);
     const isLocal = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
     const isWorker = url.protocol === 'https:' && url.hostname.endsWith('.jefersonciechanowski.workers.dev');
-    return isLocal || isWorker ? url.origin : fallback;
+    const isConfigured = url.origin === fallbackUrl.origin;
+    return isLocal || isWorker || isConfigured ? url.origin : fallback;
   } catch {
     return fallback;
   }

@@ -83,6 +83,7 @@ await Promise.all([
   copyOptionalFile('index.html'),
   copyOptionalFile('404.html'),
   copyOptionalFile('.nojekyll'),
+  copyOptionalFile('_headers'),
   ...publicDirectories.map(copyPublicDirectory),
 ]);
 
