@@ -134,8 +134,10 @@
         if (!data?.ok) throw new Error(data?.error || 'O backend não confirmou a criação do piloto.');
 
         const until = data.validUntil ? new Date(`${data.validUntil}T12:00:00`).toLocaleDateString('pt-BR') : 'data definida';
-        if (data.emailSent) {
-          showMessage(message, `Piloto criado com sucesso até ${until}. O primeiro acesso foi enviado para ${data.email}.`, 'good');
+        if (data.emailSent && data.permanentEmailSent) {
+          showMessage(message, `Piloto criado com sucesso até ${until}. Enviamos o primeiro acesso e um segundo e-mail com o link permanente da Minha Central para ${data.email}.`, 'good');
+        } else if (data.emailSent) {
+          showMessage(message, `Piloto criado até ${until} e primeiro acesso enviado. O e-mail com o link permanente não foi enviado; oriente o usuário a entrar pelo site nexuscore.app.br em “Já sou cliente”.`, 'warn');
         } else {
           showMessage(message, `Piloto criado até ${until}, mas o e-mail de primeiro acesso não foi enviado. Verifique a configuração da Brevo antes de entregar o acesso.`, 'warn');
         }
