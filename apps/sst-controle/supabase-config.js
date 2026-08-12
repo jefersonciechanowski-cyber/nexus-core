@@ -83,6 +83,44 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     logout.parentElement.insertBefore(link,logout);
   }
 
+  async function addPortalAdminShortcuts(){
+    if(!location.pathname.includes('/apps/portal-cliente/'))return;
+    if(document.querySelector('[data-nexus-admin-shortcuts]'))return;
+
+    let session=null;
+    try{
+      const raw=sessionStorage.getItem('nexus_demo_session');
+      if(raw)session=JSON.parse(raw);
+    }catch{}
+
+    if(!session?.role&&window.NexusAuth?.restoreSession){
+      try{session=await window.NexusAuth.restoreSession();}catch{}
+    }
+    if(session?.role!=='nexus_admin')return;
+
+    const main=document.querySelector('.main');
+    const welcome=document.querySelector('.welcome');
+    if(!main||!welcome)return;
+
+    if(!document.querySelector('style[data-nexus-admin-shortcuts-style]')){
+      const style=document.createElement('style');
+      style.dataset.nexusAdminShortcutsStyle='true';
+      style.textContent=`
+        .nexus-admin-shortcuts{margin:0 0 22px;padding:16px 18px;border:1px solid rgba(224,184,74,.28);border-radius:12px;background:linear-gradient(135deg,rgba(224,184,74,.08),rgba(17,26,31,.96))}
+        .nexus-admin-shortcuts-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.nexus-admin-shortcuts-head strong{font-size:13px}.nexus-admin-shortcuts-head span{color:#98a2a7;font-size:11px}
+        .nexus-admin-shortcuts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.nexus-admin-shortcut{display:flex;align-items:center;justify-content:center;min-height:42px;padding:10px 12px;border:1px solid #2f393f;border-radius:8px;background:#0d171c;color:#f5eee0;text-decoration:none;font:700 11px/1.25 Inter,Segoe UI,Arial,sans-serif;text-align:center}.nexus-admin-shortcut:hover{border-color:#e0b84a;color:#e0b84a;background:#111a1f}
+        @media(max-width:820px){.nexus-admin-shortcuts-grid{grid-template-columns:1fr 1fr}.nexus-admin-shortcuts-head{align-items:flex-start;flex-direction:column}}
+      `;
+      document.head.appendChild(style);
+    }
+
+    const section=document.createElement('section');
+    section.className='nexus-admin-shortcuts';
+    section.dataset.nexusAdminShortcuts='true';
+    section.innerHTML=`<div class="nexus-admin-shortcuts-head"><strong>Atalhos do administrador</strong><span>Navegação interna Nexus</span></div><div class="nexus-admin-shortcuts-grid"><a class="nexus-admin-shortcut" href="../nexus-admin/">Central Nexus Administração</a><a class="nexus-admin-shortcut" href="../nexus-admin/leads.html">CRM Comercial</a><a class="nexus-admin-shortcut" href="../nexus-admin/accounts.html">Contas e Consultorias</a><a class="nexus-admin-shortcut" href="../site-captacao/">Site Comercial</a></div>`;
+    welcome.insertAdjacentElement('afterend',section);
+  }
+
   function enhanceCrmCommercial(){
     if(!location.pathname.includes('/apps/nexus-admin/leads'))return;
 
@@ -250,6 +288,6 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     }
   }
 
-  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();addSstCentralLink();enhanceCrmCommercial();enhanceMultiCompanyUi();}
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();addSstCentralLink();addPortalAdminShortcuts();enhanceCrmCommercial();enhanceMultiCompanyUi();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
