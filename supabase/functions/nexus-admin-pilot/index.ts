@@ -48,11 +48,31 @@ async function findUserByEmail(admin: any, email: string) {
   return null;
 }
 
-async function sendFirstAccessEmail(admin: any, email: string, responsibleName: string, companyName: string, validUntil: string) {
+async function sendBrevoEmail(email: string, responsibleName: string, subject: string, htmlContent: string) {
   const brevoKey = Deno.env.get('BREVO_API_KEY');
   const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
   if (!brevoKey || !fromEmail) return { sent: false, reason: 'Brevo não configurada.' };
 
+  const result = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': brevoKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Nexus Core', email: fromEmail },
+      to: [{ email, name: responsibleName || undefined }],
+      subject,
+      htmlContent,
+    }),
+  });
+
+  if (!result.ok) return { sent: false, reason: `Brevo ${result.status}: ${clean(await result.text(), 500)}` };
+  return { sent: true, reason: null };
+}
+
+async function sendFirstAccessEmail(admin: any, email: string, responsibleName: string, companyName: string, validUntil: string) {
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email });
   const tokenHash = clean(linkData?.properties?.hashed_token, 1000);
   if (linkError || !tokenHash) return { sent: false, reason: linkError?.message || 'Não foi possível gerar o primeiro acesso.' };
@@ -68,28 +88,32 @@ async function sendFirstAccessEmail(admin: any, email: string, responsibleName: 
       <p>O piloto fica disponível até <strong>${escapeHtml(validDate)}</strong>. Você terá acesso aos módulos do sistema dentro de uma empresa exclusiva e isolada.</p>
       <p>Para começar, defina sua senha pessoal:</p>
       <p style="margin:28px 0"><a href="${firstAccessLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
-      <p style="font-size:13px;color:#68757b">Depois, acesse ${publicUrl}/apps/portal-cliente/</p>
+      <p style="font-size:13px;color:#68757b">Depois da definição da senha, enviaremos também um e-mail separado com o endereço permanente da sua Central Nexus.</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
       <p style="font-size:12px;color:#7b858a">Nexus Core · suporte@nexuscore.app.br</p>
     </div>`;
 
-  const result = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'accept': 'application/json',
-      'api-key': brevoKey,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'Nexus Core', email: fromEmail },
-      to: [{ email, name: responsibleName || undefined }],
-      subject: 'Seu acesso piloto ao Nexus SST está pronto',
-      htmlContent: html,
-    }),
-  });
+  return sendBrevoEmail(email, responsibleName, 'Seu acesso piloto ao Nexus SST está pronto', html);
+}
 
-  if (!result.ok) return { sent: false, reason: `Brevo ${result.status}: ${clean(await result.text(), 500)}` };
-  return { sent: true, reason: null };
+async function sendPermanentAccessEmail(email: string, responsibleName: string, companyName: string, validUntil: string) {
+  const publicUrl = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
+  const portalUrl = `${publicUrl}/apps/portal-cliente/login.html`;
+  const validDate = new Date(`${validUntil}T12:00:00`).toLocaleDateString('pt-BR');
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#182126;line-height:1.6;max-width:620px;margin:auto">
+      <h2 style="margin-bottom:8px">Seu endereço de acesso ao Nexus SST</h2>
+      <p>Olá, ${escapeHtml(responsibleName)}.</p>
+      <p>Seu acesso da empresa <strong>${escapeHtml(companyName)}</strong> está liberado até <strong>${escapeHtml(validDate)}</strong>.</p>
+      <p>Use sempre a <strong>Minha Central Nexus</strong> para entrar no Nexus SST. Recomendamos guardar este e-mail ou adicionar a página aos favoritos do navegador.</p>
+      <p style="margin:28px 0"><a href="${portalUrl}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Acessar Minha Central Nexus</a></p>
+      <p style="font-size:13px;color:#68757b">Endereço permanente: <a href="${portalUrl}" style="color:#a67b17">${portalUrl}</a></p>
+      <p style="font-size:13px;color:#68757b">Na Central, clique em <strong>Acessar sistema</strong> para abrir o Nexus SST.</p>
+      <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
+      <p style="font-size:12px;color:#7b858a">Nexus Core · suporte@nexuscore.app.br</p>
+    </div>`;
+
+  return sendBrevoEmail(email, responsibleName, 'Nexus SST — guarde seu link de acesso', html);
 }
 
 Deno.serve(async request => {
@@ -173,8 +197,11 @@ Deno.serve(async request => {
       return json({ error: provisionError?.message || 'Não foi possível provisionar o acesso piloto.' }, 500);
     }
 
-    const emailResult = await sendFirstAccessEmail(admin, email, responsibleName, companyName, provisioned.validUntil);
-    if (!emailResult.sent) console.error('[Nexus pilot] Primeiro acesso não enviado:', emailResult.reason);
+    const firstEmail = await sendFirstAccessEmail(admin, email, responsibleName, companyName, provisioned.validUntil);
+    if (!firstEmail.sent) console.error('[Nexus pilot] Primeiro acesso não enviado:', firstEmail.reason);
+
+    const permanentEmail = await sendPermanentAccessEmail(email, responsibleName, companyName, provisioned.validUntil);
+    if (!permanentEmail.sent) console.error('[Nexus pilot] E-mail permanente não enviado:', permanentEmail.reason);
 
     return json({
       ok: true,
@@ -182,8 +209,10 @@ Deno.serve(async request => {
       accessId: provisioned.accessId,
       validUntil: provisioned.validUntil,
       email,
-      emailSent: emailResult.sent,
-      emailError: emailResult.sent ? null : emailResult.reason,
+      emailSent: firstEmail.sent,
+      emailError: firstEmail.sent ? null : firstEmail.reason,
+      permanentEmailSent: permanentEmail.sent,
+      permanentEmailError: permanentEmail.sent ? null : permanentEmail.reason,
     });
   } catch (error) {
     if (createdAuthUser && pilotUser?.id) await admin.auth.admin.deleteUser(pilotUser.id).catch(() => undefined);
