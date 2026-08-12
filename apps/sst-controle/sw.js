@@ -1,20 +1,8 @@
-const CACHE_NAME = 'nexus-sst-pwa-v2';
+const CACHE_NAME = 'nexus-sst-pwa-v3';
 const APP_SCOPE = '/apps/sst-controle/';
-const SHELL = [
-  `${APP_SCOPE}login.html`,
-  `${APP_SCOPE}manifest.webmanifest`,
-  `${APP_SCOPE}icon-192.png`,
-  `${APP_SCOPE}icon-512.png`,
-  `${APP_SCOPE}pwa-install.js`,
-  `${APP_SCOPE}logo-nexus-core.png`
-];
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', event => {
@@ -43,10 +31,7 @@ self.addEventListener('fetch', event => {
     } catch (error) {
       const cached = await caches.match(request, { ignoreSearch: true });
       if (cached) return cached;
-      if (request.mode === 'navigate') {
-        const login = await caches.match(`${APP_SCOPE}login.html`);
-        if (login) return login;
-      }
+      if (request.mode === 'navigate') return Response.redirect(`${APP_SCOPE}login.html`, 302);
       throw error;
     }
   })());
