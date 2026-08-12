@@ -23,7 +23,7 @@
     if (!document.querySelector('link[rel="apple-touch-icon"]')) {
       const icon = document.createElement('link');
       icon.rel = 'apple-touch-icon';
-      icon.href = `${APP_PATH}icon-192.svg`;
+      icon.href = `${APP_PATH}icon-192.png`;
       document.head.appendChild(icon);
     }
     const meta = (name, content) => {
