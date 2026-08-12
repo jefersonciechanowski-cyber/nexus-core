@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  if (window.__NEXUS_EPI_XLSX_COMPAT__) return;
-  window.__NEXUS_EPI_XLSX_COMPAT__ = true;
+  if (window.__NEXUS_EPI_XLSX_COMPAT_V2__) return;
+  window.__NEXUS_EPI_XLSX_COMPAT_V2__ = true;
 
   const normalize = value => String(value ?? '')
     .normalize('NFD')
@@ -31,36 +31,41 @@
     return null;
   }
 
-  function patchXlsx(xlsx) {
-    if (!xlsx || xlsx.__nexusEpiCompatPatched || typeof xlsx.read !== 'function') return xlsx;
-    const originalRead = xlsx.read.bind(xlsx);
-
-    xlsx.read = function nexusReadWithFlexibleEpiSheets(...args) {
-      const workbook = originalRead(...args);
-      try {
-        const detected = {};
-        for (const sheetName of workbook.SheetNames || []) {
-          const sheet = workbook.Sheets?.[sheetName];
-          if (!sheet) continue;
-          const canonical = classifySheet(xlsx, sheetName, sheet);
-          if (canonical && !detected[canonical]) {
-            workbook.Sheets[canonical] = sheet;
-            detected[canonical] = sheetName;
-          }
-        }
-        workbook.__nexusEpiDetectedSheets = detected;
-      } catch (error) {
-        console.warn('[Nexus EPI] Falha ao normalizar nomes das abas.', error);
+  function normalizeWorkbook(xlsx, workbook) {
+    if (!workbook?.Sheets) return workbook;
+    const detected = {};
+    for (const sheetName of workbook.SheetNames || Object.keys(workbook.Sheets)) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+      const canonical = classifySheet(xlsx, sheetName, sheet);
+      if (canonical && !detected[canonical]) {
+        workbook.Sheets[canonical] = sheet;
+        detected[canonical] = sheetName;
       }
-      return workbook;
+    }
+    workbook.__nexusEpiDetectedSheets = detected;
+    return workbook;
+  }
+
+  function wrapXlsx(base) {
+    if (!base || base.__nexusEpiCompatWrapped || typeof base.read !== 'function') return base;
+
+    const wrapped = Object.create(base);
+    Object.keys(base).forEach(key => {
+      if (!(key in wrapped)) wrapped[key] = base[key];
+    });
+
+    wrapped.read = function nexusReadWithFlexibleEpiSheets(...args) {
+      const workbook = base.read(...args);
+      return normalizeWorkbook(base, workbook);
     };
 
-    Object.defineProperty(xlsx, '__nexusEpiCompatPatched', { value: true, configurable: true });
-    return xlsx;
+    Object.defineProperty(wrapped, '__nexusEpiCompatWrapped', { value: true, configurable: true });
+    return wrapped;
   }
 
   if (window.XLSX) {
-    patchXlsx(window.XLSX);
+    window.XLSX = wrapXlsx(window.XLSX);
     return;
   }
 
@@ -71,7 +76,7 @@
       enumerable: true,
       get() { return assignedValue; },
       set(value) {
-        assignedValue = patchXlsx(value);
+        assignedValue = wrapXlsx(value);
         try {
           Object.defineProperty(window, 'XLSX', {
             configurable: true,
@@ -86,7 +91,7 @@
     const timer = setInterval(() => {
       if (!window.XLSX) return;
       clearInterval(timer);
-      patchXlsx(window.XLSX);
+      try { window.XLSX = wrapXlsx(window.XLSX); } catch {}
     }, 25);
     setTimeout(() => clearInterval(timer), 10000);
   }
