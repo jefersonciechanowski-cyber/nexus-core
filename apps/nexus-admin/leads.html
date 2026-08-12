@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071015">
+  <title>CRM Comercial | Central Nexus</title>
+  <style>
+    :root{--bg:#081014;--surface:#111a1f;--surface2:#172228;--line:#2f393f;--text:#f5eee0;--muted:#98a2a7;--gold:#e0b84a;--good:#72a875;--danger:#dc6c67;--blue:#70a8c3}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#070d11,#0a1419);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit}.shell{min-height:100vh;display:grid;grid-template-columns:245px 1fr}.side{padding:26px 20px;border-right:1px solid rgba(224,184,74,.13);background:#070c0f}.logo{width:190px;max-width:100%;display:block}.product{margin:10px 0 28px;color:var(--gold);font-size:11px;font-weight:800;letter-spacing:.18em}.nav{display:grid;gap:8px}.nav a{display:block;border:1px solid transparent;color:var(--muted);text-decoration:none;padding:12px 14px;border-radius:9px}.nav a:hover{color:#fff;background:rgba(255,255,255,.025)}.nav a.active{color:#fff;background:linear-gradient(90deg,rgba(224,184,74,.15),transparent);border-left-color:var(--gold)}.side-footer{position:fixed;bottom:22px;width:200px;color:var(--muted);font-size:12px;line-height:1.5}.main{padding:28px 32px 48px;min-width:0}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:22px}.top h1{margin:0;font-size:28px}.top p{margin:7px 0 0;color:var(--muted)}.profile{text-align:right}.profile strong{display:block}.profile span{display:block;margin-top:4px;color:var(--muted);font-size:12px}.profile button{margin-top:7px;background:transparent;border:0;color:var(--gold);padding:0}
+    .cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px}.card,.panel,.detail,.modal-card{background:var(--surface);border:1px solid var(--line);border-radius:12px}.card{padding:16px}.card span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.card strong{display:block;font-size:25px;margin-top:8px}.card small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+    .modebar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px}.modes{display:flex;gap:7px}.mode{border:1px solid var(--line);background:#0b1419;color:var(--muted);padding:9px 13px;border-radius:8px}.mode.active{color:#17130a;background:linear-gradient(180deg,#e0b84a,#c7962f);border-color:var(--gold);font-weight:800}.action{border:1px solid var(--line);background:#0d171c;color:var(--text);padding:8px 11px;border-radius:7px}.action:hover{border-color:var(--gold)}.action.primary{background:linear-gradient(180deg,#e0b84a,#c7962f);border-color:#e0b84a;color:#17130a;font-weight:800}
+    .panel{padding:18px}.toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:14px}.toolbar h2{margin:0;font-size:17px}.toolbar p{margin:5px 0 0;color:var(--muted);font-size:12px}.filters{display:flex;gap:8px;flex-wrap:wrap}.field,.search,.select,textarea{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0b1419;color:var(--text);outline:none}.field:focus,.search:focus,.select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(224,184,74,.07)}.search{width:min(320px,100%)}.select{min-width:155px}
+    .kanban-wrap{overflow-x:auto;padding-bottom:8px}.kanban{display:grid;grid-template-columns:repeat(8,280px);gap:10px;min-width:max-content}.column{background:#0b1419;border:1px solid var(--line);border-radius:11px;min-height:360px;overflow:hidden}.column.drag-over{border-color:var(--gold);box-shadow:0 0 0 2px rgba(224,184,74,.12)}.column-head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;position:sticky;top:0;background:#101b20;z-index:1}.column-head strong{font-size:12px}.column-head span{min-width:24px;text-align:center;padding:3px 7px;border-radius:99px;background:#1d292f;color:var(--muted);font-size:10px}.column-body{padding:9px;display:grid;gap:8px;align-content:start}.lead-card{padding:12px;border:1px solid var(--line);border-radius:9px;background:#111d22;cursor:grab}.lead-card:active{cursor:grabbing}.lead-card.dragging{opacity:.45}.lead-card h3{font-size:13px;margin:0 0 7px;line-height:1.35}.lead-card p{font-size:11px;color:var(--muted);line-height:1.45;margin:4px 0}.lead-card .lead-meta{display:flex;justify-content:space-between;gap:8px;align-items:end;margin-top:9px}.lead-card .lead-meta small{color:var(--muted);font-size:10px}.lead-card .due{color:#f1c65d}.lead-card .overdue{color:#ec8d88}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:1120px}th,td{padding:12px 13px;text-align:left;border-bottom:1px solid var(--line);font-size:12px;vertical-align:middle}th{background:#162127;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}tr:last-child td{border-bottom:0}.badge{display:inline-block;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:700}.badge.good{background:rgba(114,168,117,.15);color:#91c094}.badge.warn{background:rgba(224,184,74,.14);color:var(--gold)}.badge.bad{background:rgba(220,108,103,.14);color:#ec8d88}.badge.info{background:rgba(112,168,195,.13);color:#9bc3d6}.badge.neutral{background:rgba(152,162,167,.13);color:#c3cbcf}
+    .detail{margin-top:14px;padding:17px}.detail[hidden],.view[hidden]{display:none}.detail-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.detail h3{margin:0}.contact-links{display:flex;gap:9px;flex-wrap:wrap;margin-top:9px}.contact-links a{color:var(--gold);text-decoration:none;font-size:12px}.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:13px}.detail-item{padding:11px;border:1px solid var(--line);border-radius:8px;background:#0d171c}.detail-item span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}.detail-item strong{font-size:12px}.edit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}.group{display:grid;gap:6px}.group label{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.group textarea{min-height:82px;resize:vertical}.group.span2{grid-column:span 2}.form-actions{display:flex;justify-content:flex-end;gap:8px;grid-column:1/-1}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:grid;place-items:center;padding:20px;z-index:100}.modal[hidden]{display:none}.modal-card{width:min(920px,100%);max-height:90vh;overflow:auto;padding:20px}.modal-head{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:14px}.modal-head h2{margin:0}.modal-head p{margin:5px 0 0;color:var(--muted);font-size:12px}.new-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.new-grid .span2{grid-column:span 2}.new-grid .span3{grid-column:1/-1}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+    .empty,.error{padding:28px;text-align:center;color:var(--muted)}.error{color:#ec8d88}.note{margin-top:14px;color:var(--muted);font-size:11px;line-height:1.55}.toast{position:fixed;right:20px;bottom:20px;z-index:120;padding:11px 14px;border:1px solid var(--line);border-radius:9px;background:#111a1f;color:var(--text);box-shadow:0 16px 45px rgba(0,0,0,.35);font-size:12px}.toast[hidden]{display:none}
+    @media(max-width:1180px){.cards{grid-template-columns:repeat(3,1fr)}.detail-grid,.edit-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:820px){.shell{grid-template-columns:1fr}.side{padding:18px 20px;border-right:0;border-bottom:1px solid rgba(224,184,74,.13)}.side-footer{display:none}.logo{width:165px}.product{margin-bottom:14px}.nav{grid-template-columns:repeat(2,1fr)}.nav a{text-align:center;padding:10px 8px}.main{padding:20px}.cards{grid-template-columns:repeat(2,1fr)}.top,.toolbar,.modebar{flex-direction:column;align-items:stretch}.profile{text-align:left}.filters{display:grid;grid-template-columns:1fr}.search,.select{width:100%}.detail-grid,.edit-grid,.new-grid{grid-template-columns:1fr}.group.span2,.new-grid .span2,.new-grid .span3{grid-column:auto}.modes{display:grid;grid-template-columns:1fr 1fr}.mode{text-align:center}.form-actions,.modal-actions{justify-content:stretch}.form-actions button,.modal-actions button{flex:1}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <img class="logo" src="../sst-controle/logo-nexus-core.png" alt="Nexus Core">
+    <div class="product">CENTRAL NEXUS</div>
+    <nav class="nav" aria-label="Navegação da Central Nexus">
+      <a href="index.html">Visão Geral</a>
+      <a class="active" href="leads.html" data-nexus-leads-link="true">CRM Comercial</a>
+      <a href="index.html">Clientes e Acessos</a>
+      <a href="index.html">Produtos e Planos</a>
+      <a href="index.html">Pagamentos</a>
+    </nav>
+    <div class="side-footer">Prospecção, demonstrações e vendas em uma única base.</div>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div><h1>CRM Comercial</h1><p>Do lead frio à contratação: origem, campanha, próximo passo e histórico comercial.</p></div>
+      <div class="profile"><strong id="profileName">Carregando...</strong><span id="profileRole"></span><button id="logout" type="button">Sair</button></div>
+    </header>
+
+    <section class="cards">
+      <article class="card"><span>Novos</span><strong id="newCount">—</strong><small>aguardando ação</small></article>
+      <article class="card"><span>Em contato</span><strong id="contactCount">—</strong><small>tentativa, contato e negociação</small></article>
+      <article class="card"><span>Demonstrações</span><strong id="demoCount">—</strong><small>agendadas no funil</small></article>
+      <article class="card"><span>Próximos passos</span><strong id="nextCount">—</strong><small>vencidos ou próximos 7 dias</small></article>
+      <article class="card"><span>Ganhos</span><strong id="wonCount">—</strong><small>leads convertidos</small></article>
+    </section>
+
+    <div class="modebar">
+      <div class="modes">
+        <button class="mode active" type="button" data-mode="kanban">Kanban</button>
+        <button class="mode" type="button" data-mode="list">Lista</button>
+      </div>
+      <button class="action primary" id="newLeadButton" type="button">+ Novo lead</button>
+    </div>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div><h2 id="viewTitle">Funil comercial</h2><p>Arraste os cartões entre as etapas ou abra a ficha para editar.</p></div>
+        <div class="filters">
+          <input class="search" id="search" type="search" placeholder="Buscar empresa, contato ou campanha">
+          <select class="select" id="sourceFilter">
+            <option value="all">Todas as origens</option>
+            <option value="site-captacao">Site Nexus</option>
+            <option value="cold_outbound">Prospecção fria</option>
+            <option value="referral">Indicação</option>
+            <option value="meta_ads">Meta Ads</option>
+            <option value="google_ads">Google Ads</option>
+            <option value="organic">Orgânico</option>
+            <option value="other">Outros</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="view" id="kanbanView"><div class="kanban-wrap"><div class="kanban" id="kanban"></div></div></div>
+      <div class="view" id="listView" hidden>
+        <div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Contato</th><th>Origem</th><th>Plano</th><th>Etapa</th><th>Próximo passo</th><th>Responsável</th><th>Ação</th></tr></thead><tbody id="rows"></tbody></table></div>
+      </div>
+      <div id="detail" class="detail" hidden></div>
+      <div class="note">Site, prospecção manual e futuras integrações de Meta Ads/Google Ads usam a mesma tabela <strong>nexus_sales</strong>; a origem e a campanha ficam preservadas no histórico.</div>
+    </section>
+    <div id="message" class="error" hidden></div>
+  </main>
+</div>
+
+<div class="modal" id="newLeadModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><div><h2>Novo lead</h2><p>Cadastre prospecção fria, indicação ou qualquer oportunidade que não chegou pelo site.</p></div><button class="action" id="closeNewLead" type="button">Fechar</button></div>
+    <form id="newLeadForm">
+      <div class="new-grid">
+        <div class="group"><label>Empresa *</label><input class="field" id="newCompany" required maxlength="180"></div>
+        <div class="group"><label>Responsável</label><input class="field" id="newResponsible" maxlength="180"></div>
+        <div class="group"><label>Colaboradores</label><input class="field" id="newEmployees" type="number" min="0"></div>
+        <div class="group"><label>E-mail</label><input class="field" id="newEmail" type="email" maxlength="240"></div>
+        <div class="group"><label>Telefone / WhatsApp</label><input class="field" id="newPhone" maxlength="40"></div>
+        <div class="group"><label>Responsável pela venda</label><input class="field" id="newOwner" maxlength="180" placeholder="Ex.: Jeferson"></div>
+        <div class="group"><label>Produto *</label><select class="field" id="newProduct" required></select></div>
+        <div class="group"><label>Plano de interesse</label><select class="field" id="newPlan"><option value="">Sem plano definido</option></select></div>
+        <div class="group"><label>Origem *</label><select class="field" id="newSource" required><option value="cold_outbound">Prospecção fria</option><option value="site-captacao">Site Nexus</option><option value="referral">Indicação</option><option value="meta_ads">Meta Ads</option><option value="google_ads">Google Ads</option><option value="organic">Orgânico</option><option value="other">Outros</option></select></div>
+        <div class="group"><label>Campanha</label><input class="field" id="newCampaign" maxlength="180" placeholder="Ex.: Prospecção indústrias PR"></div>
+        <div class="group"><label>Anúncio / criativo</label><input class="field" id="newAd" maxlength="180" placeholder="Opcional"></div>
+        <div class="group"><label>Próximo contato</label><input class="field" id="newNextContact" type="datetime-local"></div>
+        <div class="group span3"><label>Anotações</label><textarea id="newNotes" maxlength="3000" placeholder="Necessidade identificada, canal de contato, contexto da empresa..."></textarea></div>
+      </div>
+      <div class="modal-actions"><button class="action" id="cancelNewLead" type="button">Cancelar</button><button class="action primary" id="saveNewLead" type="submit">Salvar lead</button></div>
+    </form>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../sst-controle/supabase-config.js"></script>
+<script src="../sst-controle/supabase-auth.js"></script>
+<script>
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const stages=[
+  ['new','Novo'],['attempt_contact','Tentativa de contato'],['contacted','Em contato'],['demo_scheduled','Demonstração'],['proposal','Proposta'],['negotiation','Negociação'],['won','Ganho'],['lost','Perdido']
+];
+const sourceLabel=v=>({'site-captacao':'Site Nexus','cold_outbound':'Prospecção fria','referral':'Indicação','meta_ads':'Meta Ads','google_ads':'Google Ads','organic':'Orgânico','other':'Outros'}[v]||v||'Não informada');
+const stageLabel=v=>Object.fromEntries(stages)[v]||v||'Novo';
+const stageClass=v=>v==='won'?'good':v==='lost'?'bad':v==='new'?'warn':['demo_scheduled','proposal','negotiation'].includes(v)?'info':'neutral';
+const dateTime=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
+const toInput=v=>{if(!v)return'';const d=new Date(v),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`};
+const phoneDigits=v=>String(v||'').replace(/\D/g,'');
+const nextClass=v=>{if(!v)return'';const d=new Date(v),now=new Date();return d<now?'overdue':(d-now)<=7*864e5?'due':''};
+let leads=[],products=[],plans=[],selectedId=null,currentMode='kanban';
+
+function toast(text){const el=document.getElementById('toast');el.textContent=text;el.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.hidden=true,2800)}
+function visibleLeads(){const q=document.getElementById('search').value.trim().toLowerCase(),source=document.getElementById('sourceFilter').value;return leads.filter(r=>(source==='all'||r.source===source)&&[r.company_name,r.responsible_name,r.email,r.phone,r.lead_owner,r.campaign_name,r.ad_name,r.plan?.name].join(' ').toLowerCase().includes(q))}
+function renderSummary(){const now=new Date(),limit=new Date(now.getTime()+7*864e5);document.getElementById('newCount').textContent=leads.filter(x=>x.lead_stage==='new').length;document.getElementById('contactCount').textContent=leads.filter(x=>['attempt_contact','contacted','proposal','negotiation'].includes(x.lead_stage)).length;document.getElementById('demoCount').textContent=leads.filter(x=>x.lead_stage==='demo_scheduled').length;document.getElementById('nextCount').textContent=leads.filter(x=>x.next_contact_at&&new Date(x.next_contact_at)<=limit&&!['won','lost'].includes(x.lead_stage)).length;document.getElementById('wonCount').textContent=leads.filter(x=>x.lead_stage==='won').length}
+function leadCard(r){const next=nextClass(r.next_contact_at);return `<article class="lead-card" draggable="true" data-id="${esc(r.id)}"><h3>${esc(r.company_name)}</h3><p>${esc(r.responsible_name||'Responsável não informado')}</p><p>${esc(sourceLabel(r.source))}${r.campaign_name?` · ${esc(r.campaign_name)}`:''}</p><div class="lead-meta"><small class="${next}">${r.next_contact_at?`Próximo: ${esc(dateTime(r.next_contact_at))}`:'Sem próximo contato'}</small><span class="badge ${stageClass(r.lead_stage)}">${esc(r.employee_count??'—')}</span></div></article>`}
+function renderKanban(){const rows=visibleLeads();document.getElementById('kanban').innerHTML=stages.map(([key,label])=>{const group=rows.filter(r=>r.lead_stage===key);return `<section class="column" data-stage="${key}"><div class="column-head"><strong>${label}</strong><span>${group.length}</span></div><div class="column-body">${group.length?group.map(leadCard).join(''):'<div class="empty">Sem leads</div>'}</div></section>`}).join('');
+  document.querySelectorAll('.lead-card').forEach(card=>{card.onclick=()=>openDetail(card.dataset.id);card.addEventListener('dragstart',e=>{card.classList.add('dragging');e.dataTransfer.setData('text/plain',card.dataset.id);e.dataTransfer.effectAllowed='move'});card.addEventListener('dragend',()=>card.classList.remove('dragging'))});
+  document.querySelectorAll('.column').forEach(col=>{col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag-over')});col.addEventListener('dragleave',()=>col.classList.remove('drag-over'));col.addEventListener('drop',async e=>{e.preventDefault();col.classList.remove('drag-over');const id=e.dataTransfer.getData('text/plain');if(id)await moveLead(id,col.dataset.stage)})});
+}
+function renderList(){const rows=visibleLeads();document.getElementById('rows').innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${esc(r.company_name)}</strong><br><small>${esc(r.employee_count??'—')} colaboradores</small></td><td>${esc(r.responsible_name||'—')}<br><small>${esc(r.email||r.phone||'Sem contato')}</small></td><td>${esc(sourceLabel(r.source))}${r.campaign_name?`<br><small>${esc(r.campaign_name)}</small>`:''}</td><td>${esc(r.plan?.name||'Sem plano')}</td><td><span class="badge ${stageClass(r.lead_stage)}">${esc(stageLabel(r.lead_stage))}</span></td><td class="${nextClass(r.next_contact_at)}">${esc(dateTime(r.next_contact_at))}</td><td>${esc(r.lead_owner||'—')}</td><td><button class="action" data-open="${esc(r.id)}">Abrir</button></td></tr>`).join(''):'<tr><td colspan="8" class="empty">Nenhum lead encontrado.</td></tr>';document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openDetail(b.dataset.open))}
+function render(){renderSummary();renderKanban();renderList()}
+function setMode(mode){currentMode=mode;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));document.getElementById('kanbanView').hidden=mode!=='kanban';document.getElementById('listView').hidden=mode!=='list';document.getElementById('viewTitle').textContent=mode==='kanban'?'Funil comercial':'Lista de leads'}
+async function moveLead(id,stage){const row=leads.find(x=>x.id===id);if(!row||row.lead_stage===stage)return;if(stage==='lost'&&!row.lost_reason){openDetail(id);toast('Abra a ficha e registre o motivo da perda antes de concluir como Perdido.');return}const payload={lead_stage:stage,updated_at:new Date().toISOString()};if(stage!=='new'&&!row.contacted_at)payload.contacted_at=new Date().toISOString();try{const{error}=await window.NexusAuth.getClient().from('nexus_sales').update(payload).eq('id',id);if(error)throw error;await loadData();toast(`Lead movido para ${stageLabel(stage)}.`)}catch(error){alert(error.message||'Não foi possível mover o lead.')}}
+
+function openDetail(id){const r=leads.find(x=>x.id===id);if(!r)return;selectedId=id;const detail=document.getElementById('detail'),phone=phoneDigits(r.phone),email=r.email||'';detail.hidden=false;detail.innerHTML=`
+<div class="detail-head"><div><h3>${esc(r.company_name)}</h3><div class="contact-links">${email?`<a href="mailto:${esc(email)}">${esc(email)}</a>`:''}${phone?`<a href="https://wa.me/55${esc(phone)}" target="_blank" rel="noopener">WhatsApp: ${esc(r.phone)}</a>`:''}</div></div><span class="badge ${stageClass(r.lead_stage)}">${esc(stageLabel(r.lead_stage))}</span></div>
+<div class="detail-grid">
+  <div class="detail-item"><span>Responsável</span><strong>${esc(r.responsible_name||'—')}</strong></div>
+  <div class="detail-item"><span>Colaboradores</span><strong>${esc(r.employee_count??'—')}</strong></div>
+  <div class="detail-item"><span>Plano</span><strong>${esc(r.plan?.name||'Sem plano')}</strong></div>
+  <div class="detail-item"><span>Origem</span><strong>${esc(sourceLabel(r.source))}</strong></div>
+  <div class="detail-item"><span>Campanha</span><strong>${esc(r.campaign_name||'—')}</strong></div>
+  <div class="detail-item"><span>Anúncio / criativo</span><strong>${esc(r.ad_name||'—')}</strong></div>
+  <div class="detail-item"><span>Primeiro contato</span><strong>${esc(dateTime(r.contacted_at))}</strong></div>
+  <div class="detail-item"><span>Entrada</span><strong>${esc(dateTime(r.created_at))}</strong></div>
+</div>
+<form id="leadEdit" class="edit-grid">
+  <div class="group"><label>Etapa</label><select class="field" id="leadStage">${stages.map(([k,l])=>`<option value="${k}" ${r.lead_stage===k?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="group"><label>Responsável pela venda</label><input class="field" id="leadOwner" maxlength="180" value="${esc(r.lead_owner||'')}"></div>
+  <div class="group"><label>Próximo contato</label><input class="field" id="nextContact" type="datetime-local" value="${esc(toInput(r.next_contact_at))}"></div>
+  <div class="group"><label>Demonstração</label><input class="field" id="demoDate" type="datetime-local" value="${esc(toInput(r.demo_scheduled_at))}"></div>
+  <div class="group"><label>Origem</label><select class="field" id="leadSource">${[['site-captacao','Site Nexus'],['cold_outbound','Prospecção fria'],['referral','Indicação'],['meta_ads','Meta Ads'],['google_ads','Google Ads'],['organic','Orgânico'],['other','Outros']].map(([k,l])=>`<option value="${k}" ${r.source===k?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="group"><label>Campanha</label><input class="field" id="leadCampaign" maxlength="180" value="${esc(r.campaign_name||'')}"></div>
+  <div class="group"><label>Anúncio / criativo</label><input class="field" id="leadAd" maxlength="180" value="${esc(r.ad_name||'')}"></div>
+  <div class="group"><label>Motivo da perda</label><input class="field" id="lostReason" maxlength="500" value="${esc(r.lost_reason||'')}" placeholder="Obrigatório ao marcar Perdido"></div>
+  <div class="group span2"><label>Anotações internas</label><textarea id="leadNotes" maxlength="3000">${esc(r.lead_notes||'')}</textarea></div>
+  <div class="group span2"><label>Contato</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input class="field" id="editEmail" type="email" maxlength="240" value="${esc(r.email||'')}" placeholder="E-mail"><input class="field" id="editPhone" maxlength="40" value="${esc(r.phone||'')}" placeholder="Telefone"></div></div>
+  <div class="form-actions"><button class="action" type="button" id="closeDetail">Fechar ficha</button><button class="action primary" type="submit">Salvar alterações</button></div>
+</form>`;
+document.getElementById('leadEdit').onsubmit=e=>saveLead(e,r);document.getElementById('closeDetail').onclick=()=>{selectedId=null;detail.hidden=true};detail.scrollIntoView({behavior:'smooth',block:'nearest'})}
+
+async function saveLead(event,row){event.preventDefault();const stage=document.getElementById('leadStage').value,lostReason=document.getElementById('lostReason').value.trim(),email=document.getElementById('editEmail').value.trim(),phone=document.getElementById('editPhone').value.trim();if(stage==='lost'&&!lostReason){alert('Informe o motivo da perda para concluir este lead como Perdido.');return}if(!email&&!phone){alert('Mantenha pelo menos um contato: e-mail ou telefone.');return}const next=document.getElementById('nextContact').value,demo=document.getElementById('demoDate').value;const payload={lead_stage:stage,lead_owner:document.getElementById('leadOwner').value.trim()||null,next_contact_at:next?new Date(next).toISOString():null,demo_scheduled_at:demo?new Date(demo).toISOString():null,source:document.getElementById('leadSource').value,campaign_name:document.getElementById('leadCampaign').value.trim()||null,ad_name:document.getElementById('leadAd').value.trim()||null,lost_reason:stage==='lost'?lostReason:null,lead_notes:document.getElementById('leadNotes').value.trim()||null,email:email||null,phone:phone||null,updated_at:new Date().toISOString()};if(stage!=='new'&&!row.contacted_at)payload.contacted_at=new Date().toISOString();try{const{error}=await window.NexusAuth.getClient().from('nexus_sales').update(payload).eq('id',row.id);if(error)throw error;await loadData();openDetail(row.id);toast('Lead atualizado.')}catch(error){alert(error.message||'Não foi possível atualizar o lead.')}}
+
+function openNewLead(){document.getElementById('newLeadForm').reset();document.getElementById('newSource').value='cold_outbound';populateNewPlans();document.getElementById('newLeadModal').hidden=false}
+function closeNewLead(){document.getElementById('newLeadModal').hidden=true}
+function populateNewPlans(){const productId=document.getElementById('newProduct').value;const compatible=plans.filter(p=>p.product_id===productId&&p.status==='active');document.getElementById('newPlan').innerHTML='<option value="">Sem plano definido</option>'+compatible.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+async function createLead(event){event.preventDefault();const email=document.getElementById('newEmail').value.trim(),phone=document.getElementById('newPhone').value.trim();if(!email&&!phone){alert('Informe pelo menos um contato: e-mail ou telefone.');return}const next=document.getElementById('newNextContact').value,button=document.getElementById('saveNewLead');button.disabled=true;button.textContent='Salvando...';const payload={product_id:document.getElementById('newProduct').value,plan_id:document.getElementById('newPlan').value||null,sale_status:'lead',source:document.getElementById('newSource').value,company_name:document.getElementById('newCompany').value.trim(),responsible_name:document.getElementById('newResponsible').value.trim()||null,email:email||null,phone:phone||null,employee_count:document.getElementById('newEmployees').value===''?null:Number(document.getElementById('newEmployees').value),lead_stage:'new',lead_owner:document.getElementById('newOwner').value.trim()||null,campaign_name:document.getElementById('newCampaign').value.trim()||null,ad_name:document.getElementById('newAd').value.trim()||null,next_contact_at:next?new Date(next).toISOString():null,lead_notes:document.getElementById('newNotes').value.trim()||null};try{const{data,error}=await window.NexusAuth.getClient().from('nexus_sales').insert(payload).select('id').single();if(error)throw error;closeNewLead();await loadData();if(data?.id)openDetail(data.id);toast('Lead cadastrado no CRM.')}catch(error){alert(error.message||'Não foi possível cadastrar o lead.')}finally{button.disabled=false;button.textContent='Salvar lead'}}
+
+async function loadData(){const client=window.NexusAuth.getClient();const [{data:leadData,error:leadError},{data:productData,error:productError},{data:planData,error:planError}]=await Promise.all([
+  client.from('nexus_sales').select('id,product_id,plan_id,sale_status,source,company_name,responsible_name,email,phone,employee_count,created_at,updated_at,lead_stage,lead_notes,contacted_at,demo_scheduled_at,lead_owner,next_contact_at,campaign_name,ad_name,lost_reason,plan:nexus_plans(id,name,code)').order('created_at',{ascending:false}),
+  client.from('nexus_products').select('id,name,code,status,sort_order').eq('status','active').order('sort_order'),
+  client.from('nexus_plans').select('id,product_id,name,code,status,sort_order').order('sort_order')
+]);if(leadError||productError||planError)throw leadError||productError||planError;leads=leadData||[];products=productData||[];plans=planData||[];document.getElementById('newProduct').innerHTML=products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');populateNewPlans();render();if(selectedId&&leads.some(x=>x.id===selectedId))openDetail(selectedId)}
+
+async function start(){try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html');return}if(session.role!=='nexus_admin')throw new Error('Esta área é exclusiva da administração Nexus.');document.getElementById('profileName').textContent=session.name||session.email;document.getElementById('profileRole').textContent=session.roleLabel||'Administrador Nexus';await loadData();setMode('kanban')}catch(error){document.getElementById('message').hidden=false;document.getElementById('message').textContent=error.message||'Não foi possível carregar o CRM Comercial.'}}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.getElementById('search').addEventListener('input',render);
+document.getElementById('sourceFilter').addEventListener('change',render);
+document.getElementById('newLeadButton').onclick=openNewLead;
+document.getElementById('closeNewLead').onclick=closeNewLead;
+document.getElementById('cancelNewLead').onclick=closeNewLead;
+document.getElementById('newProduct').addEventListener('change',populateNewPlans);
+document.getElementById('newLeadForm').addEventListener('submit',createLead);
+document.getElementById('newLeadModal').addEventListener('click',e=>{if(e.target.id==='newLeadModal')closeNewLead()});
+document.getElementById('logout').onclick=async()=>{await window.NexusAuth.logout();location.replace('login.html')};
+start();
+</script>
+</body>
+</html>

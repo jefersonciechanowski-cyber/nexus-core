@@ -1,6 +1,16 @@
 # Nexus Core V1 — Mapa de links
 
-Os caminhos abaixo são relativos ao domínio público do Nexus Core. O domínio definitivo deve ser confirmado após o merge e o deploy da `main`.
+Data de referência: 11/08/2026.
+
+## Endereço estável atual da `main`
+
+`https://nexus-core.jefersonciechanowski.workers.dev`
+
+Esse endereço é válido para homologação e pode servir temporariamente a aplicação. Para operação comercial contínua, a referência final deve ser um Custom Domain do Cloudflare.
+
+## Caminhos públicos
+
+Considerando a origem pública do Nexus Core:
 
 - Site comercial: `/`
 - Site comercial direto: `/apps/site-captacao/`
@@ -13,4 +23,13 @@ Os caminhos abaixo são relativos ao domínio público do Nexus Core. O domínio
 - Política de Privacidade: `/apps/site-captacao/privacidade.html`
 - Termos de Uso: `/apps/site-captacao/termos.html`
 
-Depois do deploy final, substituir este mapa por URLs absolutas confirmadas e testadas.
+## Quando o domínio definitivo for conectado
+
+Substituir a origem `workers.dev` pelo domínio oficial em:
+
+1. Cloudflare Worker Custom Domain;
+2. secret `NEXUS_PUBLIC_URL` das Edge Functions;
+3. Supabase Authentication > URL Configuration;
+4. materiais comerciais, e-book/manual e links enviados aos clientes.
+
+Não codificar URLs de branch/preview como endereço oficial do produto.
