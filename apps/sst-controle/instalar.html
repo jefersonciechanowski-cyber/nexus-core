@@ -13,7 +13,7 @@
   <title>Instalar Nexus SST</title>
   <style>
     :root{--bg:#061015;--surface:#0d181e;--line:#2b3c44;--gold:#dca92f;--text:#f3efe5;--muted:#9ba7ad;--green:#75c990}
-    *{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;min-height:100vh;padding:28px;color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 80% 0%,rgba(42,100,111,.2),transparent 30%),linear-gradient(145deg,#040a0e,#0a171d);display:grid;place-items:center}.card{width:min(760px,100%);border:1px solid rgba(220,169,47,.3);border-radius:18px;background:rgba(10,22,28,.94);box-shadow:0 30px 90px rgba(0,0,0,.4);overflow:hidden}.hero{padding:30px;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:center}.icon{width:94px;height:94px;border-radius:24px;flex:0 0 auto}.hero h1{margin:0;font-size:31px}.hero p{margin:8px 0 0;color:var(--muted);line-height:1.55}.content{padding:30px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 19px;border:1px solid #354850;border-radius:9px;background:#0b171d;color:var(--text);font-weight:800;text-decoration:none;cursor:pointer}.btn.primary{border-color:var(--gold);background:linear-gradient(180deg,#e4b643,#c58c20);color:#181207}.message{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:9px;color:var(--muted);line-height:1.6}.message.good{border-color:rgba(117,201,144,.35);color:#a9dbb9;background:rgba(117,201,144,.06)}.steps{margin-top:24px;display:grid;gap:10px}.step{padding:15px;border:1px solid var(--line);border-radius:10px;background:#09151a}.step strong{display:block}.step span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.55}.note{margin-top:22px;color:#718087;font-size:12px;line-height:1.6}@media(max-width:600px){body{padding:14px}.hero{padding:22px;align-items:flex-start}.icon{width:72px;height:72px;border-radius:18px}.hero h1{font-size:25px}.content{padding:22px}.actions{display:grid}.btn{width:100%}}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:28px;color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 80% 0%,rgba(42,100,111,.2),transparent 30%),linear-gradient(145deg,#040a0e,#0a171d);display:grid;place-items:center}.card{width:min(760px,100%);border:1px solid rgba(220,169,47,.3);border-radius:18px;background:rgba(10,22,28,.94);box-shadow:0 30px 90px rgba(0,0,0,.4);overflow:hidden}.hero{padding:30px;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:center}.icon{width:94px;height:94px;border-radius:24px;flex:0 0 auto}.hero h1{margin:0;font-size:31px}.hero p{margin:8px 0 0;color:var(--muted);line-height:1.55}.content{padding:30px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 19px;border:1px solid #354850;border-radius:9px;background:#0b171d;color:var(--text);font-weight:800;text-decoration:none;cursor:pointer}.btn.primary{border-color:var(--gold);background:linear-gradient(180deg,#e4b643,#c58c20);color:#181207}.btn:disabled{opacity:.62;cursor:wait}.message{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:9px;color:var(--muted);line-height:1.6}.message.good{border-color:rgba(117,201,144,.35);color:#a9dbb9;background:rgba(117,201,144,.06)}.steps{margin-top:24px;display:grid;gap:10px}.step{padding:15px;border:1px solid var(--line);border-radius:10px;background:#09151a}.step strong{display:block}.step span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.55}.note{margin-top:22px;color:#718087;font-size:12px;line-height:1.6}@media(max-width:600px){body{padding:14px}.hero{padding:22px;align-items:flex-start}.icon{width:72px;height:72px;border-radius:18px}.hero h1{font-size:25px}.content{padding:22px}.actions{display:grid}.btn{width:100%}}
   </style>
 </head>
 <body>
@@ -28,47 +28,123 @@
         <a class="btn" href="login.html">Acessar pelo navegador</a>
       </div>
       <div class="message" id="message">Preparando a instalação para este dispositivo...</div>
+
       <div class="steps" id="iosSteps" hidden>
-        <div class="step"><strong>1. Abra esta página no Safari</strong><span>Se você veio pelo WhatsApp e aparece “&lt; WhatsApp” no topo, pode continuar: a página já está aberta no Safari.</span></div>
-        <div class="step"><strong>2. Toque em Compartilhar</strong><span>No menu do Safari, toque em “Compartilhar”.</span></div>
-        <div class="step"><strong>3. Escolha “Adicionar à Tela de Início”</strong><span>Na folha de compartilhamento, role se necessário, escolha essa opção e confirme “Nexus SST”.</span></div>
+        <div class="step"><strong>1. Abra esta página no Safari</strong><span>Se você chegou pelo WhatsApp e aparece “&lt; WhatsApp” no topo, já pode continuar no Safari.</span></div>
+        <div class="step"><strong>2. Toque em Compartilhar</strong><span>Use o botão de compartilhamento do Safari.</span></div>
+        <div class="step"><strong>3. Escolha “Adicionar à Tela de Início”</strong><span>Confirme “Nexus SST”. O ícone ficará junto dos outros aplicativos.</span></div>
       </div>
-      <p class="note">O Nexus SST continua online e sincronizado com sua empresa. Não há APK, Google Play ou segunda versão do sistema para manter.</p>
+
+      <div class="steps" id="androidSteps" hidden>
+        <div class="step" id="androidOpenBrowserStep"><strong>1. Use o Google Chrome</strong><span>Se abriu pelo WhatsApp, Instagram ou Facebook, toque no botão acima para abrir esta página no Chrome.</span></div>
+        <div class="step"><strong>2. Abra o menu ⋮ do Chrome</strong><span>Toque nos três pontos no canto superior do navegador.</span></div>
+        <div class="step"><strong>3. Escolha “Instalar app” ou “Adicionar à tela inicial”</strong><span>Confirme “Nexus SST”. O sistema abrirá depois como aplicativo.</span></div>
+      </div>
+
+      <p class="note">O Nexus SST continua online e sincronizado com sua empresa. A instalação usa o próprio navegador; não existe APK separado nem uma segunda versão do sistema para manter.</p>
     </section>
   </main>
-  <script src="pwa-install.js"></script>
+  <script src="pwa-install.js?v=2"></script>
   <script>
     const button=document.getElementById('installButton');
     const message=document.getElementById('message');
     const iosSteps=document.getElementById('iosSteps');
+    const androidSteps=document.getElementById('androidSteps');
 
     function setMessage(text,good=false){message.textContent=text;message.className='message'+(good?' good':'');}
+
     function refresh(){
-      if(window.NexusPWA?.isStandalone()){
-        iosSteps.hidden=true;
-        button.textContent='Nexus SST já instalado';button.disabled=true;setMessage('Este dispositivo já está executando o Nexus SST em modo aplicativo.',true);return;
-      }
-      if(window.NexusPWA?.isIOS()){
-        iosSteps.hidden=false;button.textContent='Ver como instalar no iPhone';setMessage('No iPhone, use o Safari e a opção “Adicionar à Tela de Início”.');return;
-      }
+      const pwa=window.NexusPWA;
+      if(!pwa)return;
+
       iosSteps.hidden=true;
-      if(window.NexusPWA?.installPromptReady){setMessage('Tudo pronto. Toque em “Instalar Nexus SST”.',true);return;}
-      setMessage('Se o botão de instalação do navegador ainda não aparecer, aguarde alguns segundos nesta página ou use o menu do navegador e escolha “Instalar app” / “Adicionar à tela inicial”.');
+      androidSteps.hidden=true;
+      button.disabled=false;
+
+      if(pwa.isStandalone()){
+        button.textContent='Nexus SST já instalado';
+        button.disabled=true;
+        setMessage('Este dispositivo já está executando o Nexus SST em modo aplicativo.',true);
+        return;
+      }
+
+      if(pwa.isIOS()){
+        iosSteps.hidden=false;
+        button.textContent='Ver como instalar no iPhone';
+        setMessage('No iPhone, use o Safari e a opção “Adicionar à Tela de Início”.');
+        return;
+      }
+
+      if(pwa.isAndroid()&&pwa.isInAppBrowser()){
+        androidSteps.hidden=false;
+        button.textContent='Abrir no Chrome para instalar';
+        setMessage('Este navegador interno não permite instalar o Nexus SST. Abra no Chrome e a instalação ficará disponível.');
+        return;
+      }
+
+      if(pwa.installPromptReady){
+        button.textContent='Instalar Nexus SST';
+        setMessage('Tudo pronto. Toque em “Instalar Nexus SST” para adicionar o aplicativo.',true);
+        return;
+      }
+
+      if(pwa.isAndroid()){
+        androidSteps.hidden=false;
+        button.textContent='Ver como instalar no Android';
+        setMessage('O Chrome ainda não exibiu o prompt automático. Você pode instalar pelo menu ⋮ do navegador.');
+        return;
+      }
+
+      button.textContent='Instalar Nexus SST';
+      setMessage('Se o navegador não mostrar a instalação automática, use o menu e escolha “Instalar app” ou “Adicionar à tela inicial”.');
     }
 
     window.addEventListener('nexus:pwa-installable',refresh);
     window.addEventListener('nexus:pwa-installed',refresh);
+    window.addEventListener('nexus:pwa-ready',()=>setTimeout(refresh,250));
     setTimeout(refresh,150);
+    setTimeout(refresh,1500);
 
     button.addEventListener('click',async()=>{
-      if(window.NexusPWA?.isIOS()){iosSteps.hidden=false;iosSteps.scrollIntoView({behavior:'smooth',block:'center'});return;}
+      const pwa=window.NexusPWA;
+      if(!pwa)return setMessage('Não foi possível preparar a instalação. Atualize a página e tente novamente.');
+
+      if(pwa.isIOS()){
+        iosSteps.hidden=false;
+        iosSteps.scrollIntoView({behavior:'smooth',block:'center'});
+        return;
+      }
+
+      if(pwa.isAndroid()&&pwa.isInAppBrowser()){
+        setMessage('Abrindo esta página no Google Chrome...',true);
+        pwa.openInChrome();
+        return;
+      }
+
       button.disabled=true;
+      setMessage('Preparando instalação...');
       try{
-        const result=await window.NexusPWA.install();
-        if(result.status==='accepted'||result.status==='installed')setMessage('Nexus SST instalado. Procure o ícone na tela inicial ou no menu de aplicativos.',true);
-        else if(result.status==='dismissed')setMessage('Instalação cancelada. Você pode tentar novamente pelo menu do navegador.');
-        else setMessage('O navegador ainda não liberou o prompt automático. Use o menu do navegador e escolha “Instalar app” / “Adicionar à tela inicial”.');
-      }finally{button.disabled=false;refresh();}
+        const result=await pwa.install();
+        if(result.status==='accepted'||result.status==='installed'){
+          setMessage('Nexus SST instalado. Procure o novo ícone na tela inicial ou no menu de aplicativos.',true);
+        }else if(result.status==='dismissed'){
+          setMessage('Instalação cancelada. Quando quiser, toque novamente em instalar.');
+        }else if(result.status==='android-inapp'){
+          androidSteps.hidden=false;
+          setMessage('Abra esta página no Chrome para instalar o Nexus SST.');
+        }else{
+          if(pwa.isAndroid())androidSteps.hidden=false;
+          setMessage('O navegador não liberou o prompt automático. Siga as instruções exibidas abaixo para instalar pelo menu.');
+          (pwa.isAndroid()?androidSteps:message).scrollIntoView({behavior:'smooth',block:'center'});
+        }
+      }catch(error){
+        console.error(error);
+        setMessage('Não foi possível abrir a instalação automática. Use as instruções abaixo ou o menu do navegador.');
+        if(pwa.isAndroid())androidSteps.hidden=false;
+      }finally{
+        button.disabled=false;
+        setTimeout(refresh,700);
+      }
     });
   </script>
 </body>
