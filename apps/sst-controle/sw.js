@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nexus-sst-pwa-v1';
+const CACHE_NAME = 'nexus-sst-pwa-v2';
 const APP_SCOPE = '/apps/sst-controle/';
 const SHELL = [
   `${APP_SCOPE}login.html`,
   `${APP_SCOPE}manifest.webmanifest`,
-  `${APP_SCOPE}icon-192.svg`,
-  `${APP_SCOPE}icon-512.svg`,
+  `${APP_SCOPE}icon-192.png`,
+  `${APP_SCOPE}icon-512.png`,
   `${APP_SCOPE}pwa-install.js`,
   `${APP_SCOPE}logo-nexus-core.png`
 ];
