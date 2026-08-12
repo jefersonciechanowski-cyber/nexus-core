@@ -29,12 +29,7 @@
   }
 
   function catalogFromRow(row) {
-    return {
-      id: row.id,
-      name: row.name,
-      code: row.code,
-      active: row.active
-    };
+    return { id: row.id, name: row.name, code: row.code, active: row.active };
   }
 
   function purchaseFromRow(row) {
@@ -50,30 +45,42 @@
     };
   }
 
-  function showError(message) {
-    window.alert(message);
+  function showError(message) { window.alert(message); }
+
+  function appendImportScript() {
+    if (document.querySelector('script[data-nexus-epi-import-loader]')) return;
+    const script = document.createElement('script');
+    script.src = 'supabase-epi-import.js?v=20260812-3';
+    script.async = true;
+    script.dataset.nexusEpiImportLoader = 'true';
+    document.head.appendChild(script);
+  }
+
+  function loadImportModule() {
+    if (document.querySelector('script[data-nexus-epi-import-loader]')) return;
+    if (document.querySelector('script[data-nexus-epi-import-compat-loader]')) return;
+
+    const compat = document.createElement('script');
+    compat.src = 'supabase-epi-import-compat.js?v=20260812-3';
+    compat.async = true;
+    compat.dataset.nexusEpiImportCompatLoader = 'true';
+    compat.onload = appendImportScript;
+    compat.onerror = () => {
+      console.warn('Compatibilidade avançada do importador de EPI não pôde ser carregada; iniciando modo padrão.');
+      appendImportScript();
+    };
+    document.head.appendChild(compat);
   }
 
   async function listEpis() {
     try {
       const organizationId = getOrganizationId();
       const [catalogResult, purchasesResult] = await Promise.all([
-        getClient()
-          .from('epi_catalog')
-          .select('id,name,code,active')
-          .eq('organization_id', organizationId)
-          .eq('active', true)
-          .order('name'),
-        getClient()
-          .from('epi_purchases')
-          .select('id,epi_id,purchased_at,quantity,supplier,invoice_number,technical_responsible,created_at')
-          .eq('organization_id', organizationId)
-          .order('purchased_at', { ascending: false })
-          .order('created_at', { ascending: false })
+        getClient().from('epi_catalog').select('id,name,code,active').eq('organization_id', organizationId).eq('active', true).order('name'),
+        getClient().from('epi_purchases').select('id,epi_id,purchased_at,quantity,supplier,invoice_number,technical_responsible,created_at').eq('organization_id', organizationId).order('purchased_at', { ascending: false }).order('created_at', { ascending: false })
       ]);
       if (catalogResult.error) throw catalogResult.error;
       if (purchasesResult.error) throw purchasesResult.error;
-
       const state = getState();
       state.epis = (catalogResult.data || []).map(catalogFromRow);
       state.epiPurchases = (purchasesResult.data || []).map(purchaseFromRow);
@@ -91,16 +98,10 @@
     const name = byId('epiName').value.trim();
     const code = byId('epiCode').value.trim();
     if (!name || !code) return showError('Informe o nome e o código/CA do EPI.');
-
     button.disabled = true;
     try {
-      const { data, error } = await getClient()
-        .from('epi_catalog')
-        .insert({ organization_id: getOrganizationId(), name, code, active: true })
-        .select('id,name,code,active')
-        .single();
+      const { data, error } = await getClient().from('epi_catalog').insert({ organization_id: getOrganizationId(), name, code, active: true }).select('id,name,code,active').single();
       if (error) throw error;
-
       getState().epis.push(catalogFromRow(data));
       getState().epis.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
       form.reset();
@@ -109,9 +110,7 @@
       console.error('Falha ao cadastrar EPI.', error);
       if (error?.code === '23505') showError('Já existe um EPI com este código/CA nesta organização.');
       else showError(error.message || 'Não foi possível cadastrar o EPI.');
-    } finally {
-      button.disabled = false;
-    }
+    } finally { button.disabled = false; }
   }
 
   async function submitPurchase(event) {
@@ -124,39 +123,22 @@
     const supplier = byId('epiSupplier').value.trim();
     const invoiceNumber = byId('epiInvoice').value.trim();
     const technicalResponsible = byId('epiTechnicalResponsible').value.trim();
-    if (!epiId || !purchasedAt || !Number.isInteger(quantity) || quantity <= 0 || !technicalResponsible) {
-      return showError('Informe EPI, data, quantidade inteira positiva e responsável técnico.');
-    }
-
+    if (!epiId || !purchasedAt || !Number.isInteger(quantity) || quantity <= 0 || !technicalResponsible) return showError('Informe EPI, data, quantidade inteira positiva e responsável técnico.');
     button.disabled = true;
     try {
-      const { data, error } = await getClient()
-        .from('epi_purchases')
-        .insert({
-          organization_id: getOrganizationId(),
-          epi_id: epiId,
-          purchased_at: purchasedAt,
-          quantity,
-          supplier: supplier || null,
-          invoice_number: invoiceNumber || null,
-          technical_responsible: technicalResponsible
-        })
-        .select('id,epi_id,purchased_at,quantity,supplier,invoice_number,technical_responsible,created_at')
-        .single();
+      const { data, error } = await getClient().from('epi_purchases').insert({ organization_id: getOrganizationId(), epi_id: epiId, purchased_at: purchasedAt, quantity, supplier: supplier || null, invoice_number: invoiceNumber || null, technical_responsible: technicalResponsible }).select('id,epi_id,purchased_at,quantity,supplier,invoice_number,technical_responsible,created_at').single();
       if (error) throw error;
-
       getState().epiPurchases.unshift(purchaseFromRow(data));
       form.reset();
       render();
     } catch (error) {
       console.error('Falha ao registrar compra de EPI.', error);
       showError(error.message || 'Não foi possível registrar a compra de EPI.');
-    } finally {
-      button.disabled = false;
-    }
+    } finally { button.disabled = false; }
   }
 
   function install() {
+    loadImportModule();
     if (installed || !byId('epiCatalogForm') || !byId('epiPurchaseForm') || !window.NEXUS_SST_APP?.getState) return;
     installed = true;
     byId('epiCatalogForm').onsubmit = submitCatalog;
@@ -165,5 +147,6 @@
     listEpis();
   }
 
+  loadImportModule();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true }); else install();
 })();
