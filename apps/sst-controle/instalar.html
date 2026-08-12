@@ -13,7 +13,7 @@
   <title>Instalar Nexus SST</title>
   <style>
     :root{--bg:#061015;--surface:#0d181e;--line:#2b3c44;--gold:#dca92f;--text:#f3efe5;--muted:#9ba7ad;--green:#75c990}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:28px;color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 80% 0%,rgba(42,100,111,.2),transparent 30%),linear-gradient(145deg,#040a0e,#0a171d);display:grid;place-items:center}.card{width:min(760px,100%);border:1px solid rgba(220,169,47,.3);border-radius:18px;background:rgba(10,22,28,.94);box-shadow:0 30px 90px rgba(0,0,0,.4);overflow:hidden}.hero{padding:30px;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:center}.icon{width:94px;height:94px;border-radius:24px;flex:0 0 auto}.hero h1{margin:0;font-size:31px}.hero p{margin:8px 0 0;color:var(--muted);line-height:1.55}.content{padding:30px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 19px;border:1px solid #354850;border-radius:9px;background:#0b171d;color:var(--text);font-weight:800;text-decoration:none;cursor:pointer}.btn.primary{border-color:var(--gold);background:linear-gradient(180deg,#e4b643,#c58c20);color:#181207}.message{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:9px;color:var(--muted);line-height:1.6}.message.good{border-color:rgba(117,201,144,.35);color:#a9dbb9;background:rgba(117,201,144,.06)}.steps{margin-top:24px;display:grid;gap:10px}.step{padding:15px;border:1px solid var(--line);border-radius:10px;background:#09151a}.step strong{display:block}.step span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.55}.note{margin-top:22px;color:#718087;font-size:12px;line-height:1.6}@media(max-width:600px){body{padding:14px}.hero{padding:22px;align-items:flex-start}.icon{width:72px;height:72px;border-radius:18px}.hero h1{font-size:25px}.content{padding:22px}.actions{display:grid}.btn{width:100%}}
+    *{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;min-height:100vh;padding:28px;color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 80% 0%,rgba(42,100,111,.2),transparent 30%),linear-gradient(145deg,#040a0e,#0a171d);display:grid;place-items:center}.card{width:min(760px,100%);border:1px solid rgba(220,169,47,.3);border-radius:18px;background:rgba(10,22,28,.94);box-shadow:0 30px 90px rgba(0,0,0,.4);overflow:hidden}.hero{padding:30px;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:center}.icon{width:94px;height:94px;border-radius:24px;flex:0 0 auto}.hero h1{margin:0;font-size:31px}.hero p{margin:8px 0 0;color:var(--muted);line-height:1.55}.content{padding:30px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 19px;border:1px solid #354850;border-radius:9px;background:#0b171d;color:var(--text);font-weight:800;text-decoration:none;cursor:pointer}.btn.primary{border-color:var(--gold);background:linear-gradient(180deg,#e4b643,#c58c20);color:#181207}.message{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:9px;color:var(--muted);line-height:1.6}.message.good{border-color:rgba(117,201,144,.35);color:#a9dbb9;background:rgba(117,201,144,.06)}.steps{margin-top:24px;display:grid;gap:10px}.step{padding:15px;border:1px solid var(--line);border-radius:10px;background:#09151a}.step strong{display:block}.step span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.55}.note{margin-top:22px;color:#718087;font-size:12px;line-height:1.6}@media(max-width:600px){body{padding:14px}.hero{padding:22px;align-items:flex-start}.icon{width:72px;height:72px;border-radius:18px}.hero h1{font-size:25px}.content{padding:22px}.actions{display:grid}.btn{width:100%}}
   </style>
 </head>
 <body>
@@ -29,9 +29,9 @@
       </div>
       <div class="message" id="message">Preparando a instalação para este dispositivo...</div>
       <div class="steps" id="iosSteps" hidden>
-        <div class="step"><strong>1. Abra esta página no Safari</strong><span>No iPhone ou iPad, a instalação é feita pelo Safari.</span></div>
-        <div class="step"><strong>2. Toque em Compartilhar</strong><span>Use o botão de compartilhamento do Safari.</span></div>
-        <div class="step"><strong>3. Escolha “Adicionar à Tela de Início”</strong><span>Confirme “Nexus SST”. O ícone ficará junto dos outros aplicativos.</span></div>
+        <div class="step"><strong>1. Abra esta página no Safari</strong><span>Se você veio pelo WhatsApp e aparece “&lt; WhatsApp” no topo, pode continuar: a página já está aberta no Safari.</span></div>
+        <div class="step"><strong>2. Toque em Compartilhar</strong><span>No menu do Safari, toque em “Compartilhar”.</span></div>
+        <div class="step"><strong>3. Escolha “Adicionar à Tela de Início”</strong><span>Na folha de compartilhamento, role se necessário, escolha essa opção e confirme “Nexus SST”.</span></div>
       </div>
       <p class="note">O Nexus SST continua online e sincronizado com sua empresa. Não há APK, Google Play ou segunda versão do sistema para manter.</p>
     </section>
@@ -45,11 +45,13 @@
     function setMessage(text,good=false){message.textContent=text;message.className='message'+(good?' good':'');}
     function refresh(){
       if(window.NexusPWA?.isStandalone()){
+        iosSteps.hidden=true;
         button.textContent='Nexus SST já instalado';button.disabled=true;setMessage('Este dispositivo já está executando o Nexus SST em modo aplicativo.',true);return;
       }
       if(window.NexusPWA?.isIOS()){
         iosSteps.hidden=false;button.textContent='Ver como instalar no iPhone';setMessage('No iPhone, use o Safari e a opção “Adicionar à Tela de Início”.');return;
       }
+      iosSteps.hidden=true;
       if(window.NexusPWA?.installPromptReady){setMessage('Tudo pronto. Toque em “Instalar Nexus SST”.',true);return;}
       setMessage('Se o botão de instalação do navegador ainda não aparecer, aguarde alguns segundos nesta página ou use o menu do navegador e escolha “Instalar app” / “Adicionar à tela inicial”.');
     }
