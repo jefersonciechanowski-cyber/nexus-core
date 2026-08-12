@@ -64,6 +64,54 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     if(crm&&crm.nextSibling)nav.insertBefore(link,crm.nextSibling);else nav.appendChild(link);
   }
 
+  function normalizeAdminNavigation(){
+    if(!location.pathname.includes('/apps/nexus-admin/'))return;
+    const nav=document.querySelector('.nav');
+    if(!nav)return;
+
+    const classify=node=>{
+      const view=node.dataset?.view;
+      if(view==='overview')return 'overview';
+      if(view==='clients')return 'clients';
+      if(view==='products')return 'products';
+      if(view==='payments')return 'payments';
+      const href=String(node.getAttribute?.('href')||'').toLowerCase();
+      const text=String(node.textContent||'').trim().toLowerCase();
+      if(href.includes('leads')||text==='crm comercial')return 'crm';
+      if(href.includes('accounts')||text==='contas e consultorias')return 'accounts';
+      if(href==='index.html'&&text.includes('visão geral'))return 'overview';
+      if(text.includes('clientes e acessos'))return 'clients';
+      if(text.includes('produtos e planos'))return 'products';
+      if(text==='pagamentos')return 'payments';
+      return null;
+    };
+
+    const nodes=[...nav.children];
+    const byKey=new Map();
+    nodes.forEach(node=>{
+      const key=classify(node);
+      if(key&&!byKey.has(key))byKey.set(key,node);
+    });
+
+    ['overview','crm','accounts','clients','products','payments'].forEach(key=>{
+      const node=byKey.get(key);
+      if(node)nav.appendChild(node);
+    });
+
+    let central=nav.querySelector('[data-nexus-admin-central-link]');
+    if(!central){
+      central=document.createElement('a');
+      central.href='../portal-cliente/';
+      central.textContent='Minha Central';
+      central.dataset.nexusAdminCentralLink='true';
+      central.title='Voltar para Minha Central Nexus';
+      central.style.cssText='display:block;margin-top:12px;padding:16px 14px 12px;border:0;border-top:1px solid rgba(224,184,74,.18);background:transparent;color:#e0b84a;text-align:left;text-decoration:none;font:600 12px/1.2 Inter,Segoe UI,Arial,sans-serif';
+      central.addEventListener('mouseenter',()=>{central.style.color='#fff';central.style.background='rgba(224,184,74,.06)'});
+      central.addEventListener('mouseleave',()=>{central.style.color='#e0b84a';central.style.background='transparent'});
+    }
+    nav.appendChild(central);
+  }
+
   function addSstCentralLink(){
     if(!location.pathname.includes('/apps/sst-controle/'))return;
     if(document.querySelector('[data-nexus-central-link]'))return;
@@ -288,6 +336,6 @@ window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
     }
   }
 
-  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();addSstCentralLink();addPortalAdminShortcuts();enhanceCrmCommercial();enhanceMultiCompanyUi();}
+  function init(){addSupport();addAdminLeadsLink();addAdminAccountsLink();normalizeAdminNavigation();addSstCentralLink();addPortalAdminShortcuts();enhanceCrmCommercial();enhanceMultiCompanyUi();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
