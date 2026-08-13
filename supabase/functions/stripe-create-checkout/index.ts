@@ -1,21 +1,16 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+const json = (request: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
-  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
 });
 
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
 
 function stripeEnvironment(secret: string | undefined) {
-  return secret?.startsWith('sk_live_') ? 'production' : 'sandbox';
+  return /^(?:sk|rk)_live_/.test(secret || '') ? 'production' : 'sandbox';
 }
 
 function stripeMessage(error: unknown) {
@@ -39,6 +34,23 @@ function trustedOrigin(request: Request) {
   }
 }
 
+function corsHeaders(request: Request) {
+  const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
+  return {
+    'Access-Control-Allow-Origin': trustedOrigin(request) || fallback,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+}
+
+function integrationIdentifier() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const suffix = Array.from(bytes, byte => String.fromCharCode(97 + (byte % 26))).join('');
+  return `nexus_sst_portal_${suffix}`;
+}
+
 async function ensureBrazilTaxId(stripe: Stripe, customerId: string, registrationNumber: string) {
   const taxType = registrationNumber.length === 14 ? 'br_cnpj' : 'br_cpf';
   const existing = await stripe.customers.listTaxIds(customerId, { limit: 100 });
@@ -47,8 +59,8 @@ async function ensureBrazilTaxId(stripe: Stripe, customerId: string, registratio
 }
 
 Deno.serve(async request => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
+  if (request.method !== 'POST') return json(request, { error: 'Método não permitido.' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -57,28 +69,33 @@ Deno.serve(async request => {
   const authorization = request.headers.get('Authorization');
   const origin = trustedOrigin(request);
 
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) return json({ error: 'Integração Supabase não configurada.' }, 500);
-  if (!stripeSecretKey) return json({ error: 'Configure STRIPE_SECRET_KEY nos secrets da Edge Function.' }, 503);
-  if (!origin) return json({ error: 'Origem do checkout não permitida.' }, 400);
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) return json(request, { error: 'Integração de pagamento indisponível.' }, 500);
+  if (!stripeSecretKey) return json(request, { error: 'Checkout temporariamente indisponível.' }, 503);
+  if (!origin) return json(request, { error: 'Origem do checkout não permitida.' }, 403);
+
+  const contentType = clean(request.headers.get('content-type'), 100).toLowerCase();
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  if (!contentType.includes('application/json')) return json(request, { error: 'Conteúdo não suportado.' }, 415);
+  if (Number.isFinite(contentLength) && contentLength > 65_536) return json(request, { error: 'Requisição muito grande.' }, 413);
 
   let body: Record<string, unknown> = {};
-  try { body = await request.json(); } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
+  try { body = await request.json(); } catch { return json(request, { error: 'Corpo da requisição inválido.' }, 400); }
   const accessId = clean(body.accessId, 80);
-  if (!accessId) return json({ error: 'Informe o acesso que será cobrado.' }, 400);
+  if (!accessId) return json(request, { error: 'Informe o acesso que será cobrado.' }, 400);
 
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: { user }, error: userError } = await userClient.auth.getUser();
-  if (userError || !user) return json({ error: 'Sessão inválida.' }, 401);
+  if (userError || !user) return json(request, { error: 'Sessão inválida.' }, 401);
 
   const { data: profile, error: profileError } = await userClient
     .from('profiles')
     .select('organization_id,role,full_name')
     .eq('id', user.id)
     .single();
-  if (profileError || !profile?.organization_id) return json({ error: 'Perfil sem organização.' }, 403);
+  if (profileError || !profile?.organization_id) return json(request, { error: 'Perfil sem organização.' }, 403);
   if (!['nexus_admin', 'org_admin'].includes(profile.role)) {
-    return json({ error: 'Seu perfil não possui permissão para gerar cobranças.' }, 403);
+    return json(request, { error: 'Seu perfil não possui permissão para gerar cobranças.' }, 403);
   }
 
   const { data: access, error: accessError } = await userClient
@@ -86,17 +103,17 @@ Deno.serve(async request => {
     .select('id,organization_id,product_id,plan_id,subscription_status,access_status,contracted_price_cents,contracted_currency,renews_at,billing_provider,provider_customer_id,provider_subscription_id,organization:organizations(name,legal_name,trade_name,registration_number,email,phone,postal_code,street,street_number,address_complement,district,city,state),product:nexus_products(name,code),plan:nexus_plans(id,name,billing_interval_months,status)')
     .eq('id', accessId)
     .single();
-  if (accessError || !access) return json({ error: 'Assinatura não encontrada ou sem permissão.' }, 404);
-  if (profile.role !== 'nexus_admin' && access.organization_id !== profile.organization_id) return json({ error: 'Acesso fora da sua organização.' }, 403);
+  if (accessError || !access) return json(request, { error: 'Assinatura não encontrada ou sem permissão.' }, 404);
+  if (profile.role !== 'nexus_admin' && access.organization_id !== profile.organization_id) return json(request, { error: 'Acesso fora da sua organização.' }, 403);
 
   const plan = Array.isArray(access.plan) ? access.plan[0] : access.plan;
   const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
   const product = Array.isArray(access.product) ? access.product[0] : access.product;
-  if (!access.plan_id || !plan || plan.status !== 'active') return json({ error: 'Selecione um plano comercial ativo antes de gerar o checkout.' }, 409);
-  if (access.contracted_price_cents === null || Number(access.contracted_price_cents) <= 0) return json({ error: 'A assinatura não possui valor contratado válido.' }, 409);
+  if (!access.plan_id || !plan || plan.status !== 'active') return json(request, { error: 'Selecione um plano comercial ativo antes de gerar o checkout.' }, 409);
+  if (access.contracted_price_cents === null || Number(access.contracted_price_cents) <= 0) return json(request, { error: 'A assinatura não possui valor contratado válido.' }, 409);
 
   const interval = Number(plan.billing_interval_months || 1);
-  if (![1, 3, 6, 12].includes(interval)) return json({ error: 'Periodicidade não suportada pelo checkout.' }, 409);
+  if (![1, 3, 6, 12].includes(interval)) return json(request, { error: 'Periodicidade não suportada pelo checkout.' }, 409);
 
   const environment = stripeEnvironment(stripeSecretKey);
   const nowIso = new Date().toISOString();
@@ -111,10 +128,10 @@ Deno.serve(async request => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existingCheckout?.provider_checkout_url) return json({ checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true, provider: 'stripe', environment });
+  if (existingCheckout?.provider_checkout_url) return json(request, { checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true, provider: 'stripe', environment });
 
   const registrationNumber = digits(organization?.registration_number);
-  if (![11, 14].includes(registrationNumber.length)) return json({ error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
+  if (![11, 14].includes(registrationNumber.length)) return json(request, { error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
 
   const stripe = new Stripe(stripeSecretKey, { httpClient: Stripe.createFetchHttpClient() });
   let customerId = access.billing_provider === 'stripe' ? clean(access.provider_customer_id, 200) : '';
@@ -149,9 +166,16 @@ Deno.serve(async request => {
       .from('organization_product_access')
       .update({ billing_provider: 'stripe', provider_customer_id: customerId, updated_at: new Date().toISOString() })
       .eq('id', access.id);
-    if (customerSaveError) return json({ error: 'Cliente criado na Stripe, mas não foi possível salvar o vínculo no Nexus.' }, 500);
+    if (customerSaveError) return json(request, { error: 'Cliente criado na Stripe, mas não foi possível salvar o vínculo no Nexus.' }, 500);
   } catch (error) {
-    return json({ error: stripeMessage(error) }, 502);
+    console.error(JSON.stringify({
+      message: 'stripe customer setup failed',
+      accessId,
+      code: clean((error as any)?.code, 100),
+      type: clean((error as any)?.type, 100),
+      requestId: clean((error as any)?.requestId, 150),
+    }));
+    return json(request, { error: 'Não foi possível preparar o checkout. Aguarde alguns minutos e tente novamente.' }, 502);
   }
 
   const checkoutId = crypto.randomUUID();
@@ -172,7 +196,7 @@ Deno.serve(async request => {
     currency: access.contracted_currency || 'BRL',
     billing_interval_months: interval,
   });
-  if (insertError) return json({ error: 'Não foi possível iniciar o checkout.' }, 500);
+  if (insertError) return json(request, { error: 'Não foi possível iniciar o checkout.' }, 500);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -181,6 +205,7 @@ Deno.serve(async request => {
       client_reference_id: checkoutId,
       success_url: `${callback}?pagamento=sucesso&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${callback}?pagamento=cancelado`,
+      integration_identifier: integrationIdentifier(),
       line_items: [{
         quantity: 1,
         price_data: {
@@ -220,10 +245,17 @@ Deno.serve(async request => {
       updated_at: new Date().toISOString(),
     }).eq('id', checkoutId);
 
-    return json({ checkoutId, providerCheckoutId: session.id, customerId, link: session.url, status: 'active', environment, provider: 'stripe' });
+    return json(request, { checkoutId, providerCheckoutId: session.id, customerId, link: session.url, status: 'active', environment, provider: 'stripe' });
   } catch (error) {
     const message = stripeMessage(error);
     await adminClient.from('nexus_payment_checkouts').update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() }).eq('id', checkoutId);
-    return json({ error: message }, 502);
+    console.error(JSON.stringify({
+      message: 'stripe subscription checkout failed',
+      checkoutId,
+      code: clean((error as any)?.code, 100),
+      type: clean((error as any)?.type, 100),
+      requestId: clean((error as any)?.requestId, 150),
+    }));
+    return json(request, { error: 'Não foi possível iniciar o pagamento. Aguarde alguns minutos e tente novamente.' }, 502);
   }
 });

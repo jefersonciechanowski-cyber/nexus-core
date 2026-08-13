@@ -2,6 +2,7 @@
   'use strict';
 
   const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  const XLSX_INTEGRITY = 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
   const MAX_ROWS = 1000;
   let parsed = { catalog: [], purchases: [], deliveries: [] };
   let lastWorkbookRows = null;
@@ -73,7 +74,7 @@
         return;
       }
       const script=document.createElement('script');
-      script.src=XLSX_URL; script.async=true; script.dataset.nexusXlsx='true';
+      script.src=XLSX_URL; script.integrity=XLSX_INTEGRITY; script.crossOrigin='anonymous'; script.async=true; script.dataset.nexusXlsx='true';
       script.onload=resolve; script.onerror=()=>reject(new Error('Não foi possível carregar o leitor de Excel. Verifique sua conexão.'));
       document.head.appendChild(script);
     });

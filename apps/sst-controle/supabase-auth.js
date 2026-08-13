@@ -196,7 +196,13 @@
     if (!select) return;
     try {
       const organizations = await listOrganizations();
-      select.innerHTML = organizations.map(org => `<option value="${org.id}">${org.name}</option>`).join('');
+      const options = organizations.map(org => {
+        const option = document.createElement('option');
+        option.value = org.id;
+        option.textContent = org.name;
+        return option;
+      });
+      select.replaceChildren(...options);
       select.value = session.organizationId;
       select.disabled = organizations.length <= 1;
       select.title = organizations.length > 1 ? 'Trocar empresa da conta' : 'Empresa da conta';
@@ -214,7 +220,9 @@
         }
       };
     } catch (error) {
-      select.innerHTML = `<option>${session.organizationName || 'Empresa'}</option>`;
+      const option = document.createElement('option');
+      option.textContent = session.organizationName || 'Empresa';
+      select.replaceChildren(option);
       select.disabled = true;
       console.error('[Nexus multiempresa]', error);
     }
@@ -246,7 +254,67 @@
       panel.id = 'nexusAccountPanel';
       panel.className = 'nexus-account-panel';
       const employeeUsage = summary.employeeLimitTotal ? `${summary.activeEmployeeCount} / ${summary.employeeLimitTotal}` : `${summary.activeEmployeeCount} / sob consulta`;
-      panel.innerHTML = `<div class="nexus-account-head"><div><h2>${summary.accountName || 'Conta multiempresa'}</h2><p>Selecione a empresa que deseja administrar. Cada empresa mantém dados, documentos, colaboradores e indicadores isolados.</p></div><div class="nexus-account-metrics"><span class="nexus-account-pill">Empresas <b>${summary.organizationCount} / ${summary.organizationLimit}</b></span><span class="nexus-account-pill">Colaboradores ativos <b>${employeeUsage}</b></span></div></div><div class="nexus-company-grid">${organizations.map(org => `<article class="nexus-company-card ${org.isCurrent ? 'current' : ''}"><div><strong>${org.name}</strong><small>${org.isCurrent ? 'Empresa selecionada' : 'Empresa da conta'}</small></div>${org.isCurrent ? '<span class="nexus-account-pill">Atual</span>' : `<button type="button" data-switch-company="${org.id}">Selecionar</button>`}</article>`).join('')}</div>${['owner','manager'].includes(summary.accountRole) && summary.organizationCount < summary.organizationLimit ? '<button class="nexus-new-company" id="nexusNewCompany" type="button">+ Nova empresa</button>' : ''}`;
+      const accountHead = document.createElement('div');
+      accountHead.className = 'nexus-account-head';
+      const accountCopy = document.createElement('div');
+      const accountTitle = document.createElement('h2');
+      accountTitle.textContent = summary.accountName || 'Conta multiempresa';
+      const accountDescription = document.createElement('p');
+      accountDescription.textContent = 'Selecione a empresa que deseja administrar. Cada empresa mantém dados, documentos, colaboradores e indicadores isolados.';
+      accountCopy.append(accountTitle, accountDescription);
+
+      const accountMetrics = document.createElement('div');
+      accountMetrics.className = 'nexus-account-metrics';
+      const companyMetric = document.createElement('span');
+      companyMetric.className = 'nexus-account-pill';
+      companyMetric.append('Empresas ');
+      const companyMetricValue = document.createElement('b');
+      companyMetricValue.textContent = `${summary.organizationCount} / ${summary.organizationLimit}`;
+      companyMetric.appendChild(companyMetricValue);
+      const employeeMetric = document.createElement('span');
+      employeeMetric.className = 'nexus-account-pill';
+      employeeMetric.append('Colaboradores ativos ');
+      const employeeMetricValue = document.createElement('b');
+      employeeMetricValue.textContent = employeeUsage;
+      employeeMetric.appendChild(employeeMetricValue);
+      accountMetrics.append(companyMetric, employeeMetric);
+      accountHead.append(accountCopy, accountMetrics);
+
+      const companyGrid = document.createElement('div');
+      companyGrid.className = 'nexus-company-grid';
+      organizations.forEach(org => {
+        const card = document.createElement('article');
+        card.className = `nexus-company-card${org.isCurrent ? ' current' : ''}`;
+        const cardCopy = document.createElement('div');
+        const companyName = document.createElement('strong');
+        companyName.textContent = org.name;
+        const companyState = document.createElement('small');
+        companyState.textContent = org.isCurrent ? 'Empresa selecionada' : 'Empresa da conta';
+        cardCopy.append(companyName, companyState);
+        if (org.isCurrent) {
+          const current = document.createElement('span');
+          current.className = 'nexus-account-pill';
+          current.textContent = 'Atual';
+          card.append(cardCopy, current);
+        } else {
+          const switchButton = document.createElement('button');
+          switchButton.type = 'button';
+          switchButton.dataset.switchCompany = org.id;
+          switchButton.textContent = 'Selecionar';
+          card.append(cardCopy, switchButton);
+        }
+        companyGrid.appendChild(card);
+      });
+
+      panel.append(accountHead, companyGrid);
+      if (['owner','manager'].includes(summary.accountRole) && summary.organizationCount < summary.organizationLimit) {
+        const newCompanyButton = document.createElement('button');
+        newCompanyButton.className = 'nexus-new-company';
+        newCompanyButton.id = 'nexusNewCompany';
+        newCompanyButton.type = 'button';
+        newCompanyButton.textContent = '+ Nova empresa';
+        panel.appendChild(newCompanyButton);
+      }
       const summaryElement = document.querySelector('.summary');
       summaryElement.insertAdjacentElement('afterend', panel);
 
