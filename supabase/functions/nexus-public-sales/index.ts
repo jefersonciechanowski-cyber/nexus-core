@@ -107,6 +107,10 @@ function stripeEnvironment(secret: string | undefined) {
   return /^(?:sk|rk)_live_/.test(secret || '') ? 'production' : 'sandbox';
 }
 
+function livePaymentsEnabled() {
+  return Deno.env.get('NEXUS_PAYMENT_LIVE_ENABLED') === 'true';
+}
+
 function stripeMessage(error: unknown) {
   const value = error as any;
   return clean(value?.raw?.message || value?.message || 'Não foi possível comunicar com a Stripe.', 700);
@@ -283,6 +287,9 @@ Deno.serve(async request => {
 
   if (action !== 'checkout') return json(request, { error: 'Ação inválida.' }, 400);
   if (!stripeSecretKey) return json(request, { error: 'Checkout temporariamente indisponível.' }, 503);
+  if (environment === 'production' && !livePaymentsEnabled()) {
+    return json(request, { error: 'Pagamentos reais ainda não estão habilitados.' }, 503);
+  }
   if (!body.acceptedTerms) return json(request, { error: 'Confirme os dados e a cobrança para continuar.' }, 400);
   if (!plan?.id || !plan.public_visible || Number(plan.price_cents) <= 0) return json(request, { error: 'Este plano exige atendimento comercial.' }, 409);
   if (plan.employee_limit && employeeCount > Number(plan.employee_limit)) return json(request, { error: 'A quantidade de colaboradores informada ultrapassa o limite deste plano.' }, 409);
