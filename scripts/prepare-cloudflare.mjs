@@ -12,7 +12,7 @@ const publicDirectories = [
 ];
 const publicExtensions = new Set([
   '.avif', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.map',
-  '.png', '.svg', '.webp', '.woff', '.woff2', '.ttf', '.otf',
+  '.png', '.svg', '.webmanifest', '.webp', '.woff', '.woff2', '.ttf', '.otf',
 ]);
 const excludedDirectoryNames = new Set(['.git', 'node_modules']);
 
