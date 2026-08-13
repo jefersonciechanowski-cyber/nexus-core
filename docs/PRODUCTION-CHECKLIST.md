@@ -56,6 +56,7 @@ Secrets de produção necessários:
 ```text
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+NEXUS_PAYMENT_LIVE_ENABLED=false
 NEXUS_PUBLIC_URL=https://dominio-oficial
 BREVO_API_KEY=...
 BREVO_FROM_EMAIL=acesso@dominio-verificado
@@ -135,6 +136,8 @@ Ainda falta obter/salvar a chave secreta live da conta como `STRIPE_SECRET_KEY=s
 
 A troca para live só deve acontecer depois que o domínio público e `NEXUS_PUBLIC_URL` estiverem definidos, evitando que um preview ou URL temporária seja usada em uma contratação real.
 
+O interruptor `NEXUS_PAYMENT_LIVE_ENABLED` deve permanecer `false` durante toda a homologação. Alterar para `true` exige autorização explícita e deve ser a última ação do go-live financeiro; com o valor ausente ou `false`, o backend recusa checkouts e eventos live.
+
 ## 7. Regra de teste após ativar Live
 
 Não utilizar e-mails de simulação Stripe (`succeed_immediately`) em produção.
@@ -191,6 +194,7 @@ O Nexus é considerado pronto para os primeiros clientes quando todos os itens a
 - [ ] chave secreta Stripe live salva no Supabase;
 - [x] webhook Stripe live criado e habilitado;
 - [ ] signing secret do webhook live salvo no Supabase;
+- [ ] autorização explícita para definir `NEXUS_PAYMENT_LIVE_ENABLED=true`;
 - [ ] pagamento real controlado testado;
 - [ ] onboarding real testado;
 - [ ] alertas por e-mail testados com remetente final;
