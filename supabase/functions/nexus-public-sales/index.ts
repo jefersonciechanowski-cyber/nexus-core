@@ -97,6 +97,47 @@ async function consumeRateLimit(admin: any, request: Request, action: string, se
   return data === true;
 }
 
+async function authenticatedPilotContext(admin: any, request: Request, productId: string) {
+  const authorization = clean(request.headers.get('authorization'), 4096);
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!match?.[1]) return null;
+
+  const { data: { user }, error: userError } = await admin.auth.getUser(match[1]);
+  if (userError || !user?.id) return null;
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id,organization_id,full_name,active')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile?.active || !profile.organization_id) return null;
+
+  const { data: access } = await admin
+    .from('organization_product_access')
+    .select('id,organization_id,subscription_status,access_status,plan:nexus_plans(code,status)')
+    .eq('organization_id', profile.organization_id)
+    .eq('product_id', productId)
+    .maybeSingle();
+  const currentPlan = Array.isArray(access?.plan) ? access.plan[0] : access?.plan;
+  if (!access?.id || currentPlan?.code !== 'piloto' || currentPlan?.status !== 'active' || access.subscription_status !== 'trial') return null;
+
+  const { count, error: employeeError } = await admin
+    .from('employees')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', profile.organization_id)
+    .eq('active', true);
+  if (employeeError) throw employeeError;
+
+  return {
+    userId: user.id,
+    userEmail: clean(user.email, 180).toLowerCase(),
+    organizationId: profile.organization_id,
+    accessId: access.id,
+    responsibleName: clean(profile.full_name, 140),
+    employeeCount: count || 0,
+  };
+}
+
 function integrationIdentifier() {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   const suffix = Array.from(bytes, byte => String.fromCharCode(97 + (byte % 26))).join('');
@@ -227,16 +268,16 @@ Deno.serve(async request => {
   if (action === 'status') {
     const saleId = clean(body.saleId, 80);
     if (!saleId) return json(request, { error: 'Venda não informada.' }, 400);
-    const { data } = await admin.from('nexus_sales').select('sale_status').eq('id', saleId).maybeSingle();
+    const { data } = await admin.from('nexus_sales').select('sale_status,source').eq('id', saleId).maybeSingle();
     if (!data) return json(request, { error: 'Venda não encontrada.' }, 404);
-    return json(request, { status: data.sale_status });
+    return json(request, { status: data.sale_status, pilotUpgrade: data.source === 'portal-pilot-upgrade' });
   }
 
   const companyName = clean(body.companyName, 140);
   const responsibleName = clean(body.responsibleName, 140);
   const email = clean(body.email, 180).toLowerCase();
   const phone = digits(body.phone).slice(0, 15);
-  const employeeCount = Math.max(0, Math.min(1000000, Number(body.employeeCount) || 0));
+  let employeeCount = Math.max(0, Math.min(1000000, Number(body.employeeCount) || 0));
   const planCode = clean(body.planCode, 80).toLowerCase();
   const honeypot = clean(body.website, 100);
 
@@ -245,6 +286,23 @@ Deno.serve(async request => {
 
   const { data: product } = await admin.from('nexus_products').select('id,name,code').eq('code', 'sst').eq('status', 'active').maybeSingle();
   if (!product?.id) return json(request, { error: 'Produto indisponível.' }, 503);
+
+  let pilotContext: Awaited<ReturnType<typeof authenticatedPilotContext>> = null;
+  if (action === 'checkout') {
+    try {
+      pilotContext = await authenticatedPilotContext(admin, request, product.id);
+    } catch (error) {
+      console.error(JSON.stringify({ message: 'pilot upgrade context unavailable', error: clean((error as any)?.message, 300) }));
+      return json(request, { error: 'Não foi possível validar o acesso piloto. Tente novamente em alguns minutos.' }, 503);
+    }
+    if (body.pilotUpgrade === true && !pilotContext) {
+      return json(request, { error: 'Sua sessão do piloto expirou. Entre novamente pela Minha Central antes de contratar.' }, 401);
+    }
+    if (pilotContext?.userEmail && pilotContext.userEmail !== email) {
+      return json(request, { error: 'Para preservar seus dados, use o mesmo e-mail do acesso piloto.' }, 409);
+    }
+    if (pilotContext) employeeCount = pilotContext.employeeCount;
+  }
 
   let plan: any = null;
   if (planCode) {
@@ -331,7 +389,7 @@ Deno.serve(async request => {
   if ((recentEmail || 0) >= 5 || (recentRegistration || 0) >= 5) return json(request, { error: 'Muitas tentativas recentes. Aguarde alguns minutos e tente novamente.' }, 429);
 
   const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
-  const { data: reusable } = await admin.from('nexus_sales')
+  let reusableQuery = admin.from('nexus_sales')
     .select('id,provider_checkout_url')
     .eq('provider', 'stripe')
     .eq('environment', environment)
@@ -341,7 +399,11 @@ Deno.serve(async request => {
     .eq('billing_mode', billingMode)
     .eq('billing_cycle_months', billingCycleMonths)
     .eq('sale_status', 'checkout_created')
-    .gte('created_at', oneHourAgo)
+    .gte('created_at', oneHourAgo);
+  reusableQuery = pilotContext
+    ? reusableQuery.eq('organization_id', pilotContext.organizationId)
+    : reusableQuery.is('organization_id', null);
+  const { data: reusable } = await reusableQuery
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -356,7 +418,7 @@ Deno.serve(async request => {
     product_id: product.id,
     plan_id: plan.id,
     sale_status: 'lead',
-    source: 'site-captacao',
+    source: pilotContext ? 'portal-pilot-upgrade' : 'site-captacao',
     company_name: companyName,
     registration_type: registrationType,
     registration_number: registrationNumber,
@@ -378,6 +440,8 @@ Deno.serve(async request => {
     billing_mode: billingMode,
     billing_cycle_months: billingCycleMonths,
     checkout_amount_cents: checkoutAmountCents,
+    organization_id: pilotContext?.organizationId || null,
+    user_id: pilotContext?.userId || null,
   });
   if (saleInsertError) return json(request, { error: 'Não foi possível iniciar a contratação.' }, 500);
 
@@ -411,9 +475,10 @@ Deno.serve(async request => {
         },
         metadata: {
           nexus_sale_id: saleId,
-          nexus_source: 'site-captacao',
+          nexus_source: pilotContext ? 'portal-pilot-upgrade' : 'site-captacao',
           registration_type: registrationType,
           registration_number: registrationNumber,
+          ...(pilotContext ? { nexus_existing_organization_id: pilotContext.organizationId } : {}),
         },
       });
       customerId = customer.id;
@@ -430,6 +495,11 @@ Deno.serve(async request => {
       nexus_billing_mode: billingMode,
       nexus_billing_cycle_months: String(billingCycleMonths),
       nexus_checkout_amount_cents: String(checkoutAmountCents),
+      ...(pilotContext ? {
+        nexus_pilot_upgrade: 'true',
+        nexus_existing_organization_id: pilotContext.organizationId,
+        nexus_existing_access_id: pilotContext.accessId,
+      } : {}),
     };
 
     const sessionParams: any = {
