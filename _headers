@@ -9,3 +9,15 @@
 
 https://:version.:subdomain.workers.dev/*
   X-Robots-Tag: noindex, nofollow
+
+/apps/nexus-admin/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/apps/portal-cliente/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/apps/sst-controle/index.html
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/apps/site-captacao/obrigado.html
+  X-Robots-Tag: noindex, nofollow, noarchive
