@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#071015">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nexus SST">
 
   <title>Acesso | SST Controle</title>
 
@@ -140,6 +145,18 @@
       line-height: 1.6;
     }
 
+    .install-link {
+      display: inline-block;
+      margin-top: 12px;
+      color: var(--gold);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .install-link:hover {
+      text-decoration: underline;
+    }
+
     @media (max-width: 760px) {
       .wrap {
         grid-template-columns: 1fr;
@@ -214,6 +231,8 @@
       <div class="security">
         A autenticação agora é realizada pelo Supabase.
         Seus dados e permissões são validados antes da entrada no sistema.
+        <br>
+        <a class="install-link" href="instalar.html">Instalar Nexus SST neste dispositivo</a>
       </div>
     </section>
   </main>
@@ -221,6 +240,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
   <script src="supabase-config.js"></script>
   <script src="supabase-auth.js"></script>
+  <script src="pwa-install.js"></script>
 
   <script>
     const emailInput = document.getElementById('email');
