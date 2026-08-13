@@ -67,6 +67,42 @@ for (const paymentFunction of ['nexus-public-sales', 'stripe-create-checkout', '
   }
 }
 
+const publicSalesSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-public-sales', 'index.ts'), 'utf8');
+for (const requiredPilotCheckoutGuard of [
+  'admin.auth.getUser(match[1])',
+  "currentPlan?.code !== 'piloto'",
+  "access.subscription_status !== 'trial'",
+  'body.pilotUpgrade === true && !pilotContext',
+  "source: pilotContext ? 'portal-pilot-upgrade' : 'site-captacao'",
+  'organization_id: pilotContext?.organizationId || null',
+  'user_id: pilotContext?.userId || null',
+]) {
+  if (!publicSalesSource.includes(requiredPilotCheckoutGuard)) {
+    fail(`nexus-public-sales: proteção da conversão autenticada do piloto ausente: ${requiredPilotCheckoutGuard}`);
+  }
+}
+
+const stripeWebhookSource = await readFile(join(projectRoot, 'supabase', 'functions', 'stripe-webhook', 'index.ts'), 'utf8');
+for (const requiredPilotProvisionGuard of [
+  "sale.source === 'portal-pilot-upgrade'",
+  "existingAccess?.subscription_status === 'trial'",
+  "existingPlan?.code === 'piloto'",
+  'alreadyConvertedPilotAccess',
+  "plan.employee_limit && Number(activeEmployeeCount || 0) > Number(plan.employee_limit)",
+  'NEXUS_PILOT_CONVERTED',
+  'sendPilotConversionEmail',
+  'Sua empresa, usuários e todos os registros do período piloto foram preservados.',
+]) {
+  if (!stripeWebhookSource.includes(requiredPilotProvisionGuard)) {
+    fail(`stripe-webhook: proteção da conversão do piloto ausente: ${requiredPilotProvisionGuard}`);
+  }
+}
+
+const portalSource = await readFile(join(projectRoot, 'apps', 'portal-cliente', 'index.html'), 'utf8');
+if (!portalSource.includes('data-pilot-upgrade') || !portalSource.includes('?upgrade=pilot#planos')) {
+  fail('apps/portal-cliente/index.html: ação autenticada para converter o piloto ausente.');
+}
+
 const finalHardeningMigrations = migrationFiles.filter(file => file.endsWith('_final_security_hardening.sql'));
 if (finalHardeningMigrations.length !== 1) {
   fail('supabase/migrations: migration final de segurança ausente ou duplicada.');

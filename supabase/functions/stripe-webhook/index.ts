@@ -108,11 +108,11 @@ async function findAccess(admin: any, criteria: { accessId?: string | null; subs
   return null;
 }
 
-async function auditEmailFailure(admin: any, sale: any, reason: string) {
+async function auditEmailFailure(admin: any, sale: any, reason: string, action = 'NEXUS_ONBOARDING_EMAIL_FAILED') {
   await admin.from('audit_logs').insert({
     organization_id: sale.organization_id || null,
     user_id: sale.user_id || null,
-    action: 'NEXUS_ONBOARDING_EMAIL_FAILED',
+    action,
     entity: 'nexus_sales',
     entity_id: sale.id,
     metadata: { email: sale.email, provider: 'brevo', reason: clean(reason, 700) },
@@ -190,6 +190,67 @@ async function sendFirstAccessEmail(admin: any, sale: any, plan: any) {
   return true;
 }
 
+async function sendPilotConversionEmail(admin: any, sale: any, plan: any) {
+  const brevoKey = Deno.env.get('BREVO_API_KEY');
+  const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
+  if (!brevoKey || !fromEmail || !sale?.email) {
+    await auditEmailFailure(admin, sale, 'BREVO_API_KEY, BREVO_FROM_EMAIL ou e-mail do cliente ausente.', 'NEXUS_PILOT_CONVERSION_EMAIL_FAILED');
+    return false;
+  }
+
+  const { data: previous } = await admin.from('audit_logs')
+    .select('id')
+    .eq('action', 'NEXUS_PILOT_CONVERSION_EMAIL_SENT')
+    .eq('entity', 'nexus_sales')
+    .eq('entity_id', sale.id)
+    .limit(1)
+    .maybeSingle();
+  if (previous?.id) return true;
+
+  const publicUrl = (clean(sale.return_origin, 500) || Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexus-core.jefersonciechanowski.workers.dev').replace(/\/$/, '');
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#182126;line-height:1.6;max-width:620px;margin:auto">
+      <h2 style="margin-bottom:8px">Seu piloto foi convertido em plano pago</h2>
+      <p>Olá, ${escapeHtml(sale.responsible_name)}.</p>
+      <p>O pagamento da <strong>${escapeHtml(sale.company_name)}</strong> foi confirmado e o plano <strong>${escapeHtml(plan?.name || 'Nexus SST')}</strong> já está ativo.</p>
+      <p>Sua empresa, usuários e todos os registros do período piloto foram preservados. Você continua usando a mesma senha e o mesmo acesso.</p>
+      <p style="margin:28px 0"><a href="${publicUrl}/apps/portal-cliente/" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Acessar Minha Central</a></p>
+      <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
+      <p style="font-size:12px;color:#7b858a">Nexus Core · conversão confirmada automaticamente pela Stripe.</p>
+    </div>`;
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': brevoKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Nexus Core', email: fromEmail },
+      to: [{ email: sale.email, name: clean(sale.responsible_name, 140) || undefined }],
+      subject: 'Seu plano Nexus SST está ativo',
+      htmlContent: html,
+    }),
+  });
+  if (!response.ok) {
+    await auditEmailFailure(admin, sale, `Brevo ${response.status}: ${clean(await response.text(), 500)}`, 'NEXUS_PILOT_CONVERSION_EMAIL_FAILED');
+    return false;
+  }
+
+  let messageId: string | null = null;
+  try { messageId = clean((await response.json())?.messageId, 255) || null; } catch { /* resposta sem JSON */ }
+  await admin.from('audit_logs').insert({
+    organization_id: sale.organization_id || null,
+    user_id: sale.user_id || null,
+    action: 'NEXUS_PILOT_CONVERSION_EMAIL_SENT',
+    entity: 'nexus_sales',
+    entity_id: sale.id,
+    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'brevo', billing_provider: 'stripe', message_id: messageId },
+  });
+  return true;
+}
+
 async function provisionSale(admin: any, saleInput: any, context: { customerId?: string | null; subscriptionId?: string | null; renewsAt?: string | null; eventType?: string | null } = {}) {
   let sale = saleInput;
   if (!sale?.id) return { access: null, error: 'Venda não encontrada.' };
@@ -202,13 +263,21 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
     sale = { ...sale, ...providerPatch };
   }
 
-  const { data: plan } = await admin.from('nexus_plans').select('id,product_id,name,price_cents,currency,billing_interval_months,status').eq('id', sale.plan_id).maybeSingle();
+  const { data: plan } = await admin.from('nexus_plans').select('id,product_id,name,price_cents,currency,billing_interval_months,employee_limit,status').eq('id', sale.plan_id).maybeSingle();
   if (!plan?.id || plan.status !== 'active') {
     await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Plano comercial não encontrado no provisionamento.' }).eq('id', sale.id);
     return { access: null, error: 'Plano inválido.' };
   }
 
   let userId = sale.user_id as string | null;
+  if (userId) {
+    const { data: userData } = await admin.auth.admin.getUserById(userId);
+    const registeredEmail = clean(userData?.user?.email, 180).toLowerCase();
+    if (!registeredEmail || registeredEmail !== clean(sale.email, 180).toLowerCase()) {
+      await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'O usuário autenticado não corresponde ao e-mail da contratação.' }).eq('id', sale.id);
+      return { access: null, error: 'Usuário incompatível.' };
+    }
+  }
   if (!userId) {
     const { data: created, error: createError } = await admin.auth.admin.createUser({ email: sale.email, email_confirm: true, user_metadata: { full_name: sale.responsible_name } });
     if (createError || !created?.user?.id) {
@@ -227,10 +296,31 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
   }
 
   let organizationId = sale.organization_id as string | null;
+  let pilotConversion = false;
+  let pilotAccessId: string | null = null;
   const { data: existingProfile } = await admin.from('profiles').select('organization_id').eq('id', userId).maybeSingle();
   if (existingProfile?.organization_id) {
     const { data: existingOrg } = await admin.from('organizations').select('id,registration_number').eq('id', existingProfile.organization_id).maybeSingle();
-    if (!existingOrg?.id || clean(existingOrg.registration_number, 30) !== clean(sale.registration_number, 30)) {
+    const { data: existingAccess } = await admin
+      .from('organization_product_access')
+      .select('id,plan_id,subscription_status,access_status,plan:nexus_plans(code,status)')
+      .eq('organization_id', existingProfile.organization_id)
+      .eq('product_id', plan.product_id)
+      .maybeSingle();
+    const existingPlan = Array.isArray(existingAccess?.plan) ? existingAccess.plan[0] : existingAccess?.plan;
+    const trustedPilotSale = sale.source === 'portal-pilot-upgrade'
+      && organizationId
+      && organizationId === existingProfile.organization_id;
+    const initialPilotAccess = existingAccess?.subscription_status === 'trial'
+      && existingPlan?.code === 'piloto'
+      && existingPlan?.status === 'active';
+    const alreadyConvertedPilotAccess = existingAccess?.plan_id === plan.id
+      && existingAccess?.subscription_status === 'active'
+      && existingAccess?.access_status === 'active';
+    pilotConversion = Boolean(trustedPilotSale && existingAccess?.id && (initialPilotAccess || alreadyConvertedPilotAccess));
+    pilotAccessId = pilotConversion ? existingAccess.id : null;
+    const registrationMatches = clean(existingOrg?.registration_number, 30) === clean(sale.registration_number, 30);
+    if (!existingOrg?.id || (!registrationMatches && !pilotConversion)) {
       await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'O e-mail informado já pertence a outra organização Nexus.' }).eq('id', sale.id);
       return { access: null, error: 'E-mail já vinculado.' };
     }
@@ -239,6 +329,11 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
       return { access: null, error: 'Perfil incompatível.' };
     }
     organizationId = existingOrg.id;
+  }
+
+  if (sale.organization_id && (!organizationId || sale.organization_id !== organizationId)) {
+    await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'A empresa autenticada não corresponde à empresa da contratação.' }).eq('id', sale.id);
+    return { access: null, error: 'Empresa incompatível.' };
   }
 
   if (!organizationId) {
@@ -267,6 +362,53 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
       return { access: null, error: 'Empresa não criada.' };
     }
     organizationId = organization.id;
+  }
+
+  if (pilotConversion) {
+    const { count: activeEmployeeCount, error: employeeCountError } = await admin
+      .from('employees')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('active', true);
+    if (employeeCountError || (plan.employee_limit && Number(activeEmployeeCount || 0) > Number(plan.employee_limit))) {
+      await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: employeeCountError ? 'Não foi possível validar os colaboradores ativos do piloto.' : 'O piloto ultrapassou o limite de colaboradores do plano durante a confirmação.' }).eq('id', sale.id);
+      return { access: null, error: 'Limite do plano exige revisão.' };
+    }
+
+    const { data: registrationConflict } = await admin
+      .from('organizations')
+      .select('id')
+      .eq('registration_number', sale.registration_number)
+      .neq('id', organizationId)
+      .limit(1)
+      .maybeSingle();
+    if (registrationConflict?.id) {
+      await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'O CPF/CNPJ informado já pertence a outra organização Nexus.' }).eq('id', sale.id);
+      return { access: null, error: 'Documento já vinculado.' };
+    }
+
+    const { error: organizationUpdateError } = await admin.from('organizations').update({
+      name: sale.company_name,
+      legal_name: sale.company_name,
+      trade_name: sale.company_name,
+      registration_type: sale.registration_type,
+      registration_number: sale.registration_number,
+      email: sale.email,
+      phone: sale.phone,
+      postal_code: sale.postal_code,
+      street: sale.street,
+      street_number: sale.street_number,
+      address_complement: sale.address_complement,
+      district: sale.district,
+      city: sale.city,
+      state: sale.state,
+      legal_responsible_name: sale.responsible_name,
+      updated_at: new Date().toISOString(),
+    }).eq('id', organizationId);
+    if (organizationUpdateError) {
+      await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Pagamento confirmado, mas os dados cadastrais do piloto não puderam ser atualizados.' }).eq('id', sale.id);
+      return { access: null, error: 'Empresa não atualizada.' };
+    }
   }
 
   await admin.from('nexus_sales').update({ organization_id: organizationId }).eq('id', sale.id);
@@ -311,7 +453,11 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
     }
     access = createdAccess;
   } else {
-    await admin.from('organization_product_access').update(accessPayload).eq('id', access.id);
+    const { error: accessUpdateError } = await admin.from('organization_product_access').update(accessPayload).eq('id', access.id);
+    if (accessUpdateError) {
+      await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Pagamento confirmado, mas o plano existente não pôde ser atualizado.' }).eq('id', sale.id);
+      return { access: null, error: 'Acesso não atualizado.' };
+    }
   }
 
   if (sale.provider_checkout_id) {
@@ -352,7 +498,36 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
   sale.organization_id = organizationId;
   sale.user_id = userId;
   await admin.from('audit_logs').insert({ organization_id: organizationId, user_id: userId, action: 'NEXUS_SALE_PROVISIONED', entity: 'nexus_sales', entity_id: sale.id, metadata: { plan_id: plan.id, product_id: plan.product_id, provider: 'stripe', billing_mode: billingMode, billing_cycle_months: billingCycleMonths } });
-  await sendFirstAccessEmail(admin, sale, plan);
+  if (pilotConversion) {
+    const { data: previousConversion } = await admin.from('audit_logs')
+      .select('id')
+      .eq('action', 'NEXUS_PILOT_CONVERTED')
+      .eq('entity', 'organization_product_access')
+      .eq('entity_id', access.id)
+      .contains('metadata', { sale_id: sale.id })
+      .limit(1)
+      .maybeSingle();
+    if (!previousConversion?.id) {
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        user_id: userId,
+        action: 'NEXUS_PILOT_CONVERTED',
+        entity: 'organization_product_access',
+        entity_id: access.id,
+        metadata: {
+          sale_id: sale.id,
+          previous_access_id: pilotAccessId,
+          target_plan_id: plan.id,
+          provider: 'stripe',
+          billing_mode: billingMode,
+          billing_cycle_months: billingCycleMonths,
+        },
+      });
+    }
+    await sendPilotConversionEmail(admin, sale, plan);
+  } else {
+    await sendFirstAccessEmail(admin, sale, plan);
+  }
   return { access, error: null };
 }
 
