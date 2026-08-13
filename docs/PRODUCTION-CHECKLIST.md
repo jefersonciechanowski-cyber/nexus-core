@@ -10,8 +10,9 @@ Este documento separa claramente o que já está validado no produto, o que perm
 - Supabase principal: `svphwbccqeoakpmcpvhy`;
 - RLS e isolamento por organização validados;
 - hardening de segurança aplicado pela migration 033;
+- hardening final restringe importações privilegiadas, explicita deny-all do rate limit e remove `pg_net` temporário;
 - Documentação e Fiscalizações aplicadas pelas migrations 034 e 035;
-- Stripe Checkout validado em sandbox para cobrança recorrente e anual à vista no boleto;
+- Stripe Checkout mensal validado em sandbox; o boleto anual exige uma Payment Method Configuration dedicada e nova validação;
 - Webhook Stripe validado com assinatura e idempotência;
 - provisionamento automático validado;
 - primeiro acesso e definição de senha validados;
@@ -160,7 +161,7 @@ Já configurado no produto:
 
 - senha mínima de 8 caracteres.
 
-Pendente por limitação do plano atual:
+Pendente por limitação/configuração do plano atual:
 
 - proteção contra senhas vazadas (`Leaked password protection`) — requer plano Supabase compatível.
 

@@ -21,6 +21,7 @@ async function collectFiles(directory) {
 
 const appFiles = await collectFiles(join(projectRoot, 'apps'));
 const functionFiles = await collectFiles(join(projectRoot, 'supabase', 'functions'));
+const migrationFiles = await collectFiles(join(projectRoot, 'supabase', 'migrations'));
 
 for (const file of appFiles) {
   const extension = extname(file);
@@ -63,6 +64,23 @@ for (const paymentFunction of ['nexus-public-sales', 'stripe-create-checkout', '
   const source = await readFile(join(projectRoot, 'supabase', 'functions', paymentFunction, 'index.ts'), 'utf8');
   if (!source.includes('NEXUS_PAYMENT_LIVE_ENABLED')) {
     fail(`supabase/functions/${paymentFunction}/index.ts: interruptor explícito de pagamentos live ausente.`);
+  }
+}
+
+const finalHardeningMigrations = migrationFiles.filter(file => file.endsWith('_final_security_hardening.sql'));
+if (finalHardeningMigrations.length !== 1) {
+  fail('supabase/migrations: migration final de segurança ausente ou duplicada.');
+} else {
+  const source = await readFile(finalHardeningMigrations[0], 'utf8');
+  const adminGuardCount = (source.match(/Apenas administradores podem/g) || []).length;
+  if (adminGuardCount !== 4) {
+    fail('migration final: funções privilegiadas sem verificação administrativa completa.');
+  }
+  if (!source.includes('drop extension if exists pg_net;')) {
+    fail('migration final: pg_net temporário não foi removido com segurança.');
+  }
+  if (!source.includes('deny direct access to public request limits')) {
+    fail('migration final: política deny-all explícita do rate limit ausente.');
   }
 }
 
