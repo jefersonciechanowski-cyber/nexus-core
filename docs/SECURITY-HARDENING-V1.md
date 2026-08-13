@@ -15,6 +15,7 @@
 - Edge Function desativada de manutenção versionada para eliminar divergência entre produção e repositório.
 - Políticas RLS administrativas separadas por operação, sem duplicar a política de leitura.
 - Índices de apoio para todas as chaves estrangeiras sinalizadas pelo advisor do Supabase.
+- Interruptor de pagamentos live desligado por padrão nos dois checkouts e no webhook.
 
 ## Ordem obrigatória de publicação
 
@@ -30,12 +31,15 @@ Não publicar a nova Edge Function antes da migration: o rate limiter opera em m
 ## Configuração necessária
 
 - `NEXUS_PUBLIC_URL=https://nexuscore.app.br`
+- `NEXUS_PAYMENT_LIVE_ENABLED=false` durante toda a homologação. Somente o go-live autorizado pode alterar para `true`.
 - `STRIPE_ANNUAL_PAYMENT_METHOD_CONFIGURATION_TEST=pmc_...`
 - `STRIPE_ANNUAL_PAYMENT_METHOD_CONFIGURATION_LIVE=pmc_...`
 - `STRIPE_SECRET_KEY`: usar chave restrita com o menor conjunto de permissões possível.
 - `STRIPE_WEBHOOK_SECRET`: manter separado por ambiente.
 
 Nunca registrar valores desses segredos em arquivos, logs ou mensagens de erro.
+
+Mesmo que uma chave `sk_live_` ou `rk_live_` seja configurada por engano, os checkouts e o webhook recusam eventos live enquanto `NEXUS_PAYMENT_LIVE_ENABLED` não for exatamente `true`.
 
 ## Testes antes do go-live
 
