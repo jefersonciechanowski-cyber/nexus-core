@@ -16,10 +16,14 @@
 - Políticas RLS administrativas separadas por operação, sem duplicar a política de leitura.
 - Índices de apoio para todas as chaves estrangeiras sinalizadas pelo advisor do Supabase.
 - Interruptor de pagamentos live desligado por padrão nos dois checkouts e no webhook.
+- Importações em lote e criação de empresas gerenciadas restritas a `nexus_admin` e `org_admin`.
+- Política deny-all explícita para o contador interno de rate limit.
+- `pg_net` temporário removido após confirmar ausência de fila e dependências da aplicação.
+- Privilégio padrão de execução pública revogado para novas funções do schema `public`.
 
 ## Ordem obrigatória de publicação
 
-1. Aplicar `053_public_sales_rate_limit.sql` e `054_database_security_performance.sql`.
+1. Aplicar `053_public_sales_rate_limit.sql`, `054_database_security_performance.sql` e a migration `final_security_hardening`.
 2. Criar na Stripe uma Payment Method Configuration de teste somente com boleto e outra equivalente em produção.
 3. Configurar os segredos abaixo na Edge Function.
 4. Publicar `nexus-public-sales`.
@@ -56,7 +60,8 @@ Mesmo que uma chave `sk_live_` ou `rk_live_` seja configurada por engano, os che
 ## Riscos documentados
 
 - A CSP ainda permite scripts e estilos inline porque o frontend atual concentra trechos legados dentro dos HTMLs. Ela já restringe origens, frames, objetos, formulários e conexões. A remoção de `unsafe-inline` exige extrair esses trechos para arquivos versionados e deve ocorrer em uma etapa própria para não quebrar o sistema inteiro de uma vez.
-- As funções `SECURITY DEFINER` acessíveis a `authenticated` são RPCs necessárias ao modelo multiempresa, importações e documentos. `PUBLIC` e `anon` não possuem execução; as funções validam usuário, organização e papel internamente.
-- A extensão `pg_net` está no schema `public`, mas a versão instalada não é relocável. Movê-la exige recriação da extensão e revisão de dependências; não deve ser feita como alteração automática de lançamento.
+- As funções `SECURITY DEFINER` acessíveis a `authenticated` são RPCs necessárias ao modelo multiempresa, importações e documentos. `PUBLIC` e `anon` não possuem execução. As operações administrativas validam usuário, organização e papel dentro da própria função.
+- `current_org_id`, `is_nexus_admin`, leitura/troca de organização e auditoria de documentos permanecem disponíveis a usuários autenticados porque sustentam RLS e funcionalidades normais; todas verificam a identidade e o vínculo organizacional.
+- A extensão temporária `pg_net` foi removida sem `CASCADE` depois de confirmar fila vazia e ausência de dependências da aplicação.
 - A proteção de senhas vazadas deve ser ativada em **Authentication > Security and Protection > Leaked Password Protection** quando o recurso estiver disponível no plano. Até essa ativação, manter senha forte, mensagens neutras de recuperação e autenticação forte nas contas administrativas.
 - Alertas de índices não utilizados não justificam remoção durante o lançamento: as tabelas ainda têm pouco histórico e os índices atendem consultas e reconciliações previstas. Reavaliar com métricas depois de tráfego real.
