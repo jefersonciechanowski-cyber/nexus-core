@@ -13,6 +13,10 @@ function stripeEnvironment(secret: string | undefined) {
   return /^(?:sk|rk)_live_/.test(secret || '') ? 'production' : 'sandbox';
 }
 
+function livePaymentsEnabled() {
+  return Deno.env.get('NEXUS_PAYMENT_LIVE_ENABLED') === 'true';
+}
+
 function stripeMessage(error: unknown) {
   const value = error as any;
   return clean(value?.raw?.message || value?.message || 'Não foi possível comunicar com a Stripe.', 700);
@@ -116,6 +120,9 @@ Deno.serve(async request => {
   if (![1, 3, 6, 12].includes(interval)) return json(request, { error: 'Periodicidade não suportada pelo checkout.' }, 409);
 
   const environment = stripeEnvironment(stripeSecretKey);
+  if (environment === 'production' && !livePaymentsEnabled()) {
+    return json(request, { error: 'Pagamentos reais ainda não estão habilitados.' }, 503);
+  }
   const nowIso = new Date().toISOString();
   const { data: existingCheckout } = await adminClient
     .from('nexus_payment_checkouts')
