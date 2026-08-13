@@ -59,6 +59,13 @@ for (const file of functionFiles) {
   }
 }
 
+for (const paymentFunction of ['nexus-public-sales', 'stripe-create-checkout', 'stripe-webhook']) {
+  const source = await readFile(join(projectRoot, 'supabase', 'functions', paymentFunction, 'index.ts'), 'utf8');
+  if (!source.includes('NEXUS_PAYMENT_LIVE_ENABLED')) {
+    fail(`supabase/functions/${paymentFunction}/index.ts: interruptor explícito de pagamentos live ausente.`);
+  }
+}
+
 const authSource = await readFile(join(projectRoot, 'apps', 'sst-controle', 'supabase-auth.js'), 'utf8');
 if (authSource.includes('select.innerHTML') || authSource.includes('panel.innerHTML')) {
   fail('apps/sst-controle/supabase-auth.js: dados de organização ainda entram por innerHTML.');
