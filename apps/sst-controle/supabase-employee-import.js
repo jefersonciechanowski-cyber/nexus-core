@@ -2,6 +2,7 @@
   'use strict';
 
   const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  const XLSX_INTEGRITY = 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
   const MAX_ROWS = 1000;
   const HEADERS = [
     'Nome Completo',
@@ -238,6 +239,8 @@
       }
       const script = document.createElement('script');
       script.src = XLSX_URL;
+      script.integrity = XLSX_INTEGRITY;
+      script.crossOrigin = 'anonymous';
       script.async = true;
       script.dataset.nexusXlsx = 'true';
       script.onload = resolve;

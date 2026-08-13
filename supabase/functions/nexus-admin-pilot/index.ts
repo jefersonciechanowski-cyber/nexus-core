@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');

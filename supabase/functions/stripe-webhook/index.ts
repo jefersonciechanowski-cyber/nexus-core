@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -8,6 +8,10 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 const clean = (value: unknown, size = 500) => String(value ?? '').trim().slice(0, size);
 const dateFromUnix = (value: unknown) => Number(value) > 0 ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : null;
+
+function livePaymentsEnabled() {
+  return Deno.env.get('NEXUS_PAYMENT_LIVE_ENABLED') === 'true';
+}
 
 function addMonthsDate(months: number) {
   const date = new Date();
@@ -371,6 +375,9 @@ Deno.serve(async request => {
     event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret, undefined, Stripe.createSubtleCryptoProvider());
   } catch {
     return json({ error: 'Assinatura Stripe inválida.' }, 400);
+  }
+  if (event.livemode && !livePaymentsEnabled()) {
+    return json({ error: 'Processamento de pagamentos reais ainda não está habilitado.' }, 503);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
