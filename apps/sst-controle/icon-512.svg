@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Nexus SST">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071015"/>
+      <stop offset="1" stop-color="#0d2027"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2cc61"/>
+      <stop offset="1" stop-color="#b87a16"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2e7776"/>
+      <stop offset="1" stop-color="#123b42"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M256 64 400 147v166l-144 83-144-83V147z" fill="none" stroke="#2b3c44" stroke-width="22"/>
+  <path d="M155 309V181l101 59 101-59v128l-101 59z" fill="none" stroke="url(#teal)" stroke-width="34" stroke-linejoin="round"/>
+  <path d="M155 181 256 123l101 58-101 59z" fill="none" stroke="url(#gold)" stroke-width="34" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="27" fill="#dca92f"/>
+</svg>
