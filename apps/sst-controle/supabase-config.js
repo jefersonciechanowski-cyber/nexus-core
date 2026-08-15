@@ -6,30 +6,21 @@ window.NEXUS_SUPABASE_CONFIG = {
 window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';
 
 (function nexusProductionUi(){
-  const supportEmail=window.NEXUS_SUPPORT_EMAIL;
-  const supportHref=`mailto:${supportEmail}`;
   const adminLinkStyle='display:block;border:1px solid transparent;background:transparent;color:#98a2a7;text-align:left;padding:12px 14px;border-radius:9px;text-decoration:none;font:inherit';
 
   function addSupport(){
     const path=location.pathname;
     if(!path.includes('/apps/'))return;
 
-    const footerLinks=document.querySelector('.footer-links');
-    if(footerLinks&&!footerLinks.querySelector('[data-nexus-support]')){
-      const link=document.createElement('a');
-      link.href=supportHref;
-      link.textContent='Suporte';
-      link.dataset.nexusSupport='true';
-      footerLinks.appendChild(link);
-      return;
-    }
+    document.querySelectorAll('[data-nexus-support]').forEach(element=>element.remove());
+    document.querySelectorAll('a[href^="mailto:suporte@"]').forEach(element=>element.remove());
 
-    if(document.querySelector('[data-nexus-support]'))return;
-    const wrap=document.createElement('div');
-    wrap.dataset.nexusSupport='true';
-    wrap.style.cssText='margin:18px auto 8px;max-width:1100px;padding:0 18px;text-align:center;color:#8f9aa0;font:12px/1.5 Inter,Segoe UI,Arial,sans-serif';
-    wrap.innerHTML=`Precisa de ajuda? <a href="${supportHref}" style="color:#d9a62d;text-decoration:none">${supportEmail}</a>`;
-    document.body.appendChild(wrap);
+    if(document.querySelector('script[data-nexus-support-loader]'))return;
+    const script=document.createElement('script');
+    script.src='/apps/sst-controle/nexus-support.js';
+    script.async=true;
+    script.dataset.nexusSupportLoader='true';
+    document.head.appendChild(script);
   }
 
   function decorateAdminLink(link){
