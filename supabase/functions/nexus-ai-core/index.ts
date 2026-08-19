@@ -34,7 +34,6 @@ function headers(origin: string) {
 }
 
 function estimateCostMicrousd(model: string, inputTokens: number, outputTokens: number, cachedTokens = 0) {
-  // Standard API prices reviewed against official OpenAI pricing on 2026-08-19.
   const prices: Record<string, { input: number; cached: number; output: number }> = {
     'gpt-5.6-luna': { input: 0.20, cached: 0.02, output: 1.20 },
     'gpt-5.6-terra': { input: 2.00, cached: 0.20, output: 12.00 },
@@ -159,7 +158,11 @@ Deno.serve(async (request) => {
       body: JSON.stringify({ model, store: false, max_output_tokens: MAX_OUTPUT_TOKENS, instructions, input }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(clean(payload?.error?.message || `OpenAI HTTP ${response.status}`, 600));
+    if (!response.ok) {
+      const providerMessage = clean(payload?.error?.message || `OpenAI HTTP ${response.status}`, 600);
+      console.error(JSON.stringify({ event: 'nexus_ai_provider_error', status: response.status, type: clean(payload?.error?.type, 100), code: clean(payload?.error?.code, 100), message: providerMessage }));
+      throw new Error(providerMessage);
+    }
 
     inputTokens = Number(payload?.usage?.input_tokens || 0);
     outputTokens = Number(payload?.usage?.output_tokens || 0);
@@ -181,7 +184,8 @@ Deno.serve(async (request) => {
     if (finalizeError) throw finalizeError;
     return json({ answer, capability, model, usage: { inputTokens, outputTokens, totalTokens, estimatedCostMicrousd: estimatedCost } });
   } catch (error) {
-    await admin.rpc('finalize_nexus_ai_usage', {
+    const message = clean((error as any)?.message || 'Falha na execução da Nexus AI.', 700);
+    const { error: finalizeError } = await admin.rpc('finalize_nexus_ai_usage', {
       p_event_id: eventId,
       p_status: 'error',
       p_model: model,
@@ -189,7 +193,9 @@ Deno.serve(async (request) => {
       p_output_tokens: outputTokens,
       p_total_tokens: totalTokens,
       p_estimated_cost_microusd: estimatedCost || 0,
-    }).catch(() => undefined);
-    return json({ error: clean((error as any)?.message || 'Falha na execução da Nexus AI.', 700) }, 502);
+    });
+    if (finalizeError) console.error(JSON.stringify({ event: 'nexus_ai_finalize_error', message: clean(finalizeError.message, 500) }));
+    console.error(JSON.stringify({ event: 'nexus_ai_execution_error', message }));
+    return json({ error: message }, 502);
   }
 });
