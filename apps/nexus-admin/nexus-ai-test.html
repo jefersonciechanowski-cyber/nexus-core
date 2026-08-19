@@ -18,7 +18,7 @@
       <div class="profile" id="profile">Carregando sessão...</div>
     </header>
 
-    <div class="notice"><strong>Gate de segurança:</strong> enquanto <code>NEXUS_AI_ENABLED=false</code>, o servidor rejeita a execução antes de reservar franquia ou chamar a OpenAI. Esta página pode ser publicada/testada sem gerar custo.</div>
+    <div class="notice"><strong>Gate de segurança:</strong> o estado real é decidido no servidor. Quando a Nexus AI estiver desabilitada, a execução é rejeitada antes de reservar franquia ou chamar a OpenAI.</div>
 
     <section class="panel">
       <form id="aiForm" class="form-grid">
@@ -48,6 +48,27 @@
         document.getElementById('profile').textContent=`${session.name||session.email} · ${session.roleLabel||'Administrador Nexus'}`;
       }catch(error){statusEl.className='status bad';statusEl.textContent=error.message||'Não foi possível restaurar a sessão.';sendEl.disabled=true;}
     }
+    async function getFunctionError(error){
+      const fallback=error?.message||'A execução foi bloqueada pelo servidor.';
+      const context=error?.context;
+      if(!context)return fallback;
+      try{
+        if(typeof context.json==='function'){
+          const payload=await context.clone().json();
+          if(payload?.error)return payload.error;
+        }
+      }catch{}
+      try{
+        if(typeof context.text==='function'){
+          const text=await context.clone().text();
+          if(text){
+            try{const payload=JSON.parse(text);if(payload?.error)return payload.error;}catch{}
+            return text.slice(0,700);
+          }
+        }
+      }catch{}
+      return fallback;
+    }
     document.getElementById('aiForm').addEventListener('submit',async event=>{
       event.preventDefault();
       const question=document.getElementById('question').value.trim();
@@ -66,7 +87,7 @@
       }catch(error){
         answerEl.textContent='Nenhuma chamada concluída.';
         statusEl.className='status bad';
-        statusEl.textContent=error?.message||'A execução foi bloqueada pelo servidor.';
+        statusEl.textContent=await getFunctionError(error);
       }finally{sendEl.disabled=false;}
     });
     start();
