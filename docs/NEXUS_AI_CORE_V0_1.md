@@ -48,7 +48,7 @@ Capacidades futuras: operacao de clientes, tarefas, criativos, campanhas, SLAs e
 
 ### Nexus CRM
 
-Segue a mesma governanca comercial do Nexus AI Core, mas pode permanecer em infraestrutura/repositório proprio. A integracao futura deve usar identificadores explicitos de empresa/produto, nunca inferencia por nome ou email.
+Segue a mesma governanca comercial do Nexus AI Core, mas pode permanecer em infraestrutura/repositorio proprio. A integracao futura deve usar identificadores explicitos de empresa/produto, nunca inferencia por nome ou email.
 
 ## Modelo de controle
 
@@ -65,14 +65,39 @@ Pausar uso nao cancela assinatura nem devolve franquia ja consumida.
 
 A migration `20260819093000_nexus_ai_core.sql` cria apenas a infraestrutura central de governanca e medicao. Ela nao ativa OpenAI, nao adiciona chave, nao cria automacao e nao faz chamadas pagas.
 
+### Endurecimento antes da aplicacao remota
+
+A revisao estatica adicionou estes guardrails:
+
+- `capabilities` precisa ser um array JSON;
+- pausa individual exige `paused_until`, e os outros modos nao podem carregar data de pausa residual;
+- entitlements e controles centrais sao leitura direta apenas de `nexus_admin`, porque podem conter limites/custos internos;
+- usuario comum pode ler apenas o proprio override individual e os proprios eventos de uso;
+- nenhuma tabela concede INSERT/UPDATE/DELETE direto ao papel `authenticated`;
+- indices separados cobrem FKs de usuario/ator e consultas historicas de consumo;
+- os indices redundantes sobre chaves `unique` foram removidos.
+
+Os produtos clientes devem receber apenas status/capacidades sanitizados por funcao/endpoint explicito em uma etapa posterior, em vez de ler diretamente as tabelas comerciais centrais.
+
+## Estado da validacao em 2026-08-19
+
+A migration foi revisada e endurecida no GitHub, mas **nao foi aplicada remotamente**.
+
+O conector Supabase disponivel nesta conversa expõe somente o projeto `Nexus Agency CRM` (`ngxqtztfotkpdvynstae`). Esse nao e o Supabase do `jefersonciechanowski-cyber/nexus-core`. Para respeitar a separacao entre contas/produtos, nenhuma DDL da Nexus AI Core foi executada nesse projeto.
+
+O PR #61 permanece Draft e mergeavel.
+
 ## Proximo gate
 
-Antes de ativar qualquer provedor:
+Quando o Supabase correto da Nexus Core estiver acessivel nesta conta/conversa:
 
-1. validar migration em ambiente controlado;
-2. revisar RLS e grants;
-3. construir a primeira tela de administracao no Nexus Admin;
-4. definir uma organizacao de teste e franquia minima;
-5. configurar chave somente no ambiente server-side de teste;
-6. executar chamadas controladas e medir custo/qualidade;
-7. somente depois liberar um primeiro produto consumidor.
+1. confirmar projeto/ref antes de qualquer DDL;
+2. aplicar a migration em ambiente controlado;
+3. testar RLS como `nexus_admin` e como usuario comum;
+4. confirmar que usuario comum nao ve limites/custos de terceiros ou da empresa;
+5. executar Security Advisor e Performance Advisor;
+6. corrigir qualquer alerta antes de construir runtime/ativacao;
+7. construir a primeira tela de administracao no Nexus Admin;
+8. somente depois preparar organizacao de teste, franquia minima e provedor server-side.
+
+A chave OpenAI e qualquer chamada paga continuam fora deste gate.
