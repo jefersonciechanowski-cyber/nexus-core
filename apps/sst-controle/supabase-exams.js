@@ -183,7 +183,7 @@
     list.innerHTML = getState().exams.length ? getState().exams.map(exam => {
       const type = exam.resultType === 'QUALITATIVE' ? 'Qualitativo' : 'Numérico';
       const options = exam.resultType === 'QUALITATIVE' ? ` | Opções: ${exam.qualitativeOptions.map(option => `${option.label} → ${option.status}`).join(', ') || 'não configuradas'}` : '';
-      return `<li><span><strong>${escapeHtml(exam.name)}</strong><small>${escapeHtml(type)}${exam.unit ? ` | ${escapeHtml(exam.unit)}` : ''}${options} | ${exam.eSocialReportable ? `Tabela 27: ${escapeHtml(exam.esocialProcedureCode)}` : 'Não configurado'} | ${escapeHtml(exam.evaluation.mode)}</small></span><span><button class="ghost" type="button" onclick="editExam('${escapeHtml(exam.id)}')">Editar</button><button class="ghost" type="button" onclick="deleteExam('${escapeHtml(exam.id)}')">Excluir</button></span></li>`;
+      return `<li><span><strong>${escapeHtml(exam.name)}</strong><small>${escapeHtml(type)}${exam.unit ? ` | ${escapeHtml(exam.unit)}` : ''}${options} | ${exam.eSocialReportable ? `Tabela 27: ${escapeHtml(exam.esocialProcedureCode)}` : 'Não configurado'} | ${escapeHtml(exam.evaluation.mode)}</small></span><span><button class="ghost" type="button" data-exam-action="edit" data-exam-id="${escapeHtml(exam.id)}">Editar</button><button class="ghost" type="button" data-exam-action="delete" data-exam-id="${escapeHtml(exam.id)}">Excluir</button></span></li>`;
     }).join('') : '<li>Nenhum exame cadastrado.</li>';
   }
 
@@ -258,6 +258,14 @@
     if (installed || !byId('examForm') || !window.NEXUS_SST_APP?.getState) return;
     installed = true;
     byId('examForm').onsubmit = submit;
+    byId('examList')?.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest('[data-exam-action]');
+      if (!button) return;
+      const id = button.dataset.examId;
+      if (button.dataset.examAction === 'edit') editExam(id);
+      if (button.dataset.examAction === 'delete') deleteExam(id);
+    });
     byId('examCancelEdit').onclick = reset;
     byId('examAddQualitativeOption').onclick = () => addQualitativeOption();
     ['examResultType', 'examEsocialReportable', 'examEvaluationMode'].forEach(id => { byId(id).onchange = updateForm; });
