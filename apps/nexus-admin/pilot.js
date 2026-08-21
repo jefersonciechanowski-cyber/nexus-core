@@ -1,6 +1,32 @@
 (() => {
   'use strict';
 
+  const ADMIN_MFA_MAX_AGE_SECONDS = 7200;
+
+  async function enforceAdminMfaSession() {
+    if (location.pathname.endsWith('/login.html')) return true;
+    const client = window.NexusAuth?.getClient?.();
+    if (!client) return false;
+    try {
+      const session = await window.NexusAuth.restoreSession();
+      if (!session || session.role !== 'nexus_admin') throw new Error('Sessão administrativa inválida.');
+      let marker = null;
+      try { marker = JSON.parse(sessionStorage.getItem('nexus_admin_mfa_session') || 'null'); } catch {}
+      const { data, error } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error) throw error;
+      const cutoff = Math.floor(Date.now() / 1000) - ADMIN_MFA_MAX_AGE_SECONDS;
+      const recentTotp = (data?.currentAuthenticationMethods || []).some(item => item?.method === 'totp' && Number(item.timestamp) >= cutoff);
+      const markerFresh = marker?.userId === session.userId && Date.now() - Number(marker.verifiedAt || 0) <= ADMIN_MFA_MAX_AGE_SECONDS * 1000;
+      if (data?.currentLevel !== 'aal2' || !recentTotp || !markerFresh) throw new Error('MFA administrativo expirado.');
+      return true;
+    } catch {
+      sessionStorage.removeItem('nexus_admin_mfa_session');
+      await client.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      location.replace('login.html?reason=mfa');
+      return false;
+    }
+  }
+
   function injectStyles() {
     if (document.getElementById('nexusPilotAdminStyles')) return;
     const style = document.createElement('style');
@@ -85,7 +111,8 @@
     element.className = `pilot-message ${type}`;
   }
 
-  function mount() {
+  async function mount() {
+    if (!await enforceAdminMfaSession()) return;
     const panel = document.querySelector('#view-clients > .panel');
     if (!panel || document.getElementById('pilotForm')) return;
     injectStyles();
