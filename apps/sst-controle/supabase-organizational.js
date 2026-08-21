@@ -372,17 +372,17 @@
       const registration = item.registrationType && item.registrationNumber ? `${item.registrationType}: ${formatRegistration(item.registrationType, item.registrationNumber)}` : 'Sem inscrição legal';
       const location = [item.city, item.state].filter(Boolean).join(' / ');
       const profileStatus = isLegalProfileComplete(item) ? 'Cadastro completo' : 'Cadastro legal incompleto';
-      return `<li><span><strong>${esc(item.name)}</strong><small>Tipo: ${esc(item.establishmentKind)} | Inscrição: ${esc(registration)}${location ? ` | ${esc(location)}` : ''}</small><small>${esc(profileStatus)}</small></span><span><button type="button" class="ghost" onclick="editUnit('${esc(item.id)}')">Editar</button><button type="button" class="ghost" onclick="deleteUnit('${esc(item.id)}')">Excluir</button></span></li>`;
+      return `<li><span><strong>${esc(item.name)}</strong><small>Tipo: ${esc(item.establishmentKind)} | Inscrição: ${esc(registration)}${location ? ` | ${esc(location)}` : ''}</small><small>${esc(profileStatus)}</small></span><span><button type="button" class="ghost" data-organizational-action="edit-unit" data-organizational-id="${esc(item.id)}">Editar</button><button type="button" class="ghost" data-organizational-action="delete-unit" data-organizational-id="${esc(item.id)}">Excluir</button></span></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
-    if (sectorList) sectorList.innerHTML = current.sectors.length ? current.sectors.map(item => `<li><span><strong>${esc(item.name)}</strong></span><small>${esc(unitName(item.unitId))}</small><button type="button" class="ghost" onclick="deleteSector('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
-    if (roleList) roleList.innerHTML = current.jobRoles.length ? current.jobRoles.map(item => `<li><span><strong>${esc(item.name)}</strong></span><button type="button" class="ghost" onclick="deleteJobRole('${esc(item.id)}')">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma função cadastrada.</span></li>';
+    if (sectorList) sectorList.innerHTML = current.sectors.length ? current.sectors.map(item => `<li><span><strong>${esc(item.name)}</strong></span><small>${esc(unitName(item.unitId))}</small><button type="button" class="ghost" data-organizational-action="delete-sector" data-organizational-id="${esc(item.id)}">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
+    if (roleList) roleList.innerHTML = current.jobRoles.length ? current.jobRoles.map(item => `<li><span><strong>${esc(item.name)}</strong></span><button type="button" class="ghost" data-organizational-action="delete-role" data-organizational-id="${esc(item.id)}">Excluir</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma função cadastrada.</span></li>';
     if (employeeList) employeeList.innerHTML = current.employees.length ? current.employees.map(item => {
       const identity = item.cpf ? formatCpf(item.cpf) : 'CPF não informado';
       const worker = item.esocialWorkerType === 'VINCULO' ? 'Vínculo' : item.esocialWorkerType === 'TSVE' ? 'TSVE' : 'Não informado';
       const reference = item.esocialRegistration ? `Matrícula: ${item.esocialRegistration}` : item.esocialCategoryCode ? `Categoria: ${item.esocialCategoryCode}` : '';
       const allocation = `${unitName(item.unitId)} / ${current.sectors.find(sector => String(sector.id) === String(item.sectorId))?.name || 'Sem setor'} / ${item.role || 'Sem função'}`;
       const profileStatus = employeeProfileComplete(item) ? 'Cadastro completo' : 'Cadastro incompleto';
-      return `<li><span><strong>${esc(item.name)}</strong><small>${esc(identity)} | ${esc(worker)}${reference ? ` | ${esc(reference)}` : ''}</small><small>${esc(allocation)} | ${esc(profileStatus)}</small></span><span><button type="button" class="ghost" onclick="showEmployeeRequirements('${esc(item.id)}')">Visualizar</button><button type="button" class="ghost" onclick="editEmployee('${esc(item.id)}')">Editar</button><button type="button" class="ghost" onclick="deactivateEmployee('${esc(item.id)}')">Desativar</button></span></li>`;
+      return `<li><span><strong>${esc(item.name)}</strong><small>${esc(identity)} | ${esc(worker)}${reference ? ` | ${esc(reference)}` : ''}</small><small>${esc(allocation)} | ${esc(profileStatus)}</small></span><span><button type="button" class="ghost" data-organizational-action="show-employee" data-organizational-id="${esc(item.id)}">Visualizar</button><button type="button" class="ghost" data-organizational-action="edit-employee" data-organizational-id="${esc(item.id)}">Editar</button><button type="button" class="ghost" data-organizational-action="deactivate-employee" data-organizational-id="${esc(item.id)}">Desativar</button></span></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
   }
 
@@ -405,6 +405,22 @@
   function install() {
     if (installed || !app()?.getState || !app()?.render || !window.NexusData) return;
     installed = true;
+    document.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest('[data-organizational-action]');
+      if (!button) return;
+      const id = button.dataset.organizationalId;
+      const actions = {
+        'edit-unit': () => editUnit(id),
+        'delete-unit': () => deleteEntity('units', id),
+        'delete-sector': () => deleteEntity('sectors', id),
+        'delete-role': () => deleteEntity('jobRoles', id),
+        'show-employee': () => window.showEmployeeRequirements?.(id),
+        'edit-employee': () => editEmployee(id),
+        'deactivate-employee': () => deactivateEmployee(id)
+      };
+      actions[button.dataset.organizationalAction]?.();
+    });
     byId('unitForm').onsubmit = submitUnit;
     byId('unitCancelEdit').onclick = resetUnitForm;
     installUnitMasks();
