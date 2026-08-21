@@ -47,9 +47,9 @@ requireText(stripeWebhook, 'STRIPE_WEBHOOK_SECRET', 'stripe-webhook');
 requireText(asaasWebhook, 'status: 410', 'asaas-webhook');
 
 for (const guard of [
-  'MAX_BODY_BYTES',
-  'consumePublicRateLimit',
-  'allowedOrigin',
+  'contentLength > 65_536',
+  'consumeRateLimit',
+  'originAllowed',
   'honeypot',
 ]) {
   requireText(publicSales, guard, 'nexus-public-sales');
