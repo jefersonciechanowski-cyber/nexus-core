@@ -1,23 +1,33 @@
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
+  X-Permitted-Cross-Domain-Policies: none
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()
   Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.facebook.com https://connect.facebook.net; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://svphwbccqeoakpmcpvhy.supabase.co wss://svphwbccqeoakpmcpvhy.supabase.co https://www.facebook.com https://connect.facebook.net; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
 
 https://:version.:subdomain.workers.dev/*
   X-Robots-Tag: noindex, nofollow
 
 /apps/nexus-admin/*
   X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
+  Pragma: no-cache
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://svphwbccqeoakpmcpvhy.supabase.co wss://svphwbccqeoakpmcpvhy.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
 
 /apps/portal-cliente/*
   X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
+  Pragma: no-cache
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://svphwbccqeoakpmcpvhy.supabase.co wss://svphwbccqeoakpmcpvhy.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests
 
 /apps/sst-controle/index.html
   X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
 
 /apps/site-captacao/obrigado.html
   X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
