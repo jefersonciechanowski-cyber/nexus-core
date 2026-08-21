@@ -27,7 +27,10 @@ drop policy if exists "tenant delete" on public.exam_records;
 revoke delete on public.exam_records from authenticated;
 
 -- 2) Anonymous browser clients must not reach the application schema directly.
+-- PUBLIC is revoked first because role privileges inherited from PUBLIC also reach anon.
+revoke usage on schema public from public;
 revoke usage on schema public from anon;
+grant usage on schema public to authenticated, service_role;
 revoke all privileges on all tables in schema public from anon;
 revoke all privileges on all sequences in schema public from anon;
 revoke execute on all functions in schema public from anon;
