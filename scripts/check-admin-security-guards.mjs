@@ -10,7 +10,7 @@ function requireText(source, text, label) {
   if (!source.includes(text)) failures.push(`${label}: proteção ausente: ${text}`);
 }
 
-const [pilot, ai, stripeWebhook, asaasWebhook, publicSales, migration, headers] = await Promise.all([
+const [pilot, ai, stripeWebhook, asaasWebhook, publicSales, migration, headers, auth] = await Promise.all([
   read('supabase', 'functions', 'nexus-admin-pilot', 'index.ts'),
   read('supabase', 'functions', 'nexus-ai-core', 'index.ts'),
   read('supabase', 'functions', 'stripe-webhook', 'index.ts'),
@@ -18,6 +18,7 @@ const [pilot, ai, stripeWebhook, asaasWebhook, publicSales, migration, headers] 
   read('supabase', 'functions', 'nexus-public-sales', 'index.ts'),
   read('supabase', 'migrations', '20260821133649_security_wrap_privileged_rpcs_with_admin_mfa.sql'),
   read('_headers'),
+  read('apps', 'sst-controle', 'supabase-auth.js'),
 ]);
 
 for (const [source, label] of [[pilot, 'nexus-admin-pilot'], [ai, 'nexus-ai-core']]) {
@@ -29,6 +30,16 @@ requireText(ai, 'MAX_BODY_BYTES = 16_384', 'nexus-ai-core');
 requireText(ai, "'Cache-Control': 'no-store'", 'nexus-ai-core');
 requireText(ai, "profile.role !== 'nexus_admin'", 'nexus-ai-core');
 requireText(pilot, "adminProfile.role !== 'nexus_admin'", 'nexus-admin-pilot');
+
+for (const guard of [
+  'ADMIN_MFA_MAX_AGE_SECONDS = 7200',
+  'getAuthenticatorAssuranceLevel',
+  "sessionStorage.getItem('nexus_admin_mfa_session')",
+  'return enforceAdminMfaSession(session);',
+  "sessionStorage.removeItem('nexus_admin_mfa_session')",
+]) {
+  requireText(auth, guard, 'supabase-auth admin MFA');
+}
 
 requireText(stripeWebhook, "request.headers.get('stripe-signature')", 'stripe-webhook');
 requireText(stripeWebhook, 'constructEventAsync', 'stripe-webhook');
