@@ -16,9 +16,9 @@
     widgetId = window.turnstile.render(container, {
       sitekey,
       theme: 'dark',
-      language: 'pt-BR',
+      language: 'pt-br',
       size: 'flexible',
-      appearance: 'interaction-only',
+      appearance: 'always',
       callback: value => { token = value; },
       'expired-callback': () => { token = ''; },
       'timeout-callback': () => { token = ''; },
