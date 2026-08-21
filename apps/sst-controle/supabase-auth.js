@@ -100,16 +100,29 @@
 
   async function login(email, password) {
     const supabaseClient = getClient();
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: String(email).trim().toLowerCase(),
-      password
-    });
-    if (error || !data.user) throw new Error('E-mail ou senha inválidos.');
     try {
+      const turnstile = window.NexusTurnstile;
+      if (window.NEXUS_SUPABASE_CONFIG?.turnstileSiteKey && !turnstile?.requireToken) {
+        throw new Error('A verificação de segurança não pôde ser carregada. Atualize a página e tente novamente.');
+      }
+      const captchaToken = turnstile?.requireToken();
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: String(email).trim().toLowerCase(),
+        password,
+        options: { captchaToken }
+      });
+      if (error || !data.user) {
+        const captchaError = `${error?.code || ''} ${error?.message || ''}`.toLowerCase().includes('captcha');
+        throw new Error(captchaError
+          ? 'A verificação de segurança expirou ou não foi aceita. Tente novamente.'
+          : 'E-mail ou senha inválidos.');
+      }
       return await loadProfile(data.user);
     } catch (profileError) {
       await supabaseClient.auth.signOut({ scope: 'local' });
       throw profileError;
+    } finally {
+      window.NexusTurnstile?.reset();
     }
   }
 
