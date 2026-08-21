@@ -9,7 +9,7 @@ Deno.serve((request: Request) => {
   }
 
   return new Response(JSON.stringify({
-    error: 'Integração Asaas desativada. A cobrança Nexus utiliza Stripe.',
+    error: 'Endpoint indisponível.',
   }), {
     status: 410,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

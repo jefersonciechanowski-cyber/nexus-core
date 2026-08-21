@@ -4,7 +4,7 @@
   const ADMIN_MFA_MAX_AGE_SECONDS = 7200;
 
   async function enforceAdminMfaSession() {
-    if (location.pathname.endsWith('/login.html')) return true;
+    if (/\/apps\/nexus-admin\/login(?:\.html)?\/?$/.test(location.pathname)) return true;
     const client = window.NexusAuth?.getClient?.();
     if (!client) return false;
     try {

@@ -269,7 +269,7 @@
           : '<span style="color:var(--text-muted)">Dados documentais pendentes</span>');
       const action = cancelled
         ? '<span style="color:var(--text-muted)">Histórico preservado</span>'
-        : `${readyForCertificate ? `<button type="button" class="ghost" onclick="window.NexusDocuments?.printTrainingCertificate('${escapeHtml(record.id)}')">Emitir certificado</button> ` : ''}<button type="button" class="ghost" onclick="cancelTrainingRecord('${escapeHtml(record.id)}')">Cancelar registro</button>`;
+        : `${readyForCertificate ? `<button type="button" class="ghost" data-training-action="certificate" data-training-id="${escapeHtml(record.id)}">Emitir certificado</button> ` : ''}<button type="button" class="ghost" data-training-action="cancel" data-training-id="${escapeHtml(record.id)}">Cancelar registro</button>`;
 
       return `<tr>
         <td><strong>${escapeHtml(record.code)}</strong><br><small>${formatDate(record.date)}</small></td>
@@ -287,6 +287,14 @@
     if (installed || !byId('trainingRecordForm') || !window.NexusData || !state()) return;
     installed = true;
     byId('trainingRecordForm').onsubmit = createRecord;
+    byId('trainingHistoryTable')?.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest('[data-training-action]');
+      if (!button) return;
+      const id = button.dataset.trainingId;
+      if (button.dataset.trainingAction === 'certificate') window.NexusDocuments?.printTrainingCertificate?.(id);
+      if (button.dataset.trainingAction === 'cancel') cancelRecord(id);
+    });
     window.cancelTrainingRecord = cancelRecord;
     window.NexusTrainingRecords = {
       loadRecords,
