@@ -27,6 +27,17 @@ https://:version.:subdomain.workers.dev/*
 /apps/sst-controle/index.html
   X-Robots-Tag: noindex, nofollow, noarchive
   Cache-Control: no-store, private
+  Pragma: no-cache
+
+/apps/sst-controle/login.html
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
+  Pragma: no-cache
+
+/apps/sst-controle/alterar-senha.html
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, private
+  Pragma: no-cache
 
 /apps/site-captacao/obrigado.html
   X-Robots-Tag: noindex, nofollow, noarchive
