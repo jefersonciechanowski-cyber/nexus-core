@@ -40,7 +40,7 @@
 
   function isCentralNexusAdminPage() {
     return window.location.pathname.includes('/apps/nexus-admin/')
-      && !window.location.pathname.endsWith('/login.html');
+      && !/\/apps\/nexus-admin\/login(?:\.html)?\/?$/.test(window.location.pathname);
   }
 
   function hasRecentTotp(methods) {
