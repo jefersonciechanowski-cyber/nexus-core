@@ -126,7 +126,9 @@ if (reportHardeningMigrations.length !== 1) {
 } else {
   const source = await readFile(reportHardeningMigrations[0], 'utf8');
   for (const requiredGuard of [
+    'revoke usage on schema public from public;',
     'revoke usage on schema public from anon;',
+    'grant usage on schema public to authenticated, service_role;',
     'alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;',
     'alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;',
     'has_recent_nexus_admin_mfa_session',
