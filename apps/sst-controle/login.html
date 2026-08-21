@@ -136,6 +136,11 @@
       margin-top: 12px;
     }
 
+    .turnstile {
+      min-height: 65px;
+      margin-top: 18px;
+    }
+
     .security {
       margin-top: 24px;
       padding-top: 18px;
@@ -222,6 +227,8 @@
         >
       </div>
 
+      <div class="turnstile" id="nexus-turnstile" aria-label="Verificação de segurança"></div>
+
       <button id="login" type="button">
         Entrar no SST Controle
       </button>
@@ -239,6 +246,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
   <script src="supabase-config.js"></script>
+  <script src="supabase-turnstile.js"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=nexusTurnstileReady&amp;render=explicit" async defer></script>
   <script src="supabase-auth.js"></script>
   <script src="pwa-install.js"></script>
 

@@ -1,6 +1,7 @@
 window.NEXUS_SUPABASE_CONFIG = {
   url: 'https://svphwbccqeoakpmcpvhy.supabase.co',
-  publishableKey: 'sb_publishable_69PVF-UYPFZMouwTUnj4qQ_n0VPzLzL'
+  publishableKey: 'sb_publishable_69PVF-UYPFZMouwTUnj4qQ_n0VPzLzL',
+  turnstileSiteKey: '0x4AAAAAAEX5OTiPpSArdqvb'
 };
 
 window.NEXUS_SUPPORT_EMAIL = 'suporte@nexuscore.app.br';

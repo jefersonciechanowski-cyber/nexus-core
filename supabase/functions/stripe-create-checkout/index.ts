@@ -78,7 +78,8 @@ Deno.serve(async request => {
   const authorization = request.headers.get('Authorization');
   const origin = trustedOrigin(request);
 
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) return json(request, { error: 'Integração de pagamento indisponível.' }, 500);
+  if (!authorization) return json(request, { error: 'Sessão inválida.' }, 401);
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) return json(request, { error: 'Checkout temporariamente indisponível.' }, 503);
   if (!stripeSecretKey) return json(request, { error: 'Checkout temporariamente indisponível.' }, 503);
   if (!origin) return json(request, { error: 'Origem do checkout não permitida.' }, 403);
 

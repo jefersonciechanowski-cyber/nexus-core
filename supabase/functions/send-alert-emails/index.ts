@@ -68,7 +68,8 @@ Deno.serve(async request => {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   const from = Deno.env.get('RESEND_FROM_EMAIL');
   const authorization = request.headers.get('Authorization');
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) return json({ error: 'Integração não configurada.' }, 500);
+  if (!authorization) return json({ error: 'Sessão inválida.' }, 401);
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: 'Serviço temporariamente indisponível.' }, 503);
 
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
