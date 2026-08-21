@@ -41,7 +41,8 @@ for (const file of appFiles) {
   if (extension === '.html') {
     const externalScripts = source.match(/<script\b[^>]*\bsrc="https:\/\/[^">]+"[^>]*><\/script>/g) || [];
     for (const tag of externalScripts) {
-      if (!tag.includes(' integrity="sha384-') || !tag.includes(' crossorigin="anonymous"')) {
+      const isTurnstileApi = tag.includes('src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=nexusTurnstileReady&amp;render=explicit"');
+      if (!isTurnstileApi && (!tag.includes(' integrity="sha384-') || !tag.includes(' crossorigin="anonymous"'))) {
         fail(`${displayPath}: script externo sem SRI/crossorigin: ${tag.slice(0, 140)}`);
       }
     }
@@ -124,10 +125,38 @@ const authSource = await readFile(join(projectRoot, 'apps', 'sst-controle', 'sup
 if (authSource.includes('select.innerHTML') || authSource.includes('panel.innerHTML')) {
   fail('apps/sst-controle/supabase-auth.js: dados de organização ainda entram por innerHTML.');
 }
+if (!authSource.includes('options: { captchaToken }')) {
+  fail('apps/sst-controle/supabase-auth.js: token do CAPTCHA ausente no login.');
+}
+
+const recoverySource = await readFile(join(projectRoot, 'apps', 'portal-cliente', 'password-recovery.js'), 'utf8');
+if (!recoverySource.includes('resetPasswordForEmail(value, { redirectTo, captchaToken })')) {
+  fail('apps/portal-cliente/password-recovery.js: token do CAPTCHA ausente na recuperação de senha.');
+}
+
+for (const loginPage of [
+  'apps/sst-controle/login.html',
+  'apps/nexus-admin/login.html',
+  'apps/portal-cliente/login.html',
+  'apps/portal-cliente/recuperar-senha.html',
+]) {
+  const source = await readFile(join(projectRoot, loginPage), 'utf8');
+  if (!source.includes('id="nexus-turnstile"') || !source.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')) {
+    fail(`${loginPage}: proteção Turnstile ausente.`);
+  }
+}
 
 const headers = await readFile(join(projectRoot, '_headers'), 'utf8');
 for (const requiredHeader of ['Content-Security-Policy:', 'Strict-Transport-Security:', 'X-Content-Type-Options:']) {
   if (!headers.includes(requiredHeader)) fail(`_headers: cabeçalho ausente: ${requiredHeader}`);
+}
+for (const policy of headers.split(/\r?\n/).filter(line => line.includes('Content-Security-Policy:'))) {
+  if (!/script-src[^;]*https:\/\/challenges\.cloudflare\.com/.test(policy)) {
+    fail('_headers: Turnstile ausente em script-src.');
+  }
+  if (!/frame-src[^;]*https:\/\/challenges\.cloudflare\.com/.test(policy)) {
+    fail('_headers: Turnstile ausente em frame-src.');
+  }
 }
 
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
