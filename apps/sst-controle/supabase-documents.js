@@ -62,6 +62,12 @@
     popup.document.write(html);
     popup.document.close();
     popup.document.title = title;
+    popup.document.querySelectorAll('[data-document-action]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (button.dataset.documentAction === 'print') popup.print();
+        if (button.dataset.documentAction === 'close') popup.close();
+      });
+    });
     return true;
   }
 

@@ -25,6 +25,11 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ 
 const formatDate = (value: string) => { const [year, month, day] = value.slice(0, 10).split('-'); return year && month && day ? `${day}/${month}/${year}` : value; };
 const statusLabel = (status: string) => ({ OVERDUE: 'Vencido', DUE_7: 'Vence em até 7 dias', DUE_15: 'Vence em até 15 dias', DUE_30: 'Vence em até 30 dias' }[status] || 'Prazo próximo');
 
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function normalizeAlerts(input: unknown): Alert[] {
   if (!Array.isArray(input)) return [];
   return input.slice(0, 100).flatMap(raw => {
@@ -72,6 +77,21 @@ Deno.serve(async request => {
 
   const { data: profile, error: profileError } = await userClient.from('profiles').select('organization_id,role,organizations(name)').eq('id', user.id).single();
   if (profileError || !profile?.organization_id || !allowedRoles.has(profile.role)) return json({ error: 'Usuário sem permissão para enviar alertas.' }, 403);
+
+  try {
+    const fingerprint = await sha256Hex(`${profile.organization_id}:${user.id}`);
+    const { data: allowed, error: rateError } = await adminClient.rpc('consume_nexus_public_request_limit', {
+      p_fingerprint_hash: fingerprint,
+      p_action: 'authenticated-alert-email',
+      p_window_seconds: 300,
+      p_limit: 10,
+    });
+    if (rateError) throw rateError;
+    if (allowed !== true) return json({ error: 'Muitas solicitações de e-mail. Aguarde alguns minutos e tente novamente.' }, 429);
+  } catch (error) {
+    console.error(JSON.stringify({ message: 'alert email rate limit unavailable', error: clean(error instanceof Error ? error.message : error, 300) }));
+    return json({ error: 'Serviço temporariamente indisponível.' }, 503);
+  }
 
   const { data: preferences, error: preferencesError } = await userClient.from('notification_email_preferences').select('enabled,recipients,deadline_statuses').eq('organization_id', profile.organization_id).maybeSingle();
   if (preferencesError) return json({ error: 'Não foi possível carregar as preferências.' }, 500);

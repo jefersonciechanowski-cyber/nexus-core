@@ -15,27 +15,28 @@ const publicRoots = [
 const failures = [];
 const inlineHashes = new Set();
 
-async function collectHtml(relativePath) {
+async function collectPublicFiles(relativePath) {
   const absolutePath = join(projectRoot, relativePath);
   const entry = await stat(absolutePath);
-  if (entry.isFile()) return extname(absolutePath) === '.html' ? [absolutePath] : [];
+  if (entry.isFile()) return ['.html', '.js'].includes(extname(absolutePath)) ? [absolutePath] : [];
 
   const files = [];
   for (const child of await readdir(absolutePath, { withFileTypes: true })) {
     const childPath = join(relativePath, child.name);
-    if (child.isDirectory()) files.push(...await collectHtml(childPath));
-    else if (child.isFile() && extname(child.name) === '.html') files.push(join(projectRoot, childPath));
+    if (child.isDirectory()) files.push(...await collectPublicFiles(childPath));
+    else if (child.isFile() && ['.html', '.js'].includes(extname(child.name))) files.push(join(projectRoot, childPath));
   }
   return files;
 }
 
 for (const root of publicRoots) {
-  for (const file of await collectHtml(root)) {
+  for (const file of await collectPublicFiles(root)) {
     const source = await readFile(file, 'utf8');
-    if (/\son[a-z]+\s*=/i.test(source)) {
+    if (/<[^>]*\son[a-z]+\s*=/i.test(source)) {
       failures.push(`${file}: manipulador JavaScript inline detectado.`);
     }
 
+    if (extname(file) !== '.html') continue;
     for (const match of source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
       if (/\bsrc\s*=/i.test(match[1])) continue;
       const digest = createHash('sha256').update(match[2], 'utf8').digest('base64');

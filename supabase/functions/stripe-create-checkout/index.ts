@@ -9,6 +9,11 @@ const json = (request: Request, body: unknown, status = 200) => new Response(JSO
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
 
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function stripeEnvironment(secret: string | undefined) {
   return /^(?:sk|rk)_live_/.test(secret || '') ? 'production' : 'sandbox';
 }
@@ -100,6 +105,21 @@ Deno.serve(async request => {
   if (profileError || !profile?.organization_id) return json(request, { error: 'Perfil sem organização.' }, 403);
   if (!['nexus_admin', 'org_admin'].includes(profile.role)) {
     return json(request, { error: 'Seu perfil não possui permissão para gerar cobranças.' }, 403);
+  }
+
+  try {
+    const fingerprint = await sha256Hex(`${profile.organization_id}:${user.id}`);
+    const { data: allowed, error: rateError } = await adminClient.rpc('consume_nexus_public_request_limit', {
+      p_fingerprint_hash: fingerprint,
+      p_action: 'authenticated-checkout',
+      p_window_seconds: 60,
+      p_limit: 10,
+    });
+    if (rateError) throw rateError;
+    if (allowed !== true) return json(request, { error: 'Muitas tentativas de checkout. Aguarde um minuto e tente novamente.' }, 429);
+  } catch (error) {
+    console.error(JSON.stringify({ message: 'checkout rate limit unavailable', error: clean(error instanceof Error ? error.message : error, 300) }));
+    return json(request, { error: 'Serviço temporariamente indisponível.' }, 503);
   }
 
   const { data: access, error: accessError } = await userClient
