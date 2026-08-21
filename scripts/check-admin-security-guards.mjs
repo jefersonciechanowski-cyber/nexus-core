@@ -16,7 +16,7 @@ const [pilot, ai, stripeWebhook, asaasWebhook, publicSales, migration, headers] 
   read('supabase', 'functions', 'stripe-webhook', 'index.ts'),
   read('supabase', 'functions', 'asaas-webhook', 'index.ts'),
   read('supabase', 'functions', 'nexus-public-sales', 'index.ts'),
-  read('supabase', 'migrations', '20260821_security_wrap_privileged_rpcs_with_admin_mfa.sql'),
+  read('supabase', 'migrations', '20260821133649_security_wrap_privileged_rpcs_with_admin_mfa.sql'),
   read('_headers'),
 ]);
 
