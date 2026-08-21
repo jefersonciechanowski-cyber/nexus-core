@@ -120,14 +120,65 @@ if (finalHardeningMigrations.length !== 1) {
   }
 }
 
+const reportHardeningMigrations = migrationFiles.filter(file => file.endsWith('_security_report_hardening.sql'));
+if (reportHardeningMigrations.length !== 1) {
+  fail('supabase/migrations: migration de hardening do relatório externo ausente ou duplicada.');
+} else {
+  const source = await readFile(reportHardeningMigrations[0], 'utf8');
+  for (const requiredGuard of [
+    'revoke usage on schema public from anon;',
+    'alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;',
+    'alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;',
+    'has_recent_nexus_admin_mfa_session',
+    'nexus_accounts_require_recent_admin_mfa',
+    'nexus_ai_usage_require_recent_admin_mfa',
+    'profiles_require_recent_admin_mfa',
+    'organizations_require_recent_admin_mfa',
+    'drop policy if exists "tenant delete" on public.exam_records;',
+  ]) {
+    if (!source.includes(requiredGuard)) {
+      fail(`migration do relatório externo: proteção ausente: ${requiredGuard}`);
+    }
+  }
+}
+
 const authSource = await readFile(join(projectRoot, 'apps', 'sst-controle', 'supabase-auth.js'), 'utf8');
 if (authSource.includes('select.innerHTML') || authSource.includes('panel.innerHTML')) {
   fail('apps/sst-controle/supabase-auth.js: dados de organização ainda entram por innerHTML.');
 }
 
+for (const passwordPage of [
+  join(projectRoot, 'apps', 'portal-cliente', 'redefinir-senha.html'),
+  join(projectRoot, 'apps', 'sst-controle', 'alterar-senha.html'),
+]) {
+  const source = await readFile(passwordPage, 'utf8');
+  if (!source.includes('minlength="14"') || !/length\s*<\s*14/.test(source)) {
+    fail(`${relative(projectRoot, passwordPage)}: senha mínima de 14 caracteres não está aplicada no formulário e na validação.`);
+  }
+}
+
+const privacySource = await readFile(join(projectRoot, 'apps', 'site-captacao', 'privacidade.html'), 'utf8');
+for (const requiredPrivacySection of ['Bases legais', 'Papéis no tratamento de dados', 'Direitos dos titulares', 'Retenção e eliminação']) {
+  if (!privacySource.includes(requiredPrivacySection)) {
+    fail(`privacidade.html: seção LGPD ausente: ${requiredPrivacySection}.`);
+  }
+}
+
 const headers = await readFile(join(projectRoot, '_headers'), 'utf8');
 for (const requiredHeader of ['Content-Security-Policy:', 'Strict-Transport-Security:', 'X-Content-Type-Options:']) {
   if (!headers.includes(requiredHeader)) fail(`_headers: cabeçalho ausente: ${requiredHeader}`);
+}
+for (const sensitivePath of ['/apps/nexus-admin/*', '/apps/portal-cliente/*', '/apps/sst-controle/login.html', '/apps/sst-controle/alterar-senha.html']) {
+  const start = headers.indexOf(sensitivePath);
+  if (start < 0) {
+    fail(`_headers: regra sensível ausente: ${sensitivePath}`);
+    continue;
+  }
+  const nextSection = headers.indexOf('\n/', start + sensitivePath.length);
+  const block = headers.slice(start, nextSection > start ? nextSection : headers.length);
+  if (!block.includes('Cache-Control: no-store, private')) {
+    fail(`_headers: página sensível sem no-store: ${sensitivePath}`);
+  }
 }
 
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
