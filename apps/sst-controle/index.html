@@ -2517,9 +2517,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderLists() {
    $('unitList').innerHTML = state.units.length ? state.units.map(u => `<li><span><strong>${esc(u.name)}</strong></span></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhuma unidade cadastrada.</span></li>';
     $('sectorList').innerHTML = state.sectors.length ? state.sectors.map(s => `<li><span><strong>${esc(s.name)}</strong></span> <small>${esc(unit(s.unitId)?.name || 'Sem unidade')}</small></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum setor cadastrado.</span></li>';
-    $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" onclick="showEmployeeRequirements('${e.id}')">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
+    $('employeeList').innerHTML = state.employees.length ? state.employees.map(e => { const req=requirementsForEmployee(e); return `<li><span><strong>${esc(e.name)}</strong> — ${esc(e.role)} (${esc(e.shift || 'Turno não inf.')})<small style="display:block;margin-top:4px">${esc(unit(e.unitId)?.name || 'Sem unidade')} / ${esc(sector(e.sectorId)?.name || 'Sem setor')} <span class="role-count">${req.length} requisito(s)</span></small></span><button type="button" class="ghost" data-nexus-action="show-employee-requirements" data-nexus-id="${esc(e.id)}">Ver requisitos</button></li>`; }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
     if(window.NexusExams?.renderExamList) window.NexusExams.renderExamList(); else $('examList').innerHTML = '<li><span style="color:var(--text-muted)">Nenhum exame cadastrado.</span></li>';
-    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong><small>Tipo ativo no Supabase</small></span><button type="button" class="ghost" onclick="deactivateOccurrenceType('${esc(ot.id)}')">Desativar</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
+    $('occurrenceTypeList').innerHTML = state.occurrenceTypes.length ? state.occurrenceTypes.map(ot => `<li><span><strong>${esc(ot.name)}</strong><small>Tipo ativo no Supabase</small></span><button type="button" class="ghost" data-nexus-action="deactivate-occurrence-type" data-nexus-id="${esc(ot.id)}">Desativar</button></li>`).join('') : '<li><span style="color:var(--text-muted)">Nenhum tipo de ocorrência cadastrado.</span></li>';
     
     // Catálogo e estoque calculado pelas compras. O prazo nunca fica no EPI, somente na Matriz.
     $('epiList').innerHTML = state.epis.length ? state.epis.map(e => {
@@ -2559,7 +2559,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : esc(r.desc);
       const action = cancelled
         ? '<span class="badge badge-sem">Histórico preservado</span>'
-        : `<button type="button" class="ghost" onclick="cancelOccurrence('${esc(r.id)}')">Cancelar registro</button>`;
+        : `<button type="button" class="ghost" data-nexus-action="cancel-occurrence" data-nexus-id="${esc(r.id)}">Cancelar registro</button>`;
       return `<tr><td><strong>${esc(r.code || '—')}</strong></td><td>${esc(r.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(un?.name || '—')} / ${esc(sec?.name || '—')}</td><td>${esc(r.type)}</td><td>${riskBadge(r.severity)}</td><td>${details}<div style="margin-top:8px">${riskStatusBadge(r.status)}</div></td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum risco ou incidente registado.</td></tr>`;
   }
@@ -2688,7 +2688,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const responsible = m.technicalResponsible ? `<br><small>Responsável técnico: ${esc(m.technicalResponsible)}</small>` : '';
       const reason = m.returnReason ? `<br><small>Motivo: ${esc(m.returnReason)}</small>` : '';
       const action = m.status === 'Entregue' && m.isActive
-        ? `<button type="button" class="ghost" onclick="prepareEpiClosure('${esc(m.deliveryId)}')">Finalizar uso</button>`
+        ? `<button type="button" class="ghost" data-nexus-action="prepare-epi-closure" data-nexus-id="${esc(m.deliveryId)}">Finalizar uso</button>`
         : '<span style="color:var(--text-muted)">Histórico preservado</span>';
       return `<tr><td>${esc(m.date || '—')}</td><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(e?.name || '—')} (CA: ${esc(e?.code || '—')})</td><td>${epiBadge(m.status, m.isActive)}${responsible}${reason}</td><td>${action}</td></tr>`;
     }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma movimentação de EPI encontrada com os filtros atuais.</td></tr>`;
@@ -2779,7 +2779,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('dashboardTable').innerHTML = visible.length ? visible.sort((a,b) => Number(b.value)-Number(a.value)).map(c => {
       const emp = employee(c.employeeId), sec = sector(emp?.sectorId), ex = exam(c.examId);
-      return `<tr><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(emp?.shift || '—')}</td><td>${esc(emp?.role || '—')}</td><td>${esc(sec?.name || '—')}</td><td>${esc(ex?.name || '—')}</td><td>${esc(c.date || '—')}</td><td>${esc(c.value)}</td><td>${statusBadge(c.status)}</td><td><button type="button" class="ghost" onclick="showHistory('${esc(c.employeeId)}')">Histórico</button></td></tr>`;
+      return `<tr><td><strong>${esc(emp?.name || '')}</strong></td><td>${esc(emp?.shift || '—')}</td><td>${esc(emp?.role || '—')}</td><td>${esc(sec?.name || '—')}</td><td>${esc(ex?.name || '—')}</td><td>${esc(c.date || '—')}</td><td>${esc(c.value)}</td><td>${statusBadge(c.status)}</td><td><button type="button" class="ghost" data-nexus-action="show-history" data-nexus-id="${esc(c.employeeId)}">Histórico</button></td></tr>`;
     }).join('') : `<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum resultado correspondente aos filtros.</td></tr>`;
   }
 
@@ -2822,7 +2822,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitId=$('trainingUnit').value,sectorId=$('trainingSector').value,typeId=$('trainingFilterType').value,status=$('trainingStatus').value,q=$('trainingSearch').value.toLowerCase();
     let rows=requiredTrainingRows().filter(r=>(!unitId||String(r.employee?.unitId)===unitId)&&(!sectorId||String(r.employee?.sectorId)===sectorId)&&(!typeId||String(r.rule.itemId)===typeId)&&(!status||r.status===status)&&(!q||[r.employee?.name,r.rule.itemName].join(' ').toLowerCase().includes(q)));
     $('trainingKpiGood').textContent=rows.filter(r=>r.status==='BOM').length;$('trainingKpiAttention').textContent=rows.filter(r=>r.status==='ATENÇÃO').length;$('trainingKpiCritical').textContent=rows.filter(r=>r.status==='CRÍTICO'&&!r.missing).length;$('trainingKpiMissing').textContent=rows.filter(r=>r.missing).length;$('trainingCount').textContent=`${rows.length} requisito(s) encontrado(s)`;
-    $('trainingTable').innerHTML=rows.length?rows.map(r=>{const certificateAvailable=window.NexusTrainingRecords?.certificateReady?.(r.record);return `<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td><strong>${esc(r.rule.itemName)}</strong>${r.record?.code?`<br><small>${esc(r.record.code)}</small>`:''}</td><td>${esc(r.record?.date||'Não realizado')}${r.record?.instructor?`<br><small>${esc(r.record.instructor)}</small>`:''}</td><td>${esc(r.record?.due||'—')}</td><td>${r.record?.certificate?`Externo: ${esc(r.record.certificate)}`:(r.record?(certificateAvailable?'Disponível na emissão Nexus':'Dados documentais pendentes'):'Não emitido')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`${certificateAvailable?`<button type="button" class="ghost" onclick="window.NexusDocuments?.printTrainingCertificate('${r.record.id}')">Emitir certificado</button> `:''}<button type="button" class="ghost" onclick="cancelTrainingRecord('${r.record.id}')">Cancelar registro</button>`:'—'}</td></tr>`;}).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
+    $('trainingTable').innerHTML=rows.length?rows.map(r=>{const certificateAvailable=window.NexusTrainingRecords?.certificateReady?.(r.record);return `<tr><td><strong>${esc(r.employee?.name||'')}</strong></td><td>${esc(unit(r.employee?.unitId)?.name||'—')} / ${esc(sector(r.employee?.sectorId)?.name||'—')}</td><td><strong>${esc(r.rule.itemName)}</strong>${r.record?.code?`<br><small>${esc(r.record.code)}</small>`:''}</td><td>${esc(r.record?.date||'Não realizado')}${r.record?.instructor?`<br><small>${esc(r.record.instructor)}</small>`:''}</td><td>${esc(r.record?.due||'—')}</td><td>${r.record?.certificate?`Externo: ${esc(r.record.certificate)}`:(r.record?(certificateAvailable?'Disponível na emissão Nexus':'Dados documentais pendentes'):'Não emitido')}</td><td>${statusBadge(r.status)}</td><td>${r.record?`${certificateAvailable?`<button type="button" class="ghost" data-nexus-action="print-training-certificate" data-nexus-id="${esc(r.record.id)}">Emitir certificado</button> `:''}<button type="button" class="ghost" data-nexus-action="cancel-training-record" data-nexus-id="${esc(r.record.id)}">Cancelar registro</button>`:'—'}</td></tr>`;}).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum treinamento encontrado.</td></tr>`;
   }
   function updateMatrixItems() {
     const type=$('matrixType').value,select=$('matrixItem'),custom=$('matrixCustomItem');
@@ -2834,10 +2834,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitId=$('matrixFilterUnit').value,sectorId=$('matrixFilterSector').value,type=$('matrixFilterType').value,jobRoleId=$('matrixFilterRole').value;
     const rows=validMatrixRules().filter(r=>(!unitId||String(r.unitId)===unitId)&&(!sectorId||String(r.sectorId)===sectorId)&&(!type||r.type===type)&&(!jobRoleId||String(r.jobRoleId)===jobRoleId));
     $('matrixCount').textContent=`${rows.length} regra(s)`;
-    $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(jobRole(r.jobRoleId)?.name||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" onclick="deleteMatrixRule('${r.id}')">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
+    $('matrixTable').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(unit(r.unitId)?.name||'Todas')}</td><td>${esc(sector(r.sectorId)?.name||'Todos')}</td><td>${esc(jobRole(r.jobRoleId)?.name||'Todas')}</td><td><span class="badge badge-primary">${esc(r.type)}</span></td><td><strong>${esc(r.itemName)}</strong></td><td>${esc(r.validity)} dias</td><td>${esc(r.effective||'Imediata')}</td><td><button type="button" class="ghost" data-nexus-action="delete-matrix-rule" data-nexus-id="${esc(r.id)}">Excluir</button></td></tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma regra encontrada.</td></tr>`;
   }
   window.cancelTrainingRecord=id=>window.NexusTrainingRecords?.cancelRecord?.(id);
   window.deleteMatrixRule=id=>window.NexusControlMatrix?.deactivateRule?.(id);
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = target?.closest('[data-nexus-action]');
+    if (!button) return;
+    const id = button.dataset.nexusId;
+    const actions = {
+      'show-employee-requirements': () => window.showEmployeeRequirements?.(id),
+      'deactivate-occurrence-type': () => window.deactivateOccurrenceType?.(id),
+      'cancel-occurrence': () => window.cancelOccurrence?.(id),
+      'prepare-epi-closure': () => window.prepareEpiClosure?.(id),
+      'show-history': () => window.showHistory?.(id),
+      'print-training-certificate': () => window.NexusDocuments?.printTrainingCertificate?.(id),
+      'cancel-training-record': () => window.cancelTrainingRecord?.(id),
+      'delete-matrix-rule': () => window.deleteMatrixRule?.(id)
+    };
+    actions[button.dataset.nexusAction]?.();
+  });
   $('trainingRecordForm').onsubmit=e=>{e.preventDefault();alert('Aguarde o carregamento dos treinamentos no Supabase.');};
   $('trainingEmployee').onchange=populateTrainingOptions; $('trainingType').onchange=updateTrainingDuePreview; $('trainingDate').onchange=updateTrainingDuePreview;
   $('epiMoveEmp').onchange=populateEpiMoveOptions;
