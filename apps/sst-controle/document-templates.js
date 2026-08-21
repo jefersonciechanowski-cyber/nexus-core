@@ -92,7 +92,7 @@
     return `<!doctype html>
       <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>${commonStyles(landscape)}</style></head>
       <body>
-        <div class="print-toolbar"><button type="button" onclick="window.print()">Salvar ou imprimir PDF</button><button type="button" class="secondary" onclick="window.close()">Fechar</button></div>
+        <div class="print-toolbar"><button type="button" data-document-action="print">Salvar ou imprimir PDF</button><button type="button" class="secondary" data-document-action="close">Fechar</button></div>
         <main class="document">
           <header class="document-header">
             <div class="company-brand">${logoMarkup(company?.logoUrl, companyName, 'company-logo')}</div>
@@ -147,7 +147,7 @@
       @media print { .certificate { width:297mm; min-height:210mm; margin:0; box-shadow:none; } }
     `;
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(data.documentCode)}</title><style>${certStyles}</style></head><body>
-      <div class="print-toolbar"><button type="button" onclick="window.print()">Salvar ou imprimir certificado</button><button type="button" class="secondary" onclick="window.close()">Fechar</button></div>
+      <div class="print-toolbar"><button type="button" data-document-action="print">Salvar ou imprimir certificado</button><button type="button" class="secondary" data-document-action="close">Fechar</button></div>
       <main class="certificate"><div class="certificate-frame"><div class="certificate-inner">
         <div class="certificate-brands"><div>${logoMarkup(company.logoUrl, companyName, 'company-logo')}</div><div class="header-divider"></div><div>${logoMarkup(data.nexusLogoUrl, 'Nexus Core - SST Controle', 'nexus-logo')}</div></div>
         <div class="certificate-label">Certificado de capacitação em saúde e segurança do trabalho</div>
