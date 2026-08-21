@@ -379,6 +379,7 @@
 
   function loadAdminPilotModule() {
     if (!location.pathname.includes('/apps/nexus-admin/')) return;
+    if (/\/apps\/nexus-admin\/login(?:\.html)?\/?$/.test(location.pathname)) return;
     if (document.querySelector('script[data-nexus-pilot-admin]')) return;
     const script = document.createElement('script');
     script.src = 'pilot.js';
