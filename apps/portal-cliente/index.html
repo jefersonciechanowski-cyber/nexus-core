@@ -47,7 +47,7 @@
     async function createCheckout(accessId,button){button.disabled=true;const original=button.textContent;button.textContent='Gerando checkout...';try{const client=window.NexusAuth.getClient();const{data,error}=await client.functions.invoke('stripe-create-checkout',{body:{accessId}});if(error)throw error;if(!data?.link)throw new Error(data?.error||'A Stripe não retornou o link do checkout.');location.href=data.link;}catch(error){alert(await checkoutErrorMessage(error));button.disabled=false;button.textContent=original;}}
     function billingAction(r,hasCommercialPlan,prepaid,needsRegularization,needsBilling){
       const salesUrl=r.product?.sales_url||'';
-      if(isPilot(r))return salesUrl?`<button class="payment" type="button" data-sales-url="${esc(salesUrl)}">Assinar plano e manter meus dados</button>`:'<button class="payment" type="button" disabled>Contratação em preparação</button>';
+      if(isPilot(r))return'<button class="payment" type="button" data-pilot-upgrade>Assinar plano e manter meus dados</button>';
       if(prepaid){
         if(!expiredPrepaid(r))return'<button class="payment" type="button" disabled>Anual pago à vista</button>';
         return r.product?.sales_enabled&&salesUrl?`<button class="payment" type="button" data-sales-url="${esc(salesUrl)}">Renovar plano anual</button>`:'<button class="payment" type="button" disabled>Renovação em preparação</button>';
@@ -83,6 +83,7 @@
         }).join(''):'<div class="empty">Nenhum sistema está liberado para esta empresa.</div>';
         appsElement.querySelectorAll('.access[data-path]').forEach(button=>button.onclick=()=>{if(!button.disabled&&button.dataset.path)location.href=button.dataset.path;});
         appsElement.querySelectorAll('[data-checkout]').forEach(button=>button.onclick=()=>createCheckout(button.dataset.checkout,button));
+        appsElement.querySelectorAll('[data-pilot-upgrade]').forEach(button=>button.onclick=()=>location.href='../site-captacao/?upgrade=pilot#planos');
         appsElement.querySelectorAll('[data-sales-url]').forEach(button=>button.onclick=()=>{if(button.dataset.salesUrl)location.href=button.dataset.salesUrl;});
       }catch(e){appsElement.innerHTML=`<div class="error">${esc(e.message||'Não foi possível carregar seus sistemas.')}</div>`;}
     }
