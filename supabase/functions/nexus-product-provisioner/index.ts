@@ -69,6 +69,17 @@ async function ownerContext(admin: any, organizationId: string) {
   };
 }
 
+async function completeJob(admin: any, jobId: string, attempts: number) {
+  const now = new Date().toISOString();
+  await admin.from('nexus_product_provisioning_jobs').update({
+    job_status: 'succeeded',
+    attempts,
+    last_error: null,
+    processed_at: now,
+    updated_at: now,
+  }).eq('id', jobId);
+}
+
 async function processJob(admin: any, job: any) {
   const attempts = Number(job.attempts || 0) + 1;
   const now = new Date().toISOString();
@@ -78,7 +89,7 @@ async function processJob(admin: any, job: any) {
     .select(`
       id,organization_id,product_id,plan_id,access_status,subscription_status,
       contracted_price_cents,contracted_currency,billing_mode,billing_cycle_months,
-      starts_at,renews_at,external_tenant_id,
+      starts_at,renews_at,external_tenant_id,external_launch_url,provisioned_at,
       organization:organizations(id,name,legal_name,trade_name,registration_number,email,phone),
       product:nexus_products(id,code,name,launch_url,provisioning_mode,status),
       plan:nexus_plans(id,code,name,seat_limit,status)
@@ -93,13 +104,7 @@ async function processJob(admin: any, job: any) {
   const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
 
   if (!product?.code || product.provisioning_mode !== 'external') {
-    await admin.from('nexus_product_provisioning_jobs').update({
-      job_status: 'succeeded',
-      attempts,
-      last_error: null,
-      processed_at: now,
-      updated_at: now,
-    }).eq('id', job.id);
+    await completeJob(admin, job.id, attempts);
     await admin.from('organization_product_access').update({
       provisioning_status: 'not_required',
       provisioning_error: null,
@@ -108,10 +113,18 @@ async function processJob(admin: any, job: any) {
     return { jobId: job.id, accessId: access.id, status: 'not_required' };
   }
 
-  if (product.status !== 'active' || access.access_status !== 'active' || !['active','trial','legacy'].includes(access.subscription_status)) {
-    throw new Error('Acesso externo ainda não está comercialmente ativo.');
+  if (product.status !== 'active') throw new Error('Produto Nexus está inativo.');
+  if (!plan?.id || plan.status !== 'active') throw new Error('Plano comercial inválido para sincronização.');
+
+  const entitled = access.access_status === 'active'
+    && ['active','trial','legacy'].includes(access.subscription_status);
+
+  // Não existe tenant e o acesso já não é elegível. Não há produto externo para
+  // suspender; o job pode ser encerrado sem criar um ambiente desnecessário.
+  if (!access.external_tenant_id && !entitled) {
+    await completeJob(admin, job.id, attempts);
+    return { jobId: job.id, accessId: access.id, status: 'skipped_not_entitled' };
   }
-  if (!plan?.id || plan.status !== 'active') throw new Error('Plano comercial inválido para provisionamento.');
 
   const integration = integrationForProduct(product.code);
   if (!integration.endpoint || !integration.secret) {
@@ -119,10 +132,20 @@ async function processJob(admin: any, job: any) {
   }
 
   const owner = await ownerContext(admin, access.organization_id);
+  const event = entitled
+    ? (access.external_tenant_id ? 'nexus.subscription.updated' : 'nexus.subscription.active')
+    : 'nexus.subscription.suspended';
+
   const payload = {
-    event: 'nexus.subscription.active',
+    event,
     idempotencyKey: access.id,
     accessId: access.id,
+    externalTenantId: access.external_tenant_id || null,
+    entitlement: {
+      allowed: entitled,
+      accessStatus: access.access_status,
+      subscriptionStatus: access.subscription_status,
+    },
     organization: {
       centralId: access.organization_id,
       name: clean(organization?.name || organization?.trade_name || organization?.legal_name, 160),
@@ -172,8 +195,8 @@ async function processJob(admin: any, job: any) {
     throw new Error(clean(result.error || result.message || `Provisionamento respondeu HTTP ${response.status}.`, 700));
   }
 
-  const tenantId = clean(result.tenantId || result.tenant_id, 300);
-  const launchUrl = clean(result.launchUrl || result.launch_url || product.launch_url, 1000);
+  const tenantId = clean(result.tenantId || result.tenant_id || access.external_tenant_id, 300);
+  const launchUrl = clean(result.launchUrl || result.launch_url || access.external_launch_url || product.launch_url, 1000);
   if (!tenantId) throw new Error('Produto externo não retornou tenantId.');
   if (launchUrl && !/^https:\/\//i.test(launchUrl)) throw new Error('Produto externo retornou launchUrl inválida.');
 
@@ -181,35 +204,37 @@ async function processJob(admin: any, job: any) {
     provisioning_status: 'provisioned',
     external_tenant_id: tenantId,
     external_launch_url: launchUrl || null,
-    provisioned_at: now,
+    provisioned_at: access.provisioned_at || now,
     provisioning_error: null,
     updated_at: now,
   }).eq('id', access.id);
   if (accessUpdateError) throw accessUpdateError;
 
-  await admin.from('nexus_product_provisioning_jobs').update({
-    job_status: 'succeeded',
-    attempts,
-    last_error: null,
-    processed_at: now,
-    updated_at: now,
-  }).eq('id', job.id);
+  await completeJob(admin, job.id, attempts);
 
   await admin.from('audit_logs').insert({
     organization_id: access.organization_id,
     user_id: owner.id,
-    action: 'NEXUS_EXTERNAL_PRODUCT_PROVISIONED',
+    action: entitled ? 'NEXUS_EXTERNAL_PRODUCT_SYNCED' : 'NEXUS_EXTERNAL_PRODUCT_SUSPENDED',
     entity: 'organization_product_access',
     entity_id: access.id,
     metadata: {
+      event,
       product_code: product.code,
       plan_code: plan.code,
       external_tenant_id: tenantId,
+      entitlement_allowed: entitled,
       job_id: job.id,
     },
   });
 
-  return { jobId: job.id, accessId: access.id, product: product.code, tenantId, status: 'provisioned' };
+  return {
+    jobId: job.id,
+    accessId: access.id,
+    product: product.code,
+    tenantId,
+    status: entitled ? 'synchronized_active' : 'synchronized_suspended',
+  };
 }
 
 Deno.serve(async request => {
