@@ -41,8 +41,8 @@ alter table public.nexus_sales
   add column if not exists seat_count integer
     check (seat_count is null or seat_count >= 0);
 
--- Estado de provisionamento de produtos externos. A assinatura comercial e o
--- tenant operacional permanecem desacoplados e auditáveis.
+-- Estado do tenant operacional de produtos externos. A assinatura comercial e
+-- o tenant permanecem desacoplados e auditáveis pela Central Nexus.
 alter table public.organization_product_access
   add column if not exists provisioning_status text not null default 'not_required',
   add column if not exists external_tenant_id text,
@@ -124,6 +124,9 @@ grant update (
   updated_at
 ) on public.organization_product_access to service_role;
 
+-- Enfileira criação do tenant e também sincronizações posteriores de direito de
+-- acesso. Mudanças sem efeito comercial são ignoradas para evitar jobs repetidos
+-- em webhooks que apenas regravam o mesmo estado.
 create or replace function public.queue_external_product_provisioning()
 returns trigger
 language plpgsql
@@ -132,7 +135,16 @@ set search_path = public
 as $$
 declare
   v_mode text;
+  v_commercially_active boolean;
 begin
+  if tg_op = 'UPDATE'
+     and old.product_id is not distinct from new.product_id
+     and old.plan_id is not distinct from new.plan_id
+     and old.access_status is not distinct from new.access_status
+     and old.subscription_status is not distinct from new.subscription_status then
+    return new;
+  end if;
+
   select provisioning_mode into v_mode
   from public.nexus_products
   where id = new.product_id;
@@ -148,25 +160,33 @@ begin
     return new;
   end if;
 
-  if new.access_status = 'active'
-     and new.subscription_status in ('active','trial','legacy') then
+  v_commercially_active := new.access_status = 'active'
+    and new.subscription_status in ('active','trial','legacy');
+
+  -- Um tenant que ainda não existe só é criado quando a assinatura permite
+  -- acesso. Depois de criado, qualquer alteração comercial volta para a fila
+  -- para que o CRM possa ativar, suspender ou atualizar o plano.
+  if v_commercially_active or new.external_tenant_id is not null then
     insert into public.nexus_product_provisioning_jobs (
-      access_id, product_id, organization_id, job_status, next_attempt_at, updated_at
+      access_id, product_id, organization_id, job_status, attempts,
+      last_error, next_attempt_at, processed_at, updated_at
     ) values (
-      new.id, new.product_id, new.organization_id, 'pending', now(), now()
+      new.id, new.product_id, new.organization_id, 'pending', 0,
+      null, now(), null, now()
     )
     on conflict (access_id) do update set
       product_id = excluded.product_id,
       organization_id = excluded.organization_id,
-      job_status = case
-        when public.nexus_product_provisioning_jobs.job_status = 'succeeded'
-          then public.nexus_product_provisioning_jobs.job_status
-        else 'pending'
-      end,
+      job_status = 'pending',
+      attempts = 0,
+      last_error = null,
       next_attempt_at = now(),
+      processed_at = null,
       updated_at = now();
 
-    if new.provisioning_status not in ('provisioned','pending') then
+    if v_commercially_active
+       and new.external_tenant_id is null
+       and new.provisioning_status <> 'pending' then
       update public.organization_product_access
       set provisioning_status = 'pending',
           provisioning_error = null,
@@ -185,7 +205,7 @@ grant execute on function public.queue_external_product_provisioning() to servic
 drop trigger if exists trg_queue_external_product_provisioning
   on public.organization_product_access;
 create trigger trg_queue_external_product_provisioning
-after insert or update of access_status, subscription_status, product_id
+after insert or update of access_status, subscription_status, product_id, plan_id
 on public.organization_product_access
 for each row execute function public.queue_external_product_provisioning();
 
@@ -277,10 +297,10 @@ comment on column public.nexus_products.launch_url is
 comment on column public.nexus_products.sales_enabled is
   'Chave de segurança comercial. Checkout público só deve ser habilitado após publicação e provisionamento estarem operacionais.';
 comment on column public.nexus_products.provisioning_mode is
-  'core usa o ambiente operacional do próprio Nexus Core; external exige criação de tenant em outro produto.';
+  'core usa o ambiente operacional do próprio Nexus Core; external exige criação e sincronização de tenant em outro produto.';
 comment on column public.nexus_plans.seat_limit is
   'Quantidade de usuários/licenças incluídas no plano para produtos com cobrança por equipe.';
 comment on table public.nexus_product_provisioning_jobs is
-  'Fila idempotente para provisionamento de tenants em produtos Nexus hospedados externamente.';
+  'Fila idempotente para criação e sincronização de tenants em produtos Nexus hospedados externamente.';
 
 commit;
