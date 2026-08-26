@@ -11,16 +11,17 @@ function retryAt(attempts: number) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
 }
 
+function safeEqual(left: string, right: string) {
+  if (!left || left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
+}
+
 async function isAuthorized(admin: any, request: Request) {
   const workerToken = clean(Deno.env.get('NEXUS_PROVISIONER_TOKEN'), 1000);
   const suppliedWorkerToken = clean(request.headers.get('x-nexus-provisioner-token'), 1000);
-  if (workerToken && suppliedWorkerToken && crypto.timingSafeEqual) {
-    const a = new TextEncoder().encode(workerToken);
-    const b = new TextEncoder().encode(suppliedWorkerToken);
-    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
-  } else if (workerToken && suppliedWorkerToken === workerToken) {
-    return true;
-  }
+  if (workerToken && safeEqual(workerToken, suppliedWorkerToken)) return true;
 
   const authorization = clean(request.headers.get('authorization'), 4096);
   const match = authorization.match(/^Bearer\s+(.+)$/i);
