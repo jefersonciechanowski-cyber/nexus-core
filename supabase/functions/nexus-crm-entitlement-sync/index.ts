@@ -237,11 +237,12 @@ Deno.serve(async request => {
     return json({ error: 'Não foi possível comunicar com o Nexus CRM.' }, 502);
   }
 
+  const crmText = await crmResponse.text();
   let crmPayload: unknown = null;
   try {
-    crmPayload = await crmResponse.json();
+    crmPayload = crmText ? JSON.parse(crmText) : null;
   } catch {
-    crmPayload = { raw: clean(await crmResponse.text(), 800) };
+    crmPayload = { raw: clean(crmText, 800) };
   }
 
   if (!crmResponse.ok) {
