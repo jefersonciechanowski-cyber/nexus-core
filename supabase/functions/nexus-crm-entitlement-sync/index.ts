@@ -95,6 +95,7 @@ Deno.serve(async request => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const crmEndpoint = clean(Deno.env.get('NEXUS_CRM_ENTITLEMENT_URL'), 1000);
   const webhookSecret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
+  const vercelBypassSecret = clean(Deno.env.get('VERCEL_AUTOMATION_BYPASS_SECRET'), 1000);
   const authorization = request.headers.get('Authorization');
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) {
@@ -222,14 +223,19 @@ Deno.serve(async request => {
   const rawBody = JSON.stringify(payload);
   const signature = await hmacHex(webhookSecret, rawBody);
 
+  const outboundHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-nexus-signature': `sha256=${signature}`,
+  };
+  if (vercelBypassSecret) {
+    outboundHeaders['x-vercel-protection-bypass'] = vercelBypassSecret;
+  }
+
   let crmResponse: Response;
   try {
     crmResponse = await fetch(crmEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-nexus-signature': `sha256=${signature}`,
-      },
+      headers: outboundHeaders,
       body: rawBody,
     });
   } catch (error) {
