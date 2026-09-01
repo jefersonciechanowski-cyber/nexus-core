@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
+import { provisionCrmTenant, sendCrmAccessEmail } from '../_shared/crm-provisioning.ts';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -460,6 +461,12 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
     }
   }
 
+  const crmProvision = await provisionCrmTenant(admin, sale, access);
+  if (crmProvision.isCrm && crmProvision.error) {
+    await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: crmProvision.error }).eq('id', sale.id);
+    return { access: null, error: crmProvision.error };
+  }
+
   if (sale.provider_checkout_id) {
     const { data: existingCheckout } = await admin.from('nexus_payment_checkouts').select('id').eq('provider', 'stripe').eq('provider_checkout_id', sale.provider_checkout_id).maybeSingle();
     if (!existingCheckout?.id) {
@@ -498,7 +505,9 @@ async function provisionSale(admin: any, saleInput: any, context: { customerId?:
   sale.organization_id = organizationId;
   sale.user_id = userId;
   await admin.from('audit_logs').insert({ organization_id: organizationId, user_id: userId, action: 'NEXUS_SALE_PROVISIONED', entity: 'nexus_sales', entity_id: sale.id, metadata: { plan_id: plan.id, product_id: plan.product_id, provider: 'stripe', billing_mode: billingMode, billing_cycle_months: billingCycleMonths } });
-  if (pilotConversion) {
+  if (crmProvision.isCrm) {
+    await sendCrmAccessEmail(admin, sale, plan, crmProvision.firstAccessUrl);
+  } else if (pilotConversion) {
     const { data: previousConversion } = await admin.from('audit_logs')
       .select('id')
       .eq('action', 'NEXUS_PILOT_CONVERTED')
