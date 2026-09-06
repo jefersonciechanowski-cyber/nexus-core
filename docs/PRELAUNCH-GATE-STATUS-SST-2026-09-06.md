@@ -15,7 +15,7 @@ Branch de trabalho: `security/prelaunch-gate-v2`
 | 6 | Backup + restauração | P0 | PENDENTE — executar restauração em ambiente isolado |
 | 7 | E-mail transacional | P0 | PARCIAL — fluxos existem; falta teste final com remetente/domínio de produção |
 | 8 | Search Console/sitemap/robots | P1 | PARCIAL — sitemap/robots existem; confirmar Search Console e noindex privado |
-| 9 | Analytics 3 eventos | P1 | PARCIAL — Pixel com consentimento existe; validar Lead/InitiateCheckout/Purchase |
+| 9 | Analytics 3 eventos | P1 | PARCIAL — `Lead` e `InitiateCheckout` já existem após sucesso real; falta validar/implementar `Purchase` a partir de confirmação confiável do backend/webhook |
 | 10 | Open Graph | P1 | BOM — OG/Twitter/canonical estruturados no site público |
 | 11 | Celular real | P1 | PENDENTE — teste formal iPhone + Android + conexão degradada |
 | 12 | llms.txt | P2 | IMPLEMENTADO nesta branch |
