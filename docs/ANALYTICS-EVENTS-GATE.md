@@ -3,6 +3,11 @@
 ## Objetivo
 Medir somente ações comerciais que apoiam decisões, sem enviar dados pessoais sensíveis para plataformas de marketing.
 
+## Estado atual do Nexus SST em 06/09/2026
+- `Lead`: já implementado após o backend aceitar a solicitação de demonstração;
+- `InitiateCheckout`: já implementado somente depois que o backend retorna um link de checkout válido;
+- `Purchase`: ainda precisa ser validado/implementado a partir de confirmação confiável do backend/webhook, nunca apenas por redirecionamento do navegador.
+
 ## Eventos mínimos
 
 ### 1. Lead
@@ -15,7 +20,7 @@ Não enviar:
 - conteúdo livre de formulários.
 
 ### 2. InitiateCheckout
-Disparar quando o usuário realmente iniciar a jornada de checkout para um plano selecionado.
+Disparar quando o backend confirmar que a jornada de checkout foi criada e retornar um link válido para o usuário.
 
 Parâmetros permitidos devem ser mínimos, por exemplo:
 - identificador público do plano;
