@@ -10,6 +10,7 @@
     director: 'Diretor',
     viewer: 'Visualizador'
   };
+  const ADMIN_MFA_MAX_AGE_SECONDS = 7200;
 
   let client = null;
 
@@ -35,6 +36,37 @@
       });
     }
     return client;
+  }
+
+  function isCentralNexusAdminPage() {
+    return window.location.pathname.includes('/apps/nexus-admin/')
+      && !/\/apps\/nexus-admin\/login(?:\.html)?\/?$/.test(window.location.pathname);
+  }
+
+  function hasRecentTotp(methods) {
+    const cutoff = Math.floor(Date.now() / 1000) - ADMIN_MFA_MAX_AGE_SECONDS;
+    return (methods || []).some(item => item?.method === 'totp' && Number(item.timestamp) >= cutoff);
+  }
+
+  async function enforceAdminMfaSession(session) {
+    if (!isCentralNexusAdminPage() || session?.role !== 'nexus_admin') return session;
+    const supabaseClient = getClient();
+    let marker = null;
+    try { marker = JSON.parse(sessionStorage.getItem('nexus_admin_mfa_session') || 'null'); } catch {}
+    const { data, error } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+    const markerFresh = marker?.userId === session.userId
+      && Date.now() - Number(marker.verifiedAt || 0) <= ADMIN_MFA_MAX_AGE_SECONDS * 1000;
+    const valid = !error
+      && data?.currentLevel === 'aal2'
+      && hasRecentTotp(data.currentAuthenticationMethods)
+      && markerFresh;
+    if (valid) return session;
+
+    sessionStorage.removeItem('nexus_admin_mfa_session');
+    sessionStorage.removeItem('nexus_demo_session');
+    await supabaseClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    window.location.replace('login.html?reason=mfa');
+    throw new Error('Verificação administrativa em duas etapas obrigatória.');
   }
 
   async function ensureSstEntitlement(profile) {
@@ -138,12 +170,14 @@
       sessionStorage.removeItem('nexus_demo_session');
       return null;
     }
-    return loadProfile(data.user);
+    const session = await loadProfile(data.user);
+    return enforceAdminMfaSession(session);
   }
 
   async function logout() {
     const supabaseClient = getClient();
     sessionStorage.removeItem('nexus_demo_session');
+    sessionStorage.removeItem('nexus_admin_mfa_session');
     await supabaseClient.auth.signOut({ scope: 'local' });
   }
 
@@ -406,6 +440,7 @@
     logout,
     restoreSession,
     getClient,
+    enforceAdminMfaSession,
     listOrganizations,
     getAccountSummary,
     switchOrganization,
