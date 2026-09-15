@@ -49,6 +49,16 @@ function slugify(value: string) {
     .slice(0, 48) || 'cliente';
 }
 
+function addUtcMonths(start: Date, months: number) {
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth();
+  const day = start.getUTCDate();
+  const targetMonthStart = new Date(Date.UTC(year, month + months, 1));
+  const lastTargetDay = new Date(Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth() + 1, 0)).getUTCDate();
+  targetMonthStart.setUTCDate(Math.min(day, lastTargetDay));
+  return targetMonthStart.toISOString().slice(0, 10);
+}
+
 Deno.serve(async request => {
   const origin = allowedOrigin(request);
   const corsOrigin = origin || 'https://central.nexuscore.app.br';
@@ -104,11 +114,18 @@ Deno.serve(async request => {
   const responsibleName = clean(body.responsibleName, 160).replace(/\s+/g, ' ');
   const email = clean(body.email, 254).toLowerCase();
   const planId = clean(body.planId, 80);
+  const durationMonths = Number(body.durationMonths ?? 3);
 
   if (companyName.length < 2) return json({ error: 'Informe o nome da empresa.' }, 400);
   if (responsibleName.length < 2) return json({ error: 'Informe o responsável.' }, 400);
   if (!validEmail(email)) return json({ error: 'Informe um e-mail válido.' }, 400);
   if (!isUuid(planId)) return json({ error: 'Plano inválido.' }, 400);
+  if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 24) {
+    return json({ error: 'O prazo da cortesia deve ficar entre 1 e 24 meses.' }, 400);
+  }
+
+  const courtesyStartedAt = new Date().toISOString().slice(0, 10);
+  const courtesyEndsAt = addUtcMonths(new Date(`${courtesyStartedAt}T12:00:00Z`), durationMonths);
 
   const { data: plan, error: planError } = await admin
     .from('nexus_plans')
@@ -132,9 +149,6 @@ Deno.serve(async request => {
     return json({ error: 'O plano do CRM possui limite de usuários inválido.' }, 409);
   }
 
-  // Reuse the Central organization when the same customer already exists (for
-  // example, an SST customer receiving CRM courtesy). Ambiguous duplicate
-  // organizations with the same e-mail are never guessed automatically.
   const { data: emailOrganizations, error: organizationsError } = await admin
     .from('organizations')
     .select('id,name,email,status')
@@ -191,8 +205,8 @@ Deno.serve(async request => {
         access_status: 'active',
         subscription_status: 'active',
         plan_name: `${plan.name} · Cortesia`,
-        starts_at: new Date().toISOString().slice(0, 10),
-        renews_at: null,
+        starts_at: courtesyStartedAt,
+        renews_at: courtesyEndsAt,
         plan_id: plan.id,
         contracted_price_cents: 0,
         contracted_currency: String(plan.currency || 'BRL'),
@@ -200,7 +214,7 @@ Deno.serve(async request => {
         provider_customer_id: null,
         provider_subscription_id: null,
         billing_mode: 'prepaid',
-        billing_cycle_months: Number(plan.billing_interval_months || 1),
+        billing_cycle_months: durationMonths,
         commercial_condition: 'courtesy',
         base_user_limit_override: includedUsers,
         additional_users: 0,
@@ -217,8 +231,6 @@ Deno.serve(async request => {
     }
     access = insertedAccess;
   } else {
-    // A failed previous provisioning attempt may be retried with the same
-    // Central company/contract IDs. Do not create a second contract or tenant.
     if (access.external_tenant_id) {
       return json({
         ok: true,
@@ -227,6 +239,7 @@ Deno.serve(async request => {
         accessId: access.id,
         crmOrganizationId: access.external_tenant_id,
         firstAccessUrl: null,
+        courtesyEndsAt,
         message: 'Esta cortesia já está provisionada. Para um novo link de acesso, use a recuperação de senha do CRM.',
       });
     }
@@ -238,13 +251,15 @@ Deno.serve(async request => {
         plan_name: `${plan.name} · Cortesia`,
         access_status: 'active',
         subscription_status: 'active',
+        starts_at: courtesyStartedAt,
+        renews_at: courtesyEndsAt,
         contracted_price_cents: 0,
         contracted_currency: String(plan.currency || 'BRL'),
         billing_provider: null,
         provider_customer_id: null,
         provider_subscription_id: null,
         billing_mode: 'prepaid',
-        billing_cycle_months: Number(plan.billing_interval_months || 1),
+        billing_cycle_months: durationMonths,
         commercial_condition: 'courtesy',
         base_user_limit_override: includedUsers,
         additional_users: 0,
@@ -277,6 +292,8 @@ Deno.serve(async request => {
       metadata: {
         email,
         plan_id: plan.id,
+        duration_months: durationMonths,
+        courtesy_ends_at: courtesyEndsAt,
         error: clean(provisioned.error || 'CRM não confirmou o provisionamento.', 700),
         retry_safe: true,
       },
@@ -301,6 +318,8 @@ Deno.serve(async request => {
       crm_organization_id: provisioned.crmOrganizationId,
       price_cents: 0,
       commercial_condition: 'courtesy',
+      duration_months: durationMonths,
+      courtesy_ends_at: courtesyEndsAt,
     },
   });
 
@@ -312,8 +331,10 @@ Deno.serve(async request => {
     firstAccessUrl: provisioned.firstAccessUrl,
     email,
     planName: plan.name,
+    durationMonths,
+    courtesyEndsAt,
     message: provisioned.firstAccessUrl
-      ? 'Cortesia provisionada. Copie o link de primeiro acesso e envie somente ao cliente correto.'
-      : 'Cortesia provisionada. O CRM já conhecia este tenant; gere o acesso pela recuperação de senha se necessário.',
+      ? `Cortesia provisionada até ${courtesyEndsAt}. Copie o link de primeiro acesso e envie somente ao cliente correto.`
+      : `Cortesia provisionada até ${courtesyEndsAt}. O CRM já conhecia este tenant; gere o acesso pela recuperação de senha se necessário.`,
   });
 });
