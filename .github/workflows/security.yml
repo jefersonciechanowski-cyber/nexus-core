@@ -39,10 +39,10 @@ jobs:
 
       - name: Type-check CRM commercial Edge Functions
         run: |
-          deno check supabase/functions/nexus-admin-crm-access/index.ts
-          deno check supabase/functions/nexus-admin-crm-courtesy/index.ts
-          deno check supabase/functions/nexus-public-crm-lead/index.ts
-          deno check supabase/functions/nexus-public-crm-sales/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-access/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-courtesy/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-lead/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-sales/index.ts
 
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
