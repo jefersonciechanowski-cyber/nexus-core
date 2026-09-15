@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 
 const MAX_BODY_BYTES = 32 * 1024;
+const REMOTE_TIMEOUT_MS = 15_000;
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
 const allowedAccessStatuses = new Set(['active', 'suspended']);
 const allowedSubscriptionStatuses = new Set(['legacy', 'trial', 'active', 'past_due', 'cancelled']);
@@ -91,9 +92,14 @@ async function sendEntitlement(secret: string, endpoint: string, payload: Record
         'x-nexus-signature': `sha256=${signature}`,
       },
       body: rawBody,
+      signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
     });
   } catch (error) {
-    return { ok: false, status: 0, detail: `Falha de rede: ${clean((error as any)?.message, 400)}` };
+    const name = clean((error as any)?.name, 80);
+    const message = name === 'TimeoutError'
+      ? 'Tempo limite excedido ao aguardar confirmação do CRM.'
+      : `Falha de rede: ${clean((error as any)?.message, 400)}`;
+    return { ok: false, status: 0, detail: message };
   }
 
   const text = await response.text();
@@ -122,7 +128,10 @@ Deno.serve(async request => {
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
 
   const contentLength = Number(request.headers.get('content-length') || '0');
-  if (contentLength > MAX_BODY_BYTES) return json({ error: 'Payload muito grande.' }, 413);
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) return json({ error: 'Payload muito grande.' }, 413);
+
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) return json({ error: 'Payload muito grande.' }, 413);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -153,7 +162,13 @@ Deno.serve(async request => {
   }
 
   let body: Record<string, unknown> = {};
-  try { body = await request.json(); } catch { return json({ error: 'Corpo inválido.' }, 400); }
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid body');
+    body = parsed;
+  } catch {
+    return json({ error: 'Corpo inválido.' }, 400);
+  }
 
   const accessId = clean(body.accessId, 80);
   const requestedAccessStatus = body.accessStatus === undefined ? undefined : clean(body.accessStatus, 30);
@@ -171,7 +186,7 @@ Deno.serve(async request => {
 
   const { data: access, error: accessError } = await admin
     .from('organization_product_access')
-    .select('id,organization_id,product_id,plan_id,access_status,subscription_status,plan_name,contracted_price_cents,contracted_currency,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,billing_mode,billing_cycle_months,external_tenant_id')
+    .select('id,organization_id,product_id,plan_id,access_status,subscription_status,plan_name,contracted_price_cents,contracted_currency,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,billing_mode,billing_cycle_months,external_tenant_id,updated_at')
     .eq('id', accessId)
     .maybeSingle();
   if (accessError || !access?.id) return json({ error: 'Contrato não encontrado.' }, 404);
@@ -295,8 +310,15 @@ Deno.serve(async request => {
     localPatch.billing_cycle_months = Number(targetPlan.billing_interval_months || access.billing_cycle_months || 1);
   }
 
-  const { error: localError } = await admin.from('organization_product_access').update(localPatch).eq('id', access.id);
-  if (localError) {
+  const localMutation = admin
+    .from('organization_product_access')
+    .update(localPatch)
+    .eq('id', access.id);
+  const { data: updatedLocal, error: localError } = access.updated_at
+    ? await localMutation.eq('updated_at', access.updated_at).select('id').maybeSingle()
+    : await localMutation.select('id').maybeSingle();
+
+  if (localError || !updatedLocal?.id) {
     const compensation = buildPayload('plan.changed', {
       plan: currentPlan,
       status: previousRemoteStatus,
@@ -316,7 +338,7 @@ Deno.serve(async request => {
       entity: 'organization_product_access',
       entity_id: access.id,
       metadata: {
-        local_error: clean(localError.message, 700),
+        local_error: clean(localError?.message || 'Contrato alterado por outra operação concorrente.', 700),
         compensation_ok: compensationResult.ok,
         compensation_status: compensationResult.status,
         compensation_detail: compensationResult.detail,
