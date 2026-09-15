@@ -209,7 +209,10 @@ Deno.serve(async request => {
       .single();
 
     if (accessInsertError || !insertedAccess?.id) {
-      if (createdOrganization) await admin.from('organizations').delete().eq('id', organizationId).catch(() => undefined);
+      if (createdOrganization) {
+        const { error: cleanupError } = await admin.from('organizations').delete().eq('id', organizationId);
+        if (cleanupError) console.error('[Nexus CRM courtesy] Falha ao remover empresa sem contrato:', cleanupError.message);
+      }
       return json({ error: 'Não foi possível registrar a cortesia na Nexus Central.' }, 500);
     }
     access = insertedAccess;
