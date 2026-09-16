@@ -36,7 +36,8 @@
       .pilot-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}.pilot-head h3{margin:0;font-size:16px}.pilot-head p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.5}.pilot-tag{padding:6px 9px;border:1px solid rgba(224,184,74,.34);border-radius:999px;color:var(--gold);font-size:10px;font-weight:800;white-space:nowrap}
       .pilot-grid{display:grid;grid-template-columns:1.3fr 1.1fr 1.2fr .9fr .72fr auto;gap:9px;align-items:end}.pilot-field{display:grid;gap:6px}.pilot-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.pilot-field input,.pilot-field select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0b1419;color:var(--text)}.pilot-submit{min-height:39px}
       .pilot-message{display:none;margin-top:12px;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5}.pilot-message.good{display:block;color:#a8d2aa;border:1px solid rgba(114,168,117,.35);background:rgba(114,168,117,.08)}.pilot-message.warn{display:block;color:#dfc879;border:1px solid rgba(224,184,74,.3);background:rgba(224,184,74,.07)}.pilot-message.bad{display:block;color:#ec8d88;border:1px solid rgba(220,108,103,.3);background:rgba(220,108,103,.07)}
-      @media(max-width:1180px){.pilot-grid{grid-template-columns:1fr 1fr 1fr}.pilot-submit{width:100%}}@media(max-width:760px){.pilot-head{flex-direction:column}.pilot-grid{grid-template-columns:1fr}}
+      .crm-control-row{display:flex;justify-content:space-between;gap:18px;align-items:center}.crm-control-row p{margin:0;color:var(--muted);font-size:12px;line-height:1.55;max-width:780px}.crm-control-link{display:inline-flex;align-items:center;justify-content:center;min-height:39px;text-decoration:none;white-space:nowrap}
+      @media(max-width:1180px){.pilot-grid{grid-template-columns:1fr 1fr 1fr}.pilot-submit{width:100%}}@media(max-width:760px){.pilot-head,.crm-control-row{flex-direction:column;align-items:stretch}.pilot-grid{grid-template-columns:1fr}.crm-control-link{width:100%}}
     `;
     document.head.appendChild(style);
   }
@@ -121,7 +122,7 @@
     const card = document.createElement('section');
     card.className = 'pilot-card';
     card.innerHTML = `
-      <div class="pilot-head"><div><h3>Criar acesso piloto</h3><p>Cria uma empresa isolada, sem cobrança, e envia o primeiro acesso por e-mail. O piloto expira automaticamente na data definida.</p></div><span class="pilot-tag">CORTESIA INTERNA</span></div>
+      <div class="pilot-head"><div><h3>Criar acesso piloto — Nexus SST</h3><p>Cria uma empresa isolada no Nexus SST, sem cobrança, e envia o primeiro acesso por e-mail. O piloto expira automaticamente na data definida.</p></div><span class="pilot-tag">PILOTO SST</span></div>
       <form id="pilotForm">
         <div class="pilot-grid">
           <div class="pilot-field"><label for="pilotCompany">Empresa</label><input id="pilotCompany" maxlength="160" required placeholder="Empresa do técnico"></div>
@@ -135,6 +136,15 @@
       </form>`;
 
     panel.insertBefore(card, panel.firstChild);
+
+    const crmCard = document.createElement('section');
+    crmCard.className = 'pilot-card';
+    crmCard.id = 'crmControlShortcut';
+    crmCard.innerHTML = `
+      <div class="pilot-head"><div><h3>Controle do Nexus CRM</h3><p>Cortesia, vigência, tenant, suspensão e liberação do CRM ficam centralizados no fluxo seguro da Nexus Central.</p></div><span class="pilot-tag">NEXUS CRM</span></div>
+      <div class="crm-control-row"><p>Use esta tela para criar Cliente Cortesia e administrar o acesso CRM. O formulário abaixo continua exclusivo do piloto Nexus SST.</p><a class="action primary crm-control-link" href="crm-access.html">Abrir controle CRM</a></div>`;
+    panel.insertBefore(crmCard, card);
+
     const form = card.querySelector('#pilotForm');
     const message = card.querySelector('#pilotMessage');
     const submit = card.querySelector('#pilotSubmit');
