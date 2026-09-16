@@ -9,6 +9,7 @@ const publicDirectories = [
   'apps/sst-controle',
   'apps/nexus-admin',
   'apps/portal-cliente',
+  'crm',
 ];
 const publicExtensions = new Set([
   '.avif', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.map',
