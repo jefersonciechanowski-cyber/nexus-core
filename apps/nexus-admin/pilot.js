@@ -2,87 +2,6 @@
   'use strict';
 
   const ADMIN_MFA_MAX_AGE_SECONDS = 7200;
-  const INDEX_VIEWS = new Set(['overview', 'clients', 'products', 'payments']);
-  const NAV_TARGETS = {
-    'Visão Geral': 'index.html',
-    'Clientes e Acessos': 'index.html#clients',
-    'Produtos e Planos': 'index.html#products',
-    'Pagamentos': 'index.html#payments',
-    'CRM Comercial': 'leads.html',
-    'Contas e Consultorias': 'accounts.html',
-  };
-
-  function isAdminIndex() {
-    return /\/apps\/nexus-admin\/(?:index\.html)?$/.test(location.pathname);
-  }
-
-  function hydrateAdminProfile() {
-    try {
-      const cached = JSON.parse(sessionStorage.getItem('nexus_demo_session') || 'null');
-      if (!cached || cached.role !== 'nexus_admin') return;
-      const name = document.getElementById('profileName');
-      const role = document.getElementById('profileRole');
-      if (name) name.textContent = cached.name || cached.email || 'Administrador Nexus';
-      if (role) role.textContent = cached.roleLabel || 'Administrador Nexus';
-    } catch { /* cache inválido: o restoreSession fará a validação real */ }
-  }
-
-  function indexViewFromHash() {
-    const value = String(location.hash || '').replace(/^#/, '').trim().toLowerCase();
-    return INDEX_VIEWS.has(value) ? value : 'overview';
-  }
-
-  function applyIndexViewFromHash() {
-    if (!isAdminIndex()) return;
-    const target = indexViewFromHash();
-    const button = document.querySelector(`.nav button[data-view="${target}"]`);
-    if (!button) return;
-    if (!button.classList.contains('active')) button.click();
-    document.documentElement.classList.remove('nexus-route-pending');
-  }
-
-  function stabilizeAdminNavigation() {
-    if (!location.pathname.includes('/apps/nexus-admin/')) return;
-
-    hydrateAdminProfile();
-
-    const nav = document.querySelector('.nav');
-    if (nav) {
-      nav.querySelectorAll('a').forEach(link => {
-        const target = NAV_TARGETS[String(link.textContent || '').trim()];
-        if (target) link.setAttribute('href', target);
-      });
-
-      nav.querySelectorAll('button[data-view]').forEach(button => {
-        if (button.dataset.nexusRouteBound === 'true') return;
-        button.dataset.nexusRouteBound = 'true';
-        button.addEventListener('click', () => {
-          const view = String(button.dataset.view || '').trim();
-          if (!INDEX_VIEWS.has(view)) return;
-          const url = view === 'overview'
-            ? `${location.pathname}${location.search}`
-            : `${location.pathname}${location.search}#${view}`;
-          history.replaceState(history.state, '', url);
-        });
-      });
-
-      nav.querySelectorAll('a[href]').forEach(link => {
-        if (link.dataset.nexusTransitionBound === 'true') return;
-        link.dataset.nexusTransitionBound = 'true';
-        link.addEventListener('click', event => {
-          if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          document.documentElement.classList.add('nexus-leaving');
-        });
-      });
-    }
-
-    if (isAdminIndex()) {
-      const target = indexViewFromHash();
-      if (target !== 'overview') document.documentElement.classList.add('nexus-route-pending');
-      requestAnimationFrame(() => requestAnimationFrame(applyIndexViewFromHash));
-      window.addEventListener('hashchange', applyIndexViewFromHash);
-    }
-  }
 
   async function enforceAdminMfaSession() {
     if (/\/apps\/nexus-admin\/login(?:\.html)?\/?$/.test(location.pathname)) return true;
@@ -113,13 +32,6 @@
     const style = document.createElement('style');
     style.id = 'nexusPilotAdminStyles';
     style.textContent = `
-      html{scrollbar-gutter:stable}
-      @view-transition{navigation:auto}
-      .side{view-transition-name:nexus-admin-side}.main{view-transition-name:nexus-admin-main}
-      ::view-transition-old(nexus-admin-side),::view-transition-new(nexus-admin-side){animation-duration:.12s}
-      ::view-transition-old(nexus-admin-main),::view-transition-new(nexus-admin-main){animation-duration:.16s}
-      html.nexus-route-pending .main{opacity:.01;pointer-events:none}
-      html.nexus-leaving .main{opacity:.94;transition:opacity .08s ease}
       .pilot-card{margin-bottom:16px;padding:18px;border:1px solid rgba(224,184,74,.28);border-radius:12px;background:linear-gradient(135deg,rgba(224,184,74,.07),rgba(17,26,31,.96))}
       .pilot-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}.pilot-head h3{margin:0;font-size:16px}.pilot-head p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.5}.pilot-tag{padding:6px 9px;border:1px solid rgba(224,184,74,.34);border-radius:999px;color:var(--gold);font-size:10px;font-weight:800;white-space:nowrap}
       .pilot-grid{display:grid;grid-template-columns:1.3fr 1.1fr 1.2fr .9fr .72fr auto;gap:9px;align-items:end}.pilot-field{display:grid;gap:6px}.pilot-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.pilot-field input,.pilot-field select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0b1419;color:var(--text)}.pilot-submit{min-height:39px}
@@ -201,13 +113,10 @@
   }
 
   async function mount() {
-    injectStyles();
-    stabilizeAdminNavigation();
     if (!await enforceAdminMfaSession()) return;
-    hydrateAdminProfile();
-
     const panel = document.querySelector('#view-clients > .panel');
     if (!panel || document.getElementById('pilotForm')) return;
+    injectStyles();
     watchPilotPresentation();
 
     const card = document.createElement('section');
