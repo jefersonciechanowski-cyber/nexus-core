@@ -25,6 +25,19 @@ function crmRemoteStatus(accessStatus: unknown, subscriptionStatus: unknown) {
   return 'active';
 }
 
+function crmCommercialCondition(value: unknown) {
+  const condition = clean(value, 30);
+  if (condition === 'founder') return 'founder';
+  if (condition === 'courtesy') return 'courtesy';
+  return 'standard';
+}
+
+function crmProvisionEnvironment(sale: any, commercialCondition: string) {
+  const explicit = clean(sale?.environment, 30).toLowerCase();
+  if (explicit) return explicit;
+  return commercialCondition === 'courtesy' ? 'administrative' : 'production';
+}
+
 type CrmProvisionResult = {
   isCrm: boolean;
   error: string | null;
@@ -79,9 +92,21 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     return { isCrm: true, error: 'Plano comercial do Nexus CRM possui limites inválidos.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
+  const commercialCondition = crmCommercialCondition(accessRow.commercial_condition);
+  const environment = crmProvisionEnvironment(sale, commercialCondition);
+  if (!['production', 'administrative'].includes(environment)) {
+    return {
+      isCrm: true,
+      error: 'Ambiente de homologação não pode provisionar o CRM comercial.',
+      crmOrganizationId: null,
+      firstAccessUrl: null,
+    };
+  }
+
   const payload = {
     event_id: crypto.randomUUID(),
     occurred_at: new Date().toISOString(),
+    environment,
     sale_id: clean(sale.id, 80),
     central_company_id: clean(accessRow.organization_id, 80),
     contract_id: clean(accessRow.id, 80),
@@ -91,7 +116,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     entitlement: {
       plan_code: clean(plan.code, 40),
       status: crmRemoteStatus(accessRow.access_status, accessRow.subscription_status),
-      commercial_condition: accessRow.commercial_condition === 'founder' ? 'founder' : 'standard',
+      commercial_condition: commercialCondition,
       base_price_cents: basePriceCents,
       base_max_users: baseMaxUsers,
       additional_users: additionalUsers,
