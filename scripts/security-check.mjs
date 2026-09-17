@@ -99,6 +99,52 @@ for (const requiredPilotProvisionGuard of [
   }
 }
 
+// P0 CRM financial hardening: sandbox must never share the commercial
+// provisioning path, and financial status changes must be propagated to CRM.
+const crmProvisioningSource = await readFile(join(projectRoot, 'supabase', 'functions', '_shared', 'crm-provisioning.ts'), 'utf8');
+for (const guard of [
+  "['production', 'administrative'].includes(environment)",
+  'Ambiente de homologação não pode provisionar o CRM comercial.',
+  'environment,',
+]) {
+  if (!crmProvisioningSource.includes(guard)) {
+    fail(`crm-provisioning: proteção de ambiente ausente: ${guard}`);
+  }
+}
+
+const crmTestCheckoutSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-public-crm-sales-test', 'index.ts'), 'utf8');
+for (const guard of [
+  "profile.role !== 'nexus_admin'",
+  'sandbox_isolation_required',
+  'Checkout CRM de homologação temporariamente bloqueado',
+]) {
+  if (!crmTestCheckoutSource.includes(guard)) {
+    fail(`nexus-public-crm-sales-test: quarentena administrativa ausente: ${guard}`);
+  }
+}
+
+const crmTestWebhookSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-crm-stripe-test-webhook', 'index.ts'), 'utf8');
+for (const guard of [
+  'if (event.livemode)',
+  'provisioned: false',
+  'Sandbox event intentionally isolated from commercial provisioning.',
+]) {
+  if (!crmTestWebhookSource.includes(guard)) {
+    fail(`nexus-crm-stripe-test-webhook: isolamento de sandbox ausente: ${guard}`);
+  }
+}
+if (crmTestWebhookSource.includes('provisionCrmTenant')) {
+  fail('nexus-crm-stripe-test-webhook: webhook TEST não pode importar ou chamar provisionamento comercial.');
+}
+
+if (!stripeWebhookSource.includes("import { syncCrmEntitlement } from './crm-entitlement-sync.ts';")) {
+  fail('stripe-webhook: helper de sincronização de entitlement do CRM ausente.');
+}
+const entitlementSyncCalls = (stripeWebhookSource.match(/await syncCrmEntitlement\(admin, access\.id\);/g) || []).length;
+if (entitlementSyncCalls < 4) {
+  fail(`stripe-webhook: propagação de entitlement incompleta (${entitlementSyncCalls}/4 caminhos mínimos).`);
+}
+
 const portalSource = await readFile(join(projectRoot, 'apps', 'portal-cliente', 'index.html'), 'utf8');
 if (!portalSource.includes('data-pilot-upgrade') || !portalSource.includes('?upgrade=pilot#planos')) {
   fail('apps/portal-cliente/index.html: ação autenticada para converter o piloto ausente.');
