@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
 import { provisionCrmTenant, sendCrmAccessEmail } from './crm-provisioning.ts';
+import { syncCrmEntitlement } from './crm-entitlement-sync.ts';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -621,6 +622,7 @@ Deno.serve(async request => {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
           await admin.from('organization_product_access').update({ billing_provider: 'stripe', provider_customer_id: customerId, provider_subscription_id: subscriptionId, subscription_status: 'active', access_status: 'active', last_payment_status: eventType, last_payment_at: new Date().toISOString(), renews_at: renewsAt || undefined, updated_at: new Date().toISOString() }).eq('id', access.id);
+          await syncCrmEntitlement(admin, access.id);
         }
       }
     }
@@ -700,6 +702,7 @@ Deno.serve(async request => {
             last_payment_at: succeeded ? new Date().toISOString() : undefined,
             updated_at: new Date().toISOString(),
           }).eq('id', access.id);
+          await syncCrmEntitlement(admin, access.id);
         }
       }
     }
@@ -765,6 +768,7 @@ Deno.serve(async request => {
         if (paid) update.last_payment_at = eventTime;
         if (renewsAt) update.renews_at = renewsAt;
         await admin.from('organization_product_access').update(update).eq('id', access.id);
+        await syncCrmEntitlement(admin, access.id);
       }
     }
 
@@ -788,6 +792,7 @@ Deno.serve(async request => {
         if (internalStatus === 'cancelled' || internalStatus === 'past_due') patch.access_status = 'suspended';
         if (internalStatus === 'active' || internalStatus === 'trial') patch.access_status = 'active';
         await admin.from('organization_product_access').update(patch).eq('id', access.id);
+        await syncCrmEntitlement(admin, access.id);
       }
     }
 
