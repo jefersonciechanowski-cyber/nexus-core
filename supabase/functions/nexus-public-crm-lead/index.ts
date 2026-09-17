@@ -51,6 +51,29 @@ function clientAddress(request: Request) {
   return clean(request.headers.get('x-forwarded-for'), 500).split(',')[0]?.trim() || 'unknown';
 }
 
+function acquisitionContext(body: Record<string, any>) {
+  const utmSource = clean(body.utmSource, 80).toLowerCase();
+  const utmMedium = clean(body.utmMedium, 100);
+  const utmCampaign = clean(body.utmCampaign, 180);
+  const utmContent = clean(body.utmContent, 180);
+  const utmTerm = clean(body.utmTerm, 180);
+  const referrer = clean(body.referrer, 500);
+  const knownSources = new Set(['meta_ads', 'facebook', 'instagram', 'google_ads', 'google', 'organic', 'referral', 'site-captacao']);
+  const source = knownSources.has(utmSource) ? utmSource : 'site-captacao';
+  const details = [
+    utmSource ? `utm_source=${utmSource}` : '',
+    utmMedium ? `utm_medium=${utmMedium}` : '',
+    utmTerm ? `utm_term=${utmTerm}` : '',
+    referrer ? `referrer=${referrer}` : '',
+  ].filter(Boolean).join(' · ');
+  return {
+    source,
+    campaignName: utmCampaign || 'Site Nexus CRM · Solicitação de demonstração',
+    adName: utmContent || null,
+    details,
+  };
+}
+
 async function hmacHex(secret: string, value: string) {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -220,6 +243,7 @@ Deno.serve(async request => {
   const teamSize = Math.max(0, Math.min(10000, Number(body.teamSize) || 0));
   const planCode = clean(body.planCode, 80).toLowerCase();
   const honeypot = clean(body.website, 100);
+  const acquisition = acquisitionContext(body);
 
   if (honeypot) return json(request, { ok: true });
   if (companyName.length < 2 || responsibleName.length < 2 || !validEmail(email) || phone.length < 10) {
@@ -253,21 +277,25 @@ Deno.serve(async request => {
 
   if ((count || 0) >= 3) return json(request, { ok: true, duplicateSuppressed: true });
 
+  const baseNote = planCode ? `Plano de interesse informado no site: ${plan?.name || planCode}.` : 'Solicitação de demonstração pelo site do Nexus CRM.';
+  const leadNotes = acquisition.details ? `${baseNote} Aquisição: ${acquisition.details}.` : baseNote;
+
   const { data: sale, error } = await admin
     .from('nexus_sales')
     .insert({
       product_id: product.id,
       plan_id: plan?.id || null,
       sale_status: 'lead',
-      source: 'site-captacao',
+      source: acquisition.source,
       company_name: companyName,
       responsible_name: responsibleName,
       email,
       phone,
       employee_count: teamSize || null,
       lead_stage: 'new',
-      campaign_name: 'Site Nexus CRM · Solicitação de demonstração',
-      lead_notes: planCode ? `Plano de interesse informado no site: ${plan?.name || planCode}.` : 'Solicitação de demonstração pelo site do Nexus CRM.',
+      campaign_name: acquisition.campaignName,
+      ad_name: acquisition.adName,
+      lead_notes: leadNotes,
     })
     .select('id,company_name,responsible_name,email,phone,employee_count,sale_status')
     .single();

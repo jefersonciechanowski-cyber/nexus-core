@@ -52,6 +52,29 @@ function clientAddress(request: Request) {
   return clean(request.headers.get('x-forwarded-for'), 500).split(',')[0]?.trim() || 'unknown';
 }
 
+function acquisitionContext(body: Record<string, any>) {
+  const utmSource = clean(body.utmSource, 80).toLowerCase();
+  const utmMedium = clean(body.utmMedium, 100);
+  const utmCampaign = clean(body.utmCampaign, 180);
+  const utmContent = clean(body.utmContent, 180);
+  const utmTerm = clean(body.utmTerm, 180);
+  const referrer = clean(body.referrer, 500);
+  const knownSources = new Set(['meta_ads', 'facebook', 'instagram', 'google_ads', 'google', 'organic', 'referral', 'site-captacao']);
+  const source = knownSources.has(utmSource) ? utmSource : 'site-captacao';
+  const details = [
+    utmSource ? `utm_source=${utmSource}` : '',
+    utmMedium ? `utm_medium=${utmMedium}` : '',
+    utmTerm ? `utm_term=${utmTerm}` : '',
+    referrer ? `referrer=${referrer}` : '',
+  ].filter(Boolean).join(' · ');
+  return {
+    source,
+    campaignName: utmCampaign || 'Site Nexus CRM · Contratação online',
+    adName: utmContent || null,
+    details,
+  };
+}
+
 async function hmacHex(secret: string, value: string) {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -143,6 +166,7 @@ Deno.serve(async request => {
   const state = clean(body.state, 2).toUpperCase();
   const acceptedTerms = body.acceptedTerms === true;
   const honeypot = clean(body.website, 100);
+  const acquisition = acquisitionContext(body);
 
   if (honeypot) return json(request, { ok: true });
   if (companyName.length < 2 || responsibleName.length < 2 || !validEmail(email) || phone.length < 10) {
@@ -184,13 +208,15 @@ Deno.serve(async request => {
   const origin = requestOrigin(request) || 'https://nexuscore.app.br';
   const externalReference = `nexus-crm-sale-${saleId}`;
   const registrationType = registrationNumber.length === 14 ? 'CNPJ' : 'CPF';
+  const baseNote = `Plano escolhido no site: ${plan.name}.`;
+  const leadNotes = acquisition.details ? `${baseNote} Aquisição: ${acquisition.details}.` : baseNote;
 
   const { error: saleError } = await admin.from('nexus_sales').insert({
     id: saleId,
     product_id: product.id,
     plan_id: plan.id,
     sale_status: 'lead',
-    source: 'site-captacao',
+    source: acquisition.source,
     company_name: companyName,
     responsible_name: responsibleName,
     email,
@@ -212,8 +238,9 @@ Deno.serve(async request => {
     billing_cycle_months: Number(plan.billing_interval_months || 1),
     checkout_amount_cents: Number(plan.price_cents),
     lead_stage: 'new',
-    campaign_name: 'Site Nexus CRM · Contratação online',
-    lead_notes: `Plano escolhido no site: ${plan.name}.`,
+    campaign_name: acquisition.campaignName,
+    ad_name: acquisition.adName,
+    lead_notes: leadNotes,
   });
   if (saleError) return json(request, { error: 'Não foi possível iniciar a contratação.' }, 500);
 
@@ -266,7 +293,7 @@ Deno.serve(async request => {
       nexus_checkout_amount_cents: String(plan.price_cents),
     };
 
-    const callbackBase = `${origin}/site-captacao/preview`;
+    const callbackBase = `${origin}/site-captacao`;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,

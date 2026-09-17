@@ -25,6 +25,13 @@ function crmRemoteStatus(accessStatus: unknown, subscriptionStatus: unknown) {
   return 'active';
 }
 
+function crmCommercialCondition(value: unknown) {
+  const condition = clean(value, 30);
+  if (condition === 'founder') return 'founder';
+  if (condition === 'courtesy') return 'courtesy';
+  return 'standard';
+}
+
 type CrmProvisionResult = {
   isCrm: boolean;
   error: string | null;
@@ -91,7 +98,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     entitlement: {
       plan_code: clean(plan.code, 40),
       status: crmRemoteStatus(accessRow.access_status, accessRow.subscription_status),
-      commercial_condition: accessRow.commercial_condition === 'founder' ? 'founder' : 'standard',
+      commercial_condition: crmCommercialCondition(accessRow.commercial_condition),
       base_price_cents: basePriceCents,
       base_max_users: baseMaxUsers,
       additional_users: additionalUsers,
