@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071015">
+  <title>Preview Nexus AI</title>
+  <style>
+    :root{--bg:#071015;--panel:#0f1a20;--line:#26343c;--text:#f4eee3;--muted:#9ca8ad;--gold:#e0b84a;--good:#74a97d}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#071015,#0a151b);color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;min-height:100vh}.app{max-width:1180px;margin:0 auto;padding:26px 22px 80px}.top{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:20px}.brand{font-size:21px;font-weight:900;letter-spacing:.02em}.brand span{color:var(--gold)}.user{font-size:12px;color:var(--muted)}.hero{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}.card{background:rgba(15,26,32,.9);border:1px solid var(--line);border-radius:14px;padding:18px}.title{font-size:27px;font-weight:850;margin:0 0 7px}.muted{color:var(--muted);line-height:1.55}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.metric{background:#0a1419;border:1px solid var(--line);border-radius:11px;padding:14px}.metric b{font-size:22px;display:block;margin-top:5px}.metric small{color:var(--muted)}.tasks{display:grid;gap:10px;margin-top:12px}.task{display:flex;justify-content:space-between;align-items:center;padding:12px 13px;border:1px solid var(--line);border-radius:10px;background:#0a1419}.tag{font-size:11px;color:#cfc6b6;border:1px solid var(--line);padding:5px 8px;border-radius:999px}.side-title{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}.legend{font-size:12px;line-height:1.6;color:var(--muted)}.legend strong{color:var(--text)}.hint{margin-top:14px;padding:12px;border:1px dashed rgba(224,184,74,.4);border-radius:10px;background:rgba(224,184,74,.05);font-size:12px;line-height:1.55;color:#d8cfbf}.support-demo{position:fixed;right:20px;bottom:24px;border:1px solid var(--line);background:#0f1a20;color:var(--text);padding:10px 14px;border-radius:999px;font-weight:700;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    @media(max-width:850px){.hero{grid-template-columns:1fr}.metrics{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top"><div class="brand">NEXUS <span>CORE</span> · Central</div><div class="user">Preview visual · Nexus AI desabilitada</div></header>
+    <section class="hero">
+      <div class="card">
+        <h1 class="title">Visão administrativa</h1>
+        <div class="muted">Esta tela é apenas um cenário para você avaliar como o botão e a gaveta da Nexus AI convivem com o sistema sem ocupar espaço quando estão fechados.</div>
+        <div class="metrics">
+          <div class="metric"><small>Empresas</small><b>3</b></div>
+          <div class="metric"><small>Acessos ativos</small><b>2</b></div>
+          <div class="metric"><small>Suporte</small><b>0</b></div>
+        </div>
+        <div class="tasks">
+          <div class="task"><span>Revisar acessos dos produtos</span><span class="tag">Central</span></div>
+          <div class="task"><span>Acompanhar operação SST</span><span class="tag">SST Controle</span></div>
+          <div class="task"><span>Preparar Nexus AI para ativação futura</span><span class="tag">IA</span></div>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="side-title">O que avaliar</div>
+        <div class="legend"><strong>1.</strong> O botão “Nexus AI” fica acima do suporte e não compete com ele.<br><strong>2.</strong> A gaveta abre pela direita, mantendo a tela atual visível.<br><strong>3.</strong> O consumo aparece dentro da própria gaveta.<br><strong>4.</strong> Como a IA está desligada, campo e envio ficam bloqueados.</div>
+        <div class="hint">Clique no botão <strong>Nexus AI</strong> no canto direito para abrir. Feche no “×”, clicando fora ou pressionando Esc.</div>
+      </aside>
+    </section>
+  </main>
+  <button class="support-demo" type="button">? Suporte</button>
+  <script src="../../packages/ui/nexus-ai-drawer.js"></script>
+  <script>
+    window.NexusAIDrawer?.mount({
+      productName:'Central Nexus',
+      packageName:'Intelligence · aguardando ativação',
+      usageLabel:'0 / 10 solicitações',
+      usagePercent:0,
+      disabled:true,
+      suggestions:['Como está a operação?','Ver acessos ativos','Ver suporte em aberto']
+    });
+  </script>
+</body>
+</html>
