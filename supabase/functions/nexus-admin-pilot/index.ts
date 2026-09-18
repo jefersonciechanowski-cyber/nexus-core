@@ -148,6 +148,11 @@ Deno.serve(async request => {
     return json({ error: 'Apenas a administração Nexus pode criar acessos piloto.' }, 403);
   }
 
+  const { data: adminMfa, error: adminMfaError } = await userClient.rpc('is_nexus_admin');
+  if (adminMfaError || adminMfa !== true) {
+    return json({ error: 'Confirme a autenticação em duas etapas para executar esta ação administrativa.' }, 403);
+  }
+
   let body: Record<string, unknown> = {};
   try { body = await request.json(); } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
 
