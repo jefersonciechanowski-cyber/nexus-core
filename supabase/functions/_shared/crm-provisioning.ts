@@ -32,7 +32,7 @@ type CrmProvisionResult = {
   firstAccessUrl: string | null;
 };
 
-export async function provisionCrmTenant(admin: any, sale: any, access: any): Promise<CrmProvisionResult> {
+export async function provisionCrmTenant(admin: any, sale: any, access: any, environment: 'production' | 'administrative' = 'production'): Promise<CrmProvisionResult> {
   const { data: plan, error: planError } = await admin
     .from('nexus_plans')
     .select('id,product_id,code,name,price_cents,included_user_limit,status')
@@ -82,6 +82,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
   const payload = {
     event_id: crypto.randomUUID(),
     occurred_at: new Date().toISOString(),
+    environment,
     sale_id: clean(sale.id, 80),
     central_company_id: clean(accessRow.organization_id, 80),
     contract_id: clean(accessRow.id, 80),
