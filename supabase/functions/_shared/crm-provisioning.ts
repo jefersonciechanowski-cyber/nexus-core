@@ -54,7 +54,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any, env
   }
 
   const provisionUrl = clean(
-    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtzfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
+    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
     1000,
   );
   const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
