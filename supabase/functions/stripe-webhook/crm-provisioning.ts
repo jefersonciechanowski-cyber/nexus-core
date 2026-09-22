@@ -38,7 +38,7 @@ function crmEventTypeForStatus(status: string) {
   return 'entitlement.reactivated';
 }
 
-export async function syncCrmEntitlement(admin: any, accessId: string, forcedStatus?: 'active' | 'suspended' | 'cancelled'): Promise<CrmSyncResult> {
+export async function syncCrmEntitlement(admin: any, accessId: string, forcedStatus?: 'active' | 'suspended' | 'cancelled', occurredAt?: string): Promise<CrmSyncResult> {
   const { data: access, error: accessError } = await admin
     .from('organization_product_access')
     .select('id,organization_id,product_id,plan_id,access_status,subscription_status,contracted_price_cents,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,external_tenant_id')
@@ -102,7 +102,7 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
   const payload = {
     event_id: crypto.randomUUID(),
     event_type: crmEventTypeForStatus(status),
-    occurred_at: new Date().toISOString(),
+    occurred_at: occurredAt || new Date().toISOString(),
     organization_id: crmOrganizationId,
     central_company_id: clean(access.organization_id, 80),
     contract_id: clean(access.id, 80),
