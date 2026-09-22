@@ -132,11 +132,61 @@ async function findAccess(admin: any, criteria: { accessId?: string | null; subs
   return null;
 }
 
-async function syncCrmAccessOrThrow(admin: any, accessId: string, reason: string, forcedStatus?: 'active' | 'suspended' | 'cancelled') {
-  const result = await syncCrmEntitlement(admin, accessId, forcedStatus);
+async function syncCrmAccessOrThrow(
+  admin: any,
+  accessId: string,
+  reason: string,
+  forcedStatus?: 'active' | 'suspended' | 'cancelled',
+  occurredAt?: string,
+) {
+  const result = await syncCrmEntitlement(admin, accessId, forcedStatus, occurredAt);
   if (result.isCrm && !result.synced) {
     throw new Error(`Nexus CRM não confirmou ${reason}: ${result.error || 'falha de sincronização'}`);
   }
+}
+
+async function applyStripeContractState(admin: any, input: {
+  accessId: string;
+  eventId: string;
+  eventCreatedAt: string;
+  eventType: string;
+  subscriptionStatus: 'active' | 'trial' | 'past_due' | 'cancelled';
+  accessStatus: 'active' | 'suspended';
+  customerId?: string | null;
+  subscriptionId?: string | null;
+  lastPaymentStatus?: string | null;
+  lastPaymentAt?: string | null;
+  lastPaymentDueDate?: string | null;
+  renewsAt?: string | null;
+}) {
+  const { data, error } = await admin.rpc('apply_stripe_contract_state', {
+    p_access_id: input.accessId,
+    p_event_id: input.eventId,
+    p_event_created_at: input.eventCreatedAt,
+    p_event_type: input.eventType,
+    p_subscription_status: input.subscriptionStatus,
+    p_access_status: input.accessStatus,
+    p_provider_customer_id: input.customerId ?? null,
+    p_provider_subscription_id: input.subscriptionId ?? null,
+    p_last_payment_status: input.lastPaymentStatus ?? null,
+    p_last_payment_at: input.lastPaymentAt ?? null,
+    p_last_payment_due_date: input.lastPaymentDueDate ?? null,
+    p_renews_at: input.renewsAt ?? null,
+  });
+  if (error) throw new Error(`Falha ao aplicar revisão financeira Stripe: ${clean(error.message, 700)}`);
+
+  const result = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+  if (result.applied === true) return result;
+
+  const safeIgnored = new Set([
+    'duplicate',
+    'stale_event',
+    'same_timestamp_lower_or_equal_priority',
+    'terminal_cancelled',
+  ]);
+  const reason = clean(result.reason, 120);
+  if (safeIgnored.has(reason)) return result;
+  throw new Error(`Evento Stripe não pôde ser associado ao contrato: ${reason || 'estado desconhecido'}`);
 }
 
 async function auditEmailFailure(admin: any, sale: any, reason: string, action = 'NEXUS_ONBOARDING_EMAIL_FAILED') {
@@ -597,6 +647,9 @@ Deno.serve(async request => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const eventId = clean(event.id, 255);
   const eventType = clean(event.type, 120);
+  const eventCreatedAt = Number(event.created) > 0
+    ? new Date(Number(event.created) * 1000).toISOString()
+    : new Date().toISOString();
   const resource: any = event.data?.object || {};
   const resourceId = clean(resource?.id, 255) || null;
 
@@ -650,9 +703,22 @@ Deno.serve(async request => {
       } else if (accessId && paid) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
-          const { error: accessUpdateError } = await admin.from('organization_product_access').update({ billing_provider: 'stripe', provider_customer_id: customerId, provider_subscription_id: subscriptionId, subscription_status: 'active', access_status: 'active', last_payment_status: eventType, last_payment_at: new Date().toISOString(), renews_at: renewsAt || undefined, updated_at: new Date().toISOString() }).eq('id', access.id);
-          if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após checkout: ${accessUpdateError.message}`);
-          await syncCrmAccessOrThrow(admin, access.id, 'a ativação após o checkout');
+          const state = await applyStripeContractState(admin, {
+            accessId: access.id,
+            eventId,
+            eventCreatedAt,
+            eventType,
+            subscriptionStatus: 'active',
+            accessStatus: 'active',
+            customerId,
+            subscriptionId,
+            lastPaymentStatus: eventType,
+            lastPaymentAt: new Date().toISOString(),
+            renewsAt,
+          });
+          if (state.applied === true) {
+            await syncCrmAccessOrThrow(admin, access.id, 'a ativação após o checkout', 'active', eventCreatedAt);
+          }
         }
       }
     }
@@ -725,22 +791,25 @@ Deno.serve(async request => {
       } else if (accessId) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
-          if (!succeeded) {
-            // Restrição é fail-closed: o CRM confirma a suspensão antes da Central
-            // persistir o novo estado. Se a chamada remota falhar, o contrato local
-            // permanece como estava e o evento Stripe fica disponível para retry.
-            await syncCrmAccessOrThrow(admin, access.id, 'a suspensão por falha de pagamento', 'suspended');
+          if (!succeeded && access.subscription_status !== 'cancelled') {
+            // Restrição é fail-closed: o CRM confirma a suspensão antes da Central.
+            // O timestamp original da Stripe permite ao CRM ignorar eventos atrasados.
+            await syncCrmAccessOrThrow(admin, access.id, 'a suspensão por falha de pagamento', 'suspended', eventCreatedAt);
           }
-          const { error: accessUpdateError } = await admin.from('organization_product_access').update({
-            subscription_status: succeeded ? 'active' : 'past_due',
-            access_status: succeeded ? 'active' : 'suspended',
-            last_payment_status: eventType,
-            last_payment_at: succeeded ? new Date().toISOString() : undefined,
-            updated_at: new Date().toISOString(),
-          }).eq('id', access.id);
-          if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após pagamento assíncrono: ${accessUpdateError.message}`);
-          if (succeeded) {
-            await syncCrmAccessOrThrow(admin, access.id, 'a reativação após o pagamento');
+          const state = await applyStripeContractState(admin, {
+            accessId: access.id,
+            eventId,
+            eventCreatedAt,
+            eventType,
+            subscriptionStatus: succeeded ? 'active' : 'past_due',
+            accessStatus: succeeded ? 'active' : 'suspended',
+            customerId,
+            subscriptionId,
+            lastPaymentStatus: eventType,
+            lastPaymentAt: succeeded ? new Date().toISOString() : null,
+          });
+          if (succeeded && state.applied === true) {
+            await syncCrmAccessOrThrow(admin, access.id, 'a reativação após o pagamento', 'active', eventCreatedAt);
           }
         }
       }
@@ -794,25 +863,25 @@ Deno.serve(async request => {
           updated_at: eventTime,
         }, { onConflict: 'provider_payment_id' });
 
-        const update: Record<string, unknown> = {
-          billing_provider: 'stripe',
-          provider_customer_id: customerId || undefined,
-          provider_subscription_id: subscriptionId || undefined,
-          subscription_status: paid ? 'active' : 'past_due',
-          access_status: paid ? 'active' : 'suspended',
-          last_payment_status: eventType,
-          last_payment_due_date: dueDate,
-          updated_at: eventTime,
-        };
-        if (paid) update.last_payment_at = eventTime;
-        if (renewsAt) update.renews_at = renewsAt;
-        if (!paid) {
-          await syncCrmAccessOrThrow(admin, access.id, 'a suspensão após falha da fatura', 'suspended');
+        if (!paid && access.subscription_status !== 'cancelled') {
+          await syncCrmAccessOrThrow(admin, access.id, 'a suspensão após falha da fatura', 'suspended', eventCreatedAt);
         }
-        const { error: accessUpdateError } = await admin.from('organization_product_access').update(update).eq('id', access.id);
-        if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após fatura: ${accessUpdateError.message}`);
-        if (paid) {
-          await syncCrmAccessOrThrow(admin, access.id, 'a reativação após a fatura paga');
+        const state = await applyStripeContractState(admin, {
+          accessId: access.id,
+          eventId,
+          eventCreatedAt,
+          eventType,
+          subscriptionStatus: paid ? 'active' : 'past_due',
+          accessStatus: paid ? 'active' : 'suspended',
+          customerId,
+          subscriptionId,
+          lastPaymentStatus: eventType,
+          lastPaymentAt: paid ? eventTime : null,
+          lastPaymentDueDate: dueDate,
+          renewsAt,
+        });
+        if (paid && state.applied === true) {
+          await syncCrmAccessOrThrow(admin, access.id, 'a reativação após a fatura paga', 'active', eventCreatedAt);
         }
       }
     }
@@ -831,29 +900,38 @@ Deno.serve(async request => {
 
       const access = await findAccess(admin, { accessId, subscriptionId, customerId });
       if (access?.id) {
+        if (!internalStatus) {
+          throw new Error(`Status Stripe não reconhecido para a assinatura: ${clean(subscription.status, 80)}`);
+        }
         const restrictiveStatus = internalStatus === 'cancelled'
           ? 'cancelled'
           : internalStatus === 'past_due'
           ? 'suspended'
           : null;
-        if (restrictiveStatus) {
+
+        if (restrictiveStatus && access.subscription_status !== 'cancelled') {
           await syncCrmAccessOrThrow(
             admin,
             access.id,
             restrictiveStatus === 'cancelled' ? 'o cancelamento da assinatura' : 'a suspensão da assinatura',
             restrictiveStatus,
+            eventCreatedAt,
           );
         }
 
-        const patch: Record<string, unknown> = { billing_provider: 'stripe', provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId, updated_at: new Date().toISOString() };
-        if (renewsAt) patch.renews_at = renewsAt;
-        if (internalStatus) patch.subscription_status = internalStatus;
-        if (internalStatus === 'cancelled' || internalStatus === 'past_due') patch.access_status = 'suspended';
-        if (internalStatus === 'active' || internalStatus === 'trial') patch.access_status = 'active';
-        const { error: accessUpdateError } = await admin.from('organization_product_access').update(patch).eq('id', access.id);
-        if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após evento da assinatura: ${accessUpdateError.message}`);
-        if (!restrictiveStatus && (internalStatus === 'active' || internalStatus === 'trial')) {
-          await syncCrmAccessOrThrow(admin, access.id, 'a atualização da assinatura');
+        const state = await applyStripeContractState(admin, {
+          accessId: access.id,
+          eventId,
+          eventCreatedAt,
+          eventType,
+          subscriptionStatus: internalStatus,
+          accessStatus: internalStatus === 'active' || internalStatus === 'trial' ? 'active' : 'suspended',
+          customerId,
+          subscriptionId,
+          renewsAt,
+        });
+        if (!restrictiveStatus && state.applied === true && (internalStatus === 'active' || internalStatus === 'trial')) {
+          await syncCrmAccessOrThrow(admin, access.id, 'a atualização da assinatura', 'active', eventCreatedAt);
         }
       }
     }
