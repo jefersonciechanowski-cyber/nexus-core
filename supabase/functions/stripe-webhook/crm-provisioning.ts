@@ -77,10 +77,11 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
     return { isCrm: true, synced: false, error: 'Tenant do CRM não vinculado ao contrato.' };
   }
 
-  const endpoint = clean(
-    Deno.env.get('NEXUS_CRM_ENTITLEMENT_URL') || 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-entitlement',
-    1000,
-  );
+  const canonicalEntitlementUrl = 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-entitlement';
+  const configuredEntitlementUrl = clean(Deno.env.get('NEXUS_CRM_ENTITLEMENT_URL'), 1000);
+  const endpoint = configuredEntitlementUrl.startsWith('https://') && !configuredEntitlementUrl.includes('.vercel.app/')
+    ? configuredEntitlementUrl
+    : canonicalEntitlementUrl;
   const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
   if (!endpoint.startsWith('https://') || secret.length < 32) {
     return { isCrm: true, synced: false, error: 'Integração de entitlement do CRM não configurada.' };
@@ -180,7 +181,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
   }
 
   const provisionUrl = clean(
-    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtzfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
+    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
     1000,
   );
   const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
