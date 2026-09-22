@@ -38,7 +38,7 @@ function crmEventTypeForStatus(status: string) {
   return 'entitlement.reactivated';
 }
 
-export async function syncCrmEntitlement(admin: any, accessId: string): Promise<CrmSyncResult> {
+export async function syncCrmEntitlement(admin: any, accessId: string, forcedStatus?: 'active' | 'suspended' | 'cancelled'): Promise<CrmSyncResult> {
   const { data: access, error: accessError } = await admin
     .from('organization_product_access')
     .select('id,organization_id,product_id,plan_id,access_status,subscription_status,contracted_price_cents,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,external_tenant_id')
@@ -86,7 +86,7 @@ export async function syncCrmEntitlement(admin: any, accessId: string): Promise<
     return { isCrm: true, synced: false, error: 'Integração de entitlement do CRM não configurada.' };
   }
 
-  const status = crmRemoteStatus(access.access_status, access.subscription_status);
+  const status = forcedStatus ?? crmRemoteStatus(access.access_status, access.subscription_status);
   const baseMaxUsers = Number(access.base_user_limit_override ?? plan.included_user_limit);
   const additionalUsers = Number(access.additional_users ?? 0);
   const basePriceCents = Number(access.contracted_price_cents ?? plan.price_cents);
