@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
-import { provisionCrmTenant, sendCrmAccessEmail } from './crm-provisioning.ts';
+import { provisionCrmTenant, sendCrmAccessEmail, syncCrmEntitlement } from './crm-provisioning.ts';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -65,48 +65,78 @@ function mapSubscriptionStatus(value: unknown) {
   return null;
 }
 
+function assertProviderBinding(row: any, criteria: { checkoutId?: string | null; subscriptionId?: string | null; customerId?: string | null }, label: string) {
+  if (!row) return row;
+  const storedCheckout = clean(row.provider_checkout_id, 255);
+  const storedSubscription = clean(row.provider_subscription_id, 255);
+  const storedCustomer = clean(row.provider_customer_id, 255);
+  if (criteria.checkoutId && storedCheckout && storedCheckout !== criteria.checkoutId) {
+    throw new Error(`${label}: checkout Stripe divergente do vínculo salvo.`);
+  }
+  if (criteria.subscriptionId && storedSubscription && storedSubscription !== criteria.subscriptionId) {
+    throw new Error(`${label}: assinatura Stripe divergente do vínculo salvo.`);
+  }
+  if (criteria.customerId && storedCustomer && storedCustomer !== criteria.customerId) {
+    throw new Error(`${label}: customer Stripe divergente do vínculo salvo.`);
+  }
+  return row;
+}
+
+async function singleOrThrow(query: any, label: string) {
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(`${label}: ${clean(error.message, 500)}`);
+  return data;
+}
+
 async function findSale(admin: any, criteria: { saleId?: string | null; checkoutId?: string | null; subscriptionId?: string | null; customerId?: string | null }) {
   if (criteria.saleId) {
-    const { data } = await admin.from('nexus_sales').select('*').eq('id', criteria.saleId).eq('provider', 'stripe').maybeSingle();
-    if (data) return data;
+    const data = await singleOrThrow(
+      admin.from('nexus_sales').select('*').eq('id', criteria.saleId).eq('provider', 'stripe'),
+      'Falha ao localizar venda por ID',
+    );
+    if (data) return assertProviderBinding(data, criteria, 'Venda');
   }
   if (criteria.checkoutId) {
-    const { data } = await admin.from('nexus_sales').select('*').eq('provider', 'stripe').eq('provider_checkout_id', criteria.checkoutId).maybeSingle();
-    if (data) return data;
+    const data = await singleOrThrow(
+      admin.from('nexus_sales').select('*').eq('provider', 'stripe').eq('provider_checkout_id', criteria.checkoutId),
+      'Falha ao localizar venda por checkout',
+    );
+    if (data) return assertProviderBinding(data, criteria, 'Venda');
   }
   if (criteria.subscriptionId) {
-    const { data } = await admin.from('nexus_sales').select('*').eq('provider', 'stripe').eq('provider_subscription_id', criteria.subscriptionId).maybeSingle();
-    if (data) return data;
-  }
-  if (criteria.customerId) {
-    const { data } = await admin.from('nexus_sales')
-      .select('*')
-      .eq('provider', 'stripe')
-      .eq('provider_customer_id', criteria.customerId)
-      .in('sale_status', ['checkout_created','paid','provisioned'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data) return data;
+    const data = await singleOrThrow(
+      admin.from('nexus_sales').select('*').eq('provider', 'stripe').eq('provider_subscription_id', criteria.subscriptionId),
+      'Falha ao localizar venda por assinatura',
+    );
+    if (data) return assertProviderBinding(data, criteria, 'Venda');
   }
   return null;
 }
 
 async function findAccess(admin: any, criteria: { accessId?: string | null; subscriptionId?: string | null; customerId?: string | null }) {
-  const columns = 'id,organization_id,product_id,plan_id,renews_at,contracted_price_cents,contracted_currency,billing_mode,billing_cycle_months,plan:nexus_plans(id,name,billing_interval_months,status)';
+  const columns = 'id,organization_id,product_id,plan_id,renews_at,contracted_price_cents,contracted_currency,billing_mode,billing_cycle_months,provider_customer_id,provider_subscription_id,external_tenant_id,access_status,subscription_status,plan:nexus_plans(id,name,billing_interval_months,status)';
   if (criteria.accessId) {
-    const { data } = await admin.from('organization_product_access').select(columns).eq('id', criteria.accessId).maybeSingle();
-    if (data) return data;
+    const data = await singleOrThrow(
+      admin.from('organization_product_access').select(columns).eq('id', criteria.accessId),
+      'Falha ao localizar contrato por ID',
+    );
+    if (data) return assertProviderBinding(data, criteria, 'Contrato');
   }
   if (criteria.subscriptionId) {
-    const { data } = await admin.from('organization_product_access').select(columns).eq('billing_provider', 'stripe').eq('provider_subscription_id', criteria.subscriptionId).maybeSingle();
-    if (data) return data;
-  }
-  if (criteria.customerId) {
-    const { data } = await admin.from('organization_product_access').select(columns).eq('billing_provider', 'stripe').eq('provider_customer_id', criteria.customerId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (data) return data;
+    const data = await singleOrThrow(
+      admin.from('organization_product_access').select(columns).eq('billing_provider', 'stripe').eq('provider_subscription_id', criteria.subscriptionId),
+      'Falha ao localizar contrato por assinatura',
+    );
+    if (data) return assertProviderBinding(data, criteria, 'Contrato');
   }
   return null;
+}
+
+async function syncCrmAccessOrThrow(admin: any, accessId: string, reason: string) {
+  const result = await syncCrmEntitlement(admin, accessId);
+  if (result.isCrm && !result.synced) {
+    throw new Error(`Nexus CRM não confirmou ${reason}: ${result.error || 'falha de sincronização'}`);
+  }
 }
 
 async function auditEmailFailure(admin: any, sale: any, reason: string, action = 'NEXUS_ONBOARDING_EMAIL_FAILED') {
@@ -620,7 +650,9 @@ Deno.serve(async request => {
       } else if (accessId && paid) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
-          await admin.from('organization_product_access').update({ billing_provider: 'stripe', provider_customer_id: customerId, provider_subscription_id: subscriptionId, subscription_status: 'active', access_status: 'active', last_payment_status: eventType, last_payment_at: new Date().toISOString(), renews_at: renewsAt || undefined, updated_at: new Date().toISOString() }).eq('id', access.id);
+          const { error: accessUpdateError } = await admin.from('organization_product_access').update({ billing_provider: 'stripe', provider_customer_id: customerId, provider_subscription_id: subscriptionId, subscription_status: 'active', access_status: 'active', last_payment_status: eventType, last_payment_at: new Date().toISOString(), renews_at: renewsAt || undefined, updated_at: new Date().toISOString() }).eq('id', access.id);
+          if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após checkout: ${accessUpdateError.message}`);
+          await syncCrmAccessOrThrow(admin, access.id, 'a ativação após o checkout');
         }
       }
     }
@@ -693,13 +725,15 @@ Deno.serve(async request => {
       } else if (accessId) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
-          await admin.from('organization_product_access').update({
+          const { error: accessUpdateError } = await admin.from('organization_product_access').update({
             subscription_status: succeeded ? 'active' : 'past_due',
             access_status: succeeded ? 'active' : 'suspended',
             last_payment_status: eventType,
             last_payment_at: succeeded ? new Date().toISOString() : undefined,
             updated_at: new Date().toISOString(),
           }).eq('id', access.id);
+          if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após pagamento assíncrono: ${accessUpdateError.message}`);
+          await syncCrmAccessOrThrow(admin, access.id, succeeded ? 'a reativação após o pagamento' : 'a suspensão por falha de pagamento');
         }
       }
     }
@@ -764,7 +798,9 @@ Deno.serve(async request => {
         };
         if (paid) update.last_payment_at = eventTime;
         if (renewsAt) update.renews_at = renewsAt;
-        await admin.from('organization_product_access').update(update).eq('id', access.id);
+        const { error: accessUpdateError } = await admin.from('organization_product_access').update(update).eq('id', access.id);
+        if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após fatura: ${accessUpdateError.message}`);
+        await syncCrmAccessOrThrow(admin, access.id, paid ? 'a reativação após a fatura paga' : 'a suspensão após falha da fatura');
       }
     }
 
@@ -787,7 +823,9 @@ Deno.serve(async request => {
         if (internalStatus) patch.subscription_status = internalStatus;
         if (internalStatus === 'cancelled' || internalStatus === 'past_due') patch.access_status = 'suspended';
         if (internalStatus === 'active' || internalStatus === 'trial') patch.access_status = 'active';
-        await admin.from('organization_product_access').update(patch).eq('id', access.id);
+        const { error: accessUpdateError } = await admin.from('organization_product_access').update(patch).eq('id', access.id);
+        if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após evento da assinatura: ${accessUpdateError.message}`);
+        await syncCrmAccessOrThrow(admin, access.id, internalStatus === 'cancelled' ? 'o cancelamento da assinatura' : internalStatus === 'past_due' ? 'a suspensão da assinatura' : 'a atualização da assinatura');
       }
     }
 
