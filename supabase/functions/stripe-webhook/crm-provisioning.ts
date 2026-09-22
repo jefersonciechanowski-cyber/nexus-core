@@ -25,6 +25,132 @@ function crmRemoteStatus(accessStatus: unknown, subscriptionStatus: unknown) {
   return 'active';
 }
 
+
+type CrmSyncResult = {
+  isCrm: boolean;
+  synced: boolean;
+  error: string | null;
+};
+
+function crmEventTypeForStatus(status: string) {
+  if (status === 'cancelled') return 'entitlement.cancelled';
+  if (status === 'suspended') return 'entitlement.suspended';
+  return 'entitlement.reactivated';
+}
+
+export async function syncCrmEntitlement(admin: any, accessId: string): Promise<CrmSyncResult> {
+  const { data: access, error: accessError } = await admin
+    .from('organization_product_access')
+    .select('id,organization_id,product_id,plan_id,access_status,subscription_status,contracted_price_cents,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,external_tenant_id')
+    .eq('id', accessId)
+    .maybeSingle();
+
+  if (accessError || !access?.id) {
+    return { isCrm: false, synced: false, error: 'Contrato não encontrado para sincronização com o CRM.' };
+  }
+
+  const { data: product, error: productError } = await admin
+    .from('nexus_products')
+    .select('id,code')
+    .eq('id', access.product_id)
+    .maybeSingle();
+
+  if (productError) {
+    return { isCrm: false, synced: false, error: 'Não foi possível validar o produto do contrato.' };
+  }
+  if (product?.code !== 'crm') {
+    return { isCrm: false, synced: true, error: null };
+  }
+
+  const { data: plan, error: planError } = await admin
+    .from('nexus_plans')
+    .select('id,code,price_cents,included_user_limit,status')
+    .eq('id', access.plan_id)
+    .maybeSingle();
+
+  if (planError || !plan?.id || plan.status !== 'active') {
+    return { isCrm: true, synced: false, error: 'Plano comercial do CRM inválido ou inativo.' };
+  }
+
+  const crmOrganizationId = clean(access.external_tenant_id, 80);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(crmOrganizationId)) {
+    return { isCrm: true, synced: false, error: 'Tenant do CRM não vinculado ao contrato.' };
+  }
+
+  const endpoint = clean(
+    Deno.env.get('NEXUS_CRM_ENTITLEMENT_URL') || 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-entitlement',
+    1000,
+  );
+  const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
+  if (!endpoint.startsWith('https://') || secret.length < 32) {
+    return { isCrm: true, synced: false, error: 'Integração de entitlement do CRM não configurada.' };
+  }
+
+  const status = crmRemoteStatus(access.access_status, access.subscription_status);
+  const baseMaxUsers = Number(access.base_user_limit_override ?? plan.included_user_limit);
+  const additionalUsers = Number(access.additional_users ?? 0);
+  const basePriceCents = Number(access.contracted_price_cents ?? plan.price_cents);
+  if (!Number.isInteger(baseMaxUsers) || baseMaxUsers < 1 || !Number.isInteger(additionalUsers) || additionalUsers < 0 || !Number.isInteger(basePriceCents) || basePriceCents < 0) {
+    return { isCrm: true, synced: false, error: 'Snapshot comercial do CRM inválido.' };
+  }
+
+  const commercialCondition = ['founder', 'courtesy'].includes(clean(access.commercial_condition, 30))
+    ? clean(access.commercial_condition, 30)
+    : 'standard';
+
+  const payload = {
+    event_id: crypto.randomUUID(),
+    event_type: crmEventTypeForStatus(status),
+    occurred_at: new Date().toISOString(),
+    organization_id: crmOrganizationId,
+    central_company_id: clean(access.organization_id, 80),
+    contract_id: clean(access.id, 80),
+    entitlement: {
+      product_code: 'nexus_crm',
+      plan_code: clean(plan.code, 40),
+      status,
+      commercial_condition: commercialCondition,
+      base_price_cents: basePriceCents,
+      base_max_users: baseMaxUsers,
+      additional_users: additionalUsers,
+      started_at: access.starts_at || null,
+      next_renewal_at: access.renews_at || null,
+    },
+  };
+
+  const rawBody = JSON.stringify(payload);
+  const signature = await hmacHex(secret, rawBody);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-nexus-signature': `sha256=${signature}`,
+      },
+      body: rawBody,
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    return { isCrm: true, synced: false, error: `Falha de rede ao sincronizar CRM: ${clean((error as any)?.message, 400)}` };
+  }
+
+  const text = await response.text();
+  let body: Record<string, unknown> = {};
+  try { body = text ? JSON.parse(text) : {}; } catch { body = {}; }
+
+  if (!response.ok || body?.ok !== true) {
+    return {
+      isCrm: true,
+      synced: false,
+      error: clean(body?.error || text || `HTTP ${response.status}`, 700),
+    };
+  }
+
+  return { isCrm: true, synced: true, error: null };
+}
+
 type CrmProvisionResult = {
   isCrm: boolean;
   error: string | null;
