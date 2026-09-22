@@ -132,8 +132,8 @@ async function findAccess(admin: any, criteria: { accessId?: string | null; subs
   return null;
 }
 
-async function syncCrmAccessOrThrow(admin: any, accessId: string, reason: string) {
-  const result = await syncCrmEntitlement(admin, accessId);
+async function syncCrmAccessOrThrow(admin: any, accessId: string, reason: string, forcedStatus?: 'active' | 'suspended' | 'cancelled') {
+  const result = await syncCrmEntitlement(admin, accessId, forcedStatus);
   if (result.isCrm && !result.synced) {
     throw new Error(`Nexus CRM não confirmou ${reason}: ${result.error || 'falha de sincronização'}`);
   }
@@ -725,6 +725,12 @@ Deno.serve(async request => {
       } else if (accessId) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
+          if (!succeeded) {
+            // Restrição é fail-closed: o CRM confirma a suspensão antes da Central
+            // persistir o novo estado. Se a chamada remota falhar, o contrato local
+            // permanece como estava e o evento Stripe fica disponível para retry.
+            await syncCrmAccessOrThrow(admin, access.id, 'a suspensão por falha de pagamento', 'suspended');
+          }
           const { error: accessUpdateError } = await admin.from('organization_product_access').update({
             subscription_status: succeeded ? 'active' : 'past_due',
             access_status: succeeded ? 'active' : 'suspended',
@@ -733,7 +739,9 @@ Deno.serve(async request => {
             updated_at: new Date().toISOString(),
           }).eq('id', access.id);
           if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após pagamento assíncrono: ${accessUpdateError.message}`);
-          await syncCrmAccessOrThrow(admin, access.id, succeeded ? 'a reativação após o pagamento' : 'a suspensão por falha de pagamento');
+          if (succeeded) {
+            await syncCrmAccessOrThrow(admin, access.id, 'a reativação após o pagamento');
+          }
         }
       }
     }
@@ -798,9 +806,14 @@ Deno.serve(async request => {
         };
         if (paid) update.last_payment_at = eventTime;
         if (renewsAt) update.renews_at = renewsAt;
+        if (!paid) {
+          await syncCrmAccessOrThrow(admin, access.id, 'a suspensão após falha da fatura', 'suspended');
+        }
         const { error: accessUpdateError } = await admin.from('organization_product_access').update(update).eq('id', access.id);
         if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após fatura: ${accessUpdateError.message}`);
-        await syncCrmAccessOrThrow(admin, access.id, paid ? 'a reativação após a fatura paga' : 'a suspensão após falha da fatura');
+        if (paid) {
+          await syncCrmAccessOrThrow(admin, access.id, 'a reativação após a fatura paga');
+        }
       }
     }
 
@@ -818,6 +831,20 @@ Deno.serve(async request => {
 
       const access = await findAccess(admin, { accessId, subscriptionId, customerId });
       if (access?.id) {
+        const restrictiveStatus = internalStatus === 'cancelled'
+          ? 'cancelled'
+          : internalStatus === 'past_due'
+          ? 'suspended'
+          : null;
+        if (restrictiveStatus) {
+          await syncCrmAccessOrThrow(
+            admin,
+            access.id,
+            restrictiveStatus === 'cancelled' ? 'o cancelamento da assinatura' : 'a suspensão da assinatura',
+            restrictiveStatus,
+          );
+        }
+
         const patch: Record<string, unknown> = { billing_provider: 'stripe', provider_customer_id: customerId || undefined, provider_subscription_id: subscriptionId, updated_at: new Date().toISOString() };
         if (renewsAt) patch.renews_at = renewsAt;
         if (internalStatus) patch.subscription_status = internalStatus;
@@ -825,7 +852,9 @@ Deno.serve(async request => {
         if (internalStatus === 'active' || internalStatus === 'trial') patch.access_status = 'active';
         const { error: accessUpdateError } = await admin.from('organization_product_access').update(patch).eq('id', access.id);
         if (accessUpdateError) throw new Error(`Falha ao atualizar contrato após evento da assinatura: ${accessUpdateError.message}`);
-        await syncCrmAccessOrThrow(admin, access.id, internalStatus === 'cancelled' ? 'o cancelamento da assinatura' : internalStatus === 'past_due' ? 'a suspensão da assinatura' : 'a atualização da assinatura');
+        if (!restrictiveStatus && (internalStatus === 'active' || internalStatus === 'trial')) {
+          await syncCrmAccessOrThrow(admin, access.id, 'a atualização da assinatura');
+        }
       }
     }
 
