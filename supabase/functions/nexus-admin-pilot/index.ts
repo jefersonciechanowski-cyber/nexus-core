@@ -139,6 +139,12 @@ Deno.serve(async request => {
   const { data: { user }, error: userError } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Sessão inválida.' }, 401);
 
+  const accessToken = authorization.replace(/^Bearer\\s+/i, '').trim();
+  const { data: aalData, error: aalError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel(accessToken);
+  if (aalError || aalData?.currentLevel !== 'aal2') {
+    return json({ error: 'Confirme a autenticação em duas etapas para executar esta ação administrativa.' }, 403);
+  }
+
   const { data: adminProfile, error: profileError } = await admin
     .from('profiles')
     .select('id,role,active')
