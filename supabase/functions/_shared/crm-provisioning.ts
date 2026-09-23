@@ -32,7 +32,14 @@ type CrmProvisionResult = {
   firstAccessUrl: string | null;
 };
 
-export async function provisionCrmTenant(admin: any, sale: any, access: any): Promise<CrmProvisionResult> {
+type CrmProvisionEnvironment = 'production' | 'administrative';
+
+export async function provisionCrmTenant(
+  admin: any,
+  sale: any,
+  access: any,
+  environment: CrmProvisionEnvironment = 'production',
+): Promise<CrmProvisionResult> {
   const { data: plan, error: planError } = await admin
     .from('nexus_plans')
     .select('id,product_id,code,name,price_cents,included_user_limit,status')
@@ -79,9 +86,14 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     return { isCrm: true, error: 'Plano comercial do Nexus CRM possui limites inválidos.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
+  const commercialCondition = ['founder', 'courtesy'].includes(clean(accessRow.commercial_condition, 30))
+    ? clean(accessRow.commercial_condition, 30)
+    : 'standard';
+
   const payload = {
     event_id: crypto.randomUUID(),
     occurred_at: new Date().toISOString(),
+    environment,
     sale_id: clean(sale.id, 80),
     central_company_id: clean(accessRow.organization_id, 80),
     contract_id: clean(accessRow.id, 80),
@@ -91,7 +103,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     entitlement: {
       plan_code: clean(plan.code, 40),
       status: crmRemoteStatus(accessRow.access_status, accessRow.subscription_status),
-      commercial_condition: accessRow.commercial_condition === 'founder' ? 'founder' : 'standard',
+      commercial_condition: commercialCondition,
       base_price_cents: basePriceCents,
       base_max_users: baseMaxUsers,
       additional_users: additionalUsers,
