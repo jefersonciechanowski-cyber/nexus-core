@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
+import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
 import { syncCrmEntitlement } from '../stripe-webhook/crm-provisioning.ts';
 
 const clean = (value: unknown, size = 500) => String(value ?? '').trim().slice(0, size);
@@ -9,13 +10,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
   });
-}
-
-function safeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i += 1) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
 }
 
 function mapSubscriptionStatus(value: unknown) {
@@ -46,8 +40,30 @@ Deno.serve(async request => {
   if (!supabaseUrl || serviceRoleKey.length < 32 || stripeKey.length < 32) {
     return json({ error: 'Reconciliação financeira não configurada.' }, 503);
   }
-  if (!bearer || !safeEqual(bearer, serviceRoleKey)) {
-    return json({ error: 'Não autorizado.' }, 401);
+  if (!bearer) return json({ error: 'Token OIDC ausente.' }, 401);
+
+  try {
+    const jwks = createRemoteJWKSet(new URL('https://token.actions.githubusercontent.com/.well-known/jwks'));
+    const { payload } = await jwtVerify(bearer, jwks, {
+      issuer: 'https://token.actions.githubusercontent.com',
+      audience: 'nexus-billing-reconcile',
+    });
+    const repository = clean(payload.repository, 300);
+    const ref = clean(payload.ref, 300);
+    const eventName = clean(payload.event_name, 80);
+    if (
+      repository !== 'jefersonciechanowski-cyber/nexus-core'
+      || ref !== 'refs/heads/main'
+      || !['schedule', 'workflow_dispatch'].includes(eventName)
+    ) {
+      return json({ error: 'Identidade GitHub não autorizada para reconciliação.' }, 403);
+    }
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: 'billing reconciliation oidc rejected',
+      error: clean((error as any)?.message, 300),
+    }));
+    return json({ error: 'Token OIDC inválido.' }, 401);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
