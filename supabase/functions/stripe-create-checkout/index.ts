@@ -129,7 +129,15 @@ Deno.serve(async request => {
     .eq('id', accessId)
     .single();
   if (accessError || !access) return json(request, { error: 'Assinatura não encontrada ou sem permissão.' }, 404);
-  if (profile.role !== 'nexus_admin' && access.organization_id !== profile.organization_id) return json(request, { error: 'Acesso fora da sua organização.' }, 403);
+  if (profile.role !== 'nexus_admin' && access.organization_id !== profile.organization_id) {
+    return json(request, { error: 'Acesso fora da sua organização.' }, 403);
+  }
+  if (profile.role === 'nexus_admin' && access.organization_id !== profile.organization_id) {
+    const { data: adminAal2, error: adminAal2Error } = await userClient.rpc('is_nexus_admin_aal2');
+    if (adminAal2Error || adminAal2 !== true) {
+      return json(request, { error: 'Confirme a autenticação em duas etapas para gerar cobranças de outra empresa.' }, 403);
+    }
+  }
 
   const plan = Array.isArray(access.plan) ? access.plan[0] : access.plan;
   const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
