@@ -322,6 +322,18 @@ if (!remainingSensitiveReadMigration) {
   }
 }
 
+const unitsWriteAal2Migration = migrationFiles.find(file => file.endsWith('20260924130000_require_aal2_for_units_cross_tenant_writes.sql'));
+if (!unitsWriteAal2Migration) {
+  fail('supabase/migrations: hardening AAL2 de escrita cross-tenant em units ausente.');
+} else {
+  const unitsWriteAal2Source = await readFile(unitsWriteAal2Migration, 'utf8');
+  if (!unitsWriteAal2Source.includes('units cross tenant nexus admin writes require aal2')
+    || !unitsWriteAal2Source.includes('as restrictive')
+    || !unitsWriteAal2Source.includes('public.is_nexus_admin_aal2()')) {
+    fail('migration AAL2 units: policy RESTRICTIVE com AAL2 ausente.');
+  }
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
