@@ -209,10 +209,26 @@ Deno.serve(async request => {
   const status = remoteStatus(clean(access.access_status, 30), clean(access.subscription_status, 30));
   const eventType = requestedEventType || defaultEventType(status);
   const occurredAt = new Date().toISOString();
+  const commercialCondition = ['founder', 'courtesy'].includes(clean(access.commercial_condition, 30))
+    ? clean(access.commercial_condition, 30)
+    : 'standard';
+
+  const { data: deliveryData, error: deliveryError } = await admin.rpc('ensure_crm_sync_delivery', {
+    p_access_id: access.id,
+    p_event_type: eventType,
+    p_force: false,
+  });
+  const delivery = deliveryData && typeof deliveryData === 'object' ? deliveryData as Record<string, unknown> : {};
+  const revision = Number(delivery.revision ?? 0);
+  const confirmedRevisionBefore = Number(delivery.confirmed_revision ?? 0);
+  if (deliveryError || !Number.isInteger(revision) || revision < 1) {
+    return json({ error: 'Não foi possível reservar a revisão de sincronização do CRM.' }, 500);
+  }
 
   const payload = {
     event_id: crypto.randomUUID(),
     event_type: eventType,
+    revision,
     occurred_at: occurredAt,
     organization_id: crmOrganizationId,
     central_company_id: clean(access.organization_id, 80),
@@ -221,7 +237,7 @@ Deno.serve(async request => {
       product_code: 'nexus_crm',
       plan_code: plan.code,
       status,
-      commercial_condition: access.commercial_condition === 'founder' ? 'founder' : 'standard',
+      commercial_condition: commercialCondition,
       base_price_cents: basePriceCents,
       base_max_users: baseMaxUsers,
       additional_users: additionalUsers,
@@ -247,27 +263,54 @@ Deno.serve(async request => {
       method: 'POST',
       headers: outboundHeaders,
       body: rawBody,
+      signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
-    console.error('[Nexus CRM entitlement] Falha de rede:', error);
-    return json({ error: 'Não foi possível comunicar com o Nexus CRM.' }, 502);
+    const detail = `Falha de rede: ${clean((error as any)?.message, 500)}`;
+    await admin.rpc('fail_crm_sync_delivery', {
+      p_access_id: access.id,
+      p_revision: revision,
+      p_error: detail,
+    });
+    return json({ error: 'Não foi possível comunicar com o Nexus CRM.', pending_sync: true, revision }, 502);
   }
 
   const crmText = await crmResponse.text();
-  let crmPayload: unknown = null;
+  let crmPayload: Record<string, unknown> = {};
   try {
-    crmPayload = crmText ? JSON.parse(crmText) : null;
+    crmPayload = crmText ? JSON.parse(crmText) : {};
   } catch {
     crmPayload = { raw: clean(crmText, 800) };
   }
 
-  if (!crmResponse.ok) {
-    console.error('[Nexus CRM entitlement] Destino rejeitou evento:', crmResponse.status, crmPayload);
+  const confirmedRevision = Number(crmPayload?.confirmed_revision ?? 0);
+  if (!crmResponse.ok || crmPayload?.ok !== true || !Number.isInteger(confirmedRevision) || confirmedRevision < revision) {
+    const detail = clean(crmPayload?.error || crmText || `HTTP ${crmResponse.status}`, 700);
+    await admin.rpc('fail_crm_sync_delivery', {
+      p_access_id: access.id,
+      p_revision: revision,
+      p_error: detail,
+    });
     return json({
-      error: 'O Nexus CRM rejeitou a atualização do contrato.',
+      error: 'O Nexus CRM ainda não confirmou a revisão do contrato.',
+      pending_sync: true,
+      revision,
       crmStatus: crmResponse.status,
       crmResponse: crmPayload,
     }, 502);
+  }
+
+  const { error: confirmError } = await admin.rpc('confirm_crm_sync_delivery', {
+    p_access_id: access.id,
+    p_revision: revision,
+  });
+  if (confirmError) {
+    return json({
+      error: 'O CRM confirmou a revisão, mas a Central não conseguiu registrar a confirmação.',
+      pending_sync: true,
+      requires_manual_review: true,
+      revision,
+    }, 500);
   }
 
   return json({
@@ -281,6 +324,9 @@ Deno.serve(async request => {
     baseMaxUsers,
     additionalUsers,
     effectiveMaxUsers: baseMaxUsers + additionalUsers,
+    revision,
+    retriedPendingRevision: revision > confirmedRevisionBefore,
     crmResponse: crmPayload,
   });
+
 });
