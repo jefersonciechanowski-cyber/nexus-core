@@ -30,6 +30,7 @@ type CrmSyncResult = {
   isCrm: boolean;
   synced: boolean;
   error: string | null;
+  revision?: number;
 };
 
 function crmEventTypeForStatus(status: string) {
@@ -38,7 +39,47 @@ function crmEventTypeForStatus(status: string) {
   return 'entitlement.reactivated';
 }
 
-export async function syncCrmEntitlement(admin: any, accessId: string, forcedStatus?: 'active' | 'suspended' | 'cancelled', occurredAt?: string): Promise<CrmSyncResult> {
+async function reserveCrmDelivery(admin: any, accessId: string, eventType: string, forceRevision: boolean) {
+  const { data, error } = await admin.rpc('ensure_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_event_type: eventType,
+    p_force: forceRevision,
+  });
+  if (error) throw new Error(`Não foi possível reservar a revisão de sincronização do CRM: ${clean(error.message, 500)}`);
+  const result = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+  const revision = Number(result.revision ?? 0);
+  const confirmedRevision = Number(result.confirmed_revision ?? 0);
+  return {
+    isCrm: result.is_crm !== false,
+    revision,
+    confirmedRevision,
+    pending: result.pending === true || revision > confirmedRevision,
+  };
+}
+
+async function confirmCrmDelivery(admin: any, accessId: string, revision: number) {
+  const { error } = await admin.rpc('confirm_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_revision: revision,
+  });
+  if (error) throw new Error(`O CRM confirmou a revisão, mas a Central não conseguiu registrar a confirmação: ${clean(error.message, 500)}`);
+}
+
+async function failCrmDelivery(admin: any, accessId: string, revision: number, errorMessage: string) {
+  await admin.rpc('fail_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_revision: revision,
+    p_error: clean(errorMessage, 1000),
+  });
+}
+
+export async function syncCrmEntitlement(
+  admin: any,
+  accessId: string,
+  forcedStatus?: 'active' | 'suspended' | 'cancelled',
+  occurredAt?: string,
+  forceRevision = false,
+): Promise<CrmSyncResult> {
   const { data: access, error: accessError } = await admin
     .from('organization_product_access')
     .select('id,organization_id,product_id,plan_id,access_status,subscription_status,contracted_price_cents,commercial_condition,additional_users,base_user_limit_override,starts_at,renews_at,external_tenant_id')
@@ -46,7 +87,7 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
     .maybeSingle();
 
   if (accessError || !access?.id) {
-    return { isCrm: false, synced: false, error: 'Contrato não encontrado para sincronização com o CRM.' };
+    return { isCrm: true, synced: false, error: 'Contrato não encontrado para sincronização com o CRM.' };
   }
 
   const { data: product, error: productError } = await admin
@@ -56,7 +97,7 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
     .maybeSingle();
 
   if (productError) {
-    return { isCrm: false, synced: false, error: 'Não foi possível validar o produto do contrato.' };
+    return { isCrm: true, synced: false, error: 'Não foi possível validar o produto do contrato.' };
   }
   if (product?.code !== 'crm') {
     return { isCrm: false, synced: true, error: null };
@@ -98,10 +139,26 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
   const commercialCondition = ['founder', 'courtesy'].includes(clean(access.commercial_condition, 30))
     ? clean(access.commercial_condition, 30)
     : 'standard';
+  const eventType = crmEventTypeForStatus(status);
+
+  let delivery;
+  try {
+    delivery = await reserveCrmDelivery(admin, accessId, eventType, forceRevision);
+  } catch (error) {
+    return { isCrm: true, synced: false, error: clean((error as any)?.message, 700) };
+  }
+  if (!delivery.isCrm) return { isCrm: false, synced: true, error: null };
+  if (!Number.isInteger(delivery.revision) || delivery.revision < 1) {
+    return { isCrm: true, synced: false, error: 'Revisão de sincronização do CRM inválida.' };
+  }
+  if (!delivery.pending) {
+    return { isCrm: true, synced: true, error: null, revision: delivery.revision };
+  }
 
   const payload = {
     event_id: crypto.randomUUID(),
-    event_type: crmEventTypeForStatus(status),
+    event_type: eventType,
+    revision: delivery.revision,
     occurred_at: occurredAt || new Date().toISOString(),
     organization_id: crmOrganizationId,
     central_company_id: clean(access.organization_id, 80),
@@ -134,22 +191,30 @@ export async function syncCrmEntitlement(admin: any, accessId: string, forcedSta
       signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
-    return { isCrm: true, synced: false, error: `Falha de rede ao sincronizar CRM: ${clean((error as any)?.message, 400)}` };
+    const detail = `Falha de rede ao sincronizar CRM: ${clean((error as any)?.message, 400)}`;
+    await failCrmDelivery(admin, accessId, delivery.revision, detail);
+    return { isCrm: true, synced: false, error: detail, revision: delivery.revision };
   }
 
-  const text = await response.text();
+  const responseText = await response.text();
   let body: Record<string, unknown> = {};
-  try { body = text ? JSON.parse(text) : {}; } catch { body = {}; }
+  try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = {}; }
 
-  if (!response.ok || body?.ok !== true) {
-    return {
-      isCrm: true,
-      synced: false,
-      error: clean(body?.error || text || `HTTP ${response.status}`, 700),
-    };
+  const confirmedRevision = Number(body?.confirmed_revision ?? 0);
+  if (!response.ok || body?.ok !== true || !Number.isInteger(confirmedRevision) || confirmedRevision < delivery.revision) {
+    const detail = clean(body?.error || responseText || `HTTP ${response.status}`, 700)
+      || 'O CRM não confirmou a revisão enviada.';
+    await failCrmDelivery(admin, accessId, delivery.revision, detail);
+    return { isCrm: true, synced: false, error: detail, revision: delivery.revision };
   }
 
-  return { isCrm: true, synced: true, error: null };
+  try {
+    await confirmCrmDelivery(admin, accessId, delivery.revision);
+  } catch (error) {
+    return { isCrm: true, synced: false, error: clean((error as any)?.message, 700), revision: delivery.revision };
+  }
+
+  return { isCrm: true, synced: true, error: null, revision: delivery.revision };
 }
 
 type CrmProvisionResult = {
@@ -167,15 +232,18 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     .maybeSingle();
 
   if (planError || !plan?.id) {
-    return { isCrm: false, error: null, crmOrganizationId: null, firstAccessUrl: null };
+    return { isCrm: true, error: 'Não foi possível validar o plano antes do provisionamento.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
-  const { data: product } = await admin
+  const { data: product, error: productError } = await admin
     .from('nexus_products')
     .select('id,code,name,status')
     .eq('id', plan.product_id)
     .maybeSingle();
 
+  if (productError) {
+    return { isCrm: true, error: 'Não foi possível validar o produto antes do provisionamento.', crmOrganizationId: null, firstAccessUrl: null };
+  }
   if (product?.code !== 'crm') {
     return { isCrm: false, error: null, crmOrganizationId: null, firstAccessUrl: null };
   }
@@ -199,6 +267,11 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     return { isCrm: true, error: 'Contrato do Nexus CRM não encontrado após o pagamento.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
+  const existingTenantId = clean(accessRow.external_tenant_id, 80);
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existingTenantId)) {
+    return { isCrm: true, error: null, crmOrganizationId: existingTenantId, firstAccessUrl: null };
+  }
+
   const baseMaxUsers = Number(accessRow.base_user_limit_override ?? plan.included_user_limit);
   const additionalUsers = Number(accessRow.additional_users ?? 0);
   const basePriceCents = Number(accessRow.contracted_price_cents ?? plan.price_cents);
@@ -206,9 +279,26 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     return { isCrm: true, error: 'Plano comercial do Nexus CRM possui limites inválidos.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
+  const commercialCondition = ['founder', 'courtesy'].includes(clean(accessRow.commercial_condition, 30))
+    ? clean(accessRow.commercial_condition, 30)
+    : 'standard';
+
+  let delivery;
+  try {
+    delivery = await reserveCrmDelivery(admin, accessRow.id, 'entitlement.activated', false);
+  } catch (error) {
+    return { isCrm: true, error: clean((error as any)?.message, 700), crmOrganizationId: null, firstAccessUrl: null };
+  }
+  if (!Number.isInteger(delivery.revision) || delivery.revision < 1) {
+    return { isCrm: true, error: 'Revisão inicial do provisionamento CRM inválida.', crmOrganizationId: null, firstAccessUrl: null };
+  }
+
+  const environment = clean(sale.environment, 30) === 'production' ? 'production' : 'administrative';
   const payload = {
     event_id: crypto.randomUUID(),
+    revision: delivery.revision,
     occurred_at: new Date().toISOString(),
+    environment,
     sale_id: clean(sale.id, 80),
     central_company_id: clean(accessRow.organization_id, 80),
     contract_id: clean(accessRow.id, 80),
@@ -218,7 +308,7 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     entitlement: {
       plan_code: clean(plan.code, 40),
       status: crmRemoteStatus(accessRow.access_status, accessRow.subscription_status),
-      commercial_condition: accessRow.commercial_condition === 'founder' ? 'founder' : 'standard',
+      commercial_condition: commercialCondition,
       base_price_cents: basePriceCents,
       base_max_users: baseMaxUsers,
       additional_users: additionalUsers,
@@ -239,26 +329,31 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
         'x-nexus-signature': `sha256=${signature}`,
       },
       body: rawBody,
+      signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
-    console.error('[Nexus CRM provision] Falha de rede:', error);
-    return { isCrm: true, error: 'Não foi possível comunicar com o Nexus CRM.', crmOrganizationId: null, firstAccessUrl: null };
+    const detail = `Não foi possível comunicar com o Nexus CRM: ${clean((error as any)?.message, 400)}`;
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId: null, firstAccessUrl: null };
   }
 
   const responseText = await response.text();
   let responseBody: Record<string, unknown> = {};
   try { responseBody = responseText ? JSON.parse(responseText) : {}; } catch { responseBody = {}; }
 
-  if (!response.ok) {
+  const confirmedRevision = Number(responseBody.confirmed_revision ?? 0);
+  if (!response.ok || responseBody?.ok !== true || !Number.isInteger(confirmedRevision) || confirmedRevision < delivery.revision) {
     const detail = clean(responseBody.error, 500) || `HTTP ${response.status}`;
-    console.error('[Nexus CRM provision] Destino rejeitou:', response.status, detail);
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
     return { isCrm: true, error: `Nexus CRM não pôde ser provisionado: ${detail}`, crmOrganizationId: null, firstAccessUrl: null };
   }
 
   const crmOrganizationId = clean(responseBody.crmOrganizationId, 80);
   const firstAccessUrl = clean(responseBody.firstAccessUrl, 1500) || null;
   if (!crmOrganizationId) {
-    return { isCrm: true, error: 'Nexus CRM não retornou o identificador da organização criada.', crmOrganizationId: null, firstAccessUrl };
+    const detail = 'Nexus CRM não retornou o identificador da organização criada.';
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId: null, firstAccessUrl };
   }
 
   const { error: linkError } = await admin
@@ -267,7 +362,15 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
     .eq('id', accessRow.id);
 
   if (linkError) {
-    return { isCrm: true, error: 'CRM criado, mas o vínculo com a Central não pôde ser salvo.', crmOrganizationId, firstAccessUrl };
+    const detail = 'CRM criado, mas o vínculo com a Central não pôde ser salvo.';
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId, firstAccessUrl };
+  }
+
+  try {
+    await confirmCrmDelivery(admin, accessRow.id, delivery.revision);
+  } catch (error) {
+    return { isCrm: true, error: clean((error as any)?.message, 700), crmOrganizationId, firstAccessUrl };
   }
 
   return { isCrm: true, error: null, crmOrganizationId, firstAccessUrl };
