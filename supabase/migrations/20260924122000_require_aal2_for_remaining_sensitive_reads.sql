@@ -215,13 +215,6 @@ to authenticated
 using (
   not public.is_nexus_admin()
   or user_id = auth.uid()
-  or exists (
-    select 1
-    from public.nexus_account_users own_membership
-    where own_membership.account_id = nexus_account_users.account_id
-      and own_membership.user_id = auth.uid()
-      and own_membership.active = true
-  )
   or public.is_nexus_admin_aal2()
 );
 
