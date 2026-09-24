@@ -132,6 +132,62 @@ async function findAccess(admin: any, criteria: { accessId?: string | null; subs
   return null;
 }
 
+async function resolveFinancialAccess(admin: any, stripe: Stripe, chargeInput: any) {
+  const chargeId = clean(chargeInput?.id, 255);
+  const customerId = clean(chargeInput?.customer, 255) || null;
+  const paymentIntentId = clean(chargeInput?.payment_intent, 255) || null;
+  const invoiceId = clean(chargeInput?.invoice, 255) || null;
+  let subscriptionId: string | null = null;
+
+  if (invoiceId) {
+    try {
+      const invoice: any = await stripe.invoices.retrieve(invoiceId);
+      subscriptionId = invoiceSubscriptionId(invoice);
+    } catch {
+      // Payment/checkout linkage below remains a valid fallback.
+    }
+  }
+
+  let access = subscriptionId ? await findAccess(admin, { subscriptionId, customerId }) : null;
+  const paymentCandidates = [invoiceId, paymentIntentId, chargeId].filter(Boolean) as string[];
+
+  if (!access?.id && paymentCandidates.length) {
+    const { data: payments } = await admin
+      .from('nexus_payments')
+      .select('access_id,provider_payment_id')
+      .eq('provider', 'stripe')
+      .in('provider_payment_id', paymentCandidates)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const accessId = clean(payments?.[0]?.access_id, 80);
+    if (accessId) access = await findAccess(admin, { accessId, customerId });
+  }
+
+  if (!access?.id && customerId) {
+    const { data: checkouts } = await admin
+      .from('nexus_payment_checkouts')
+      .select('access_id')
+      .eq('provider', 'stripe')
+      .eq('provider_customer_id', customerId)
+      .eq('status', 'paid')
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    const accessId = clean(checkouts?.[0]?.access_id, 80);
+    if (accessId) access = await findAccess(admin, { accessId, customerId });
+  }
+
+  return { access, customerId, subscriptionId, chargeId, invoiceId, paymentIntentId, paymentCandidates };
+}
+
+async function updatePaymentFinancialStatus(admin: any, providerPaymentIds: string[], status: string) {
+  if (!providerPaymentIds.length) return;
+  await admin
+    .from('nexus_payments')
+    .update({ provider_status: clean(status, 120), updated_at: new Date().toISOString() })
+    .eq('provider', 'stripe')
+    .in('provider_payment_id', providerPaymentIds);
+}
+
 async function syncCrmAccessOrThrow(
   admin: any,
   accessId: string,
@@ -817,6 +873,102 @@ Deno.serve(async request => {
             admin,
             access.id,
             succeeded ? 'a reativação após o pagamento' : 'a suspensão por falha de pagamento',
+            undefined,
+            eventCreatedAt,
+            state.applied === true,
+          );
+        }
+      }
+    }
+
+    if (eventType === 'charge.refunded' || eventType === 'refund.updated' || eventType === 'charge.dispute.created' || eventType === 'charge.dispute.closed') {
+      let charge: any = resource;
+      let refund: any = null;
+      let dispute: any = null;
+
+      if (eventType === 'refund.updated') {
+        refund = resource;
+        const chargeId = clean(refund.charge, 255);
+        if (!chargeId) throw new Error('Reembolso Stripe sem charge associada.');
+        charge = await stripe.charges.retrieve(chargeId);
+      } else if (eventType.startsWith('charge.dispute.')) {
+        dispute = resource;
+        const chargeId = clean(dispute.charge, 255);
+        if (!chargeId) throw new Error('Disputa Stripe sem charge associada.');
+        charge = await stripe.charges.retrieve(chargeId);
+      }
+
+      const resolved = await resolveFinancialAccess(admin, stripe, charge);
+      const access = resolved.access;
+      const fullRefund = Number(charge?.amount || 0) > 0
+        && Number(charge?.amount_refunded || 0) >= Number(charge?.amount || 0);
+      const partialRefund = Number(charge?.amount_refunded || 0) > 0 && !fullRefund;
+
+      await updatePaymentFinancialStatus(
+        admin,
+        resolved.paymentCandidates,
+        dispute
+          ? `dispute_${clean(dispute.status, 60) || 'updated'}`
+          : fullRefund
+          ? 'refunded'
+          : partialRefund
+          ? 'partially_refunded'
+          : clean(refund?.status || eventType, 120),
+      );
+
+      if (access?.id) {
+        let nextSubscriptionStatus: 'active' | 'trial' | 'past_due' | 'cancelled' | null = null;
+        let nextAccessStatus: 'active' | 'suspended' | null = null;
+
+        if ((eventType === 'charge.refunded' || eventType === 'refund.updated') && fullRefund) {
+          nextSubscriptionStatus = 'past_due';
+          nextAccessStatus = 'suspended';
+        }
+
+        if (eventType === 'charge.dispute.created') {
+          nextSubscriptionStatus = 'past_due';
+          nextAccessStatus = 'suspended';
+        }
+
+        if (eventType === 'charge.dispute.closed') {
+          const disputeStatus = clean(dispute?.status, 60).toLowerCase();
+          if (disputeStatus === 'won') {
+            if (resolved.subscriptionId) {
+              const subscription: any = await stripe.subscriptions.retrieve(resolved.subscriptionId);
+              const mapped = mapSubscriptionStatus(subscription.status);
+              if (!mapped) throw new Error(`Status Stripe não reconhecido após disputa: ${clean(subscription.status, 80)}`);
+              nextSubscriptionStatus = mapped;
+              nextAccessStatus = mapped === 'active' || mapped === 'trial' ? 'active' : 'suspended';
+            } else {
+              nextSubscriptionStatus = 'active';
+              nextAccessStatus = 'active';
+            }
+          } else {
+            nextSubscriptionStatus = 'past_due';
+            nextAccessStatus = 'suspended';
+          }
+        }
+
+        if (nextSubscriptionStatus && nextAccessStatus) {
+          const state = await applyStripeContractState(admin, {
+            accessId: access.id,
+            eventId,
+            eventCreatedAt,
+            eventType,
+            subscriptionStatus: nextSubscriptionStatus,
+            accessStatus: nextAccessStatus,
+            customerId: resolved.customerId,
+            subscriptionId: resolved.subscriptionId,
+            lastPaymentStatus: eventType,
+            lastPaymentAt: null,
+          });
+
+          await syncCrmAccessOrThrow(
+            admin,
+            access.id,
+            nextAccessStatus === 'active'
+              ? 'a reativação após resolução financeira'
+              : 'a suspensão após reembolso/disputa',
             undefined,
             eventCreatedAt,
             state.applied === true,
