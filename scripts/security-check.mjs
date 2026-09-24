@@ -253,6 +253,33 @@ if (!sstCrossTenantMigration) {
   }
 }
 
+const smartProcessorSource = await readFile(join(projectRoot, 'supabase', 'functions', 'smart-processor', 'index.ts'), 'utf8');
+if (!smartProcessorSource.includes('status: 410')) {
+  fail('supabase/functions/smart-processor/index.ts: endpoint legado de provisionamento precisa permanecer desativado com 410.');
+}
+
+const commercialReadAal2Migration = migrationFiles.find(file => file.endsWith('20260924113000_require_aal2_for_commercial_read_access.sql'));
+if (!commercialReadAal2Migration) {
+  fail('supabase/migrations: hardening AAL2 de leitura comercial/financeira ausente.');
+} else {
+  const commercialReadSource = await readFile(commercialReadAal2Migration, 'utf8');
+  for (const protectedTable of [
+    'nexus_sales',
+    'organization_product_access',
+    'nexus_payment_checkouts',
+    'nexus_payments',
+    'nexus_payment_webhook_events',
+  ]) {
+    if (!commercialReadSource.includes(protectedTable)) {
+      fail(`migration AAL2 comercial: proteção de leitura ausente para ${protectedTable}.`);
+    }
+  }
+  if (!commercialReadSource.includes('as restrictive')
+    || !commercialReadSource.includes('public.is_nexus_admin_aal2()')) {
+    fail('migration AAL2 comercial: policies precisam ser RESTRICTIVE e exigir AAL2.');
+  }
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
