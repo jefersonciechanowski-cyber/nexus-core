@@ -138,8 +138,9 @@ async function syncCrmAccessOrThrow(
   reason: string,
   forcedStatus?: 'active' | 'suspended' | 'cancelled',
   occurredAt?: string,
+  forceRevision = false,
 ) {
-  const result = await syncCrmEntitlement(admin, accessId, forcedStatus, occurredAt);
+  const result = await syncCrmEntitlement(admin, accessId, forcedStatus, occurredAt, forceRevision);
   if (result.isCrm && !result.synced) {
     throw new Error(`Nexus CRM não confirmou ${reason}: ${result.error || 'falha de sincronização'}`);
   }
@@ -698,7 +699,10 @@ Deno.serve(async request => {
           if (expired) patch.sale_status = 'expired';
           else if (paid) { patch.sale_status = 'paid'; patch.paid_at = new Date().toISOString(); }
           await admin.from('nexus_sales').update(patch).eq('id', sale.id);
-          if (paid) await provisionSale(admin, { ...sale, ...patch }, { customerId, subscriptionId, renewsAt, eventType });
+          if (paid) {
+            const provisioned = await provisionSale(admin, { ...sale, ...patch }, { customerId, subscriptionId, renewsAt, eventType });
+            if (provisioned.error) throw new Error(provisioned.error);
+          }
         }
       } else if (accessId && paid) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
@@ -716,9 +720,14 @@ Deno.serve(async request => {
             lastPaymentAt: new Date().toISOString(),
             renewsAt,
           });
-          if (state.applied === true) {
-            await syncCrmAccessOrThrow(admin, access.id, 'a ativação após o checkout', 'active', eventCreatedAt);
-          }
+          await syncCrmAccessOrThrow(
+            admin,
+            access.id,
+            'a ativação após o checkout',
+            undefined,
+            eventCreatedAt,
+            state.applied === true,
+          );
         }
       }
     }
@@ -761,6 +770,7 @@ Deno.serve(async request => {
               try { renewsAt = subscriptionPeriodEnd(await stripe.subscriptions.retrieve(subscriptionId)); } catch { /* invoice/subscription event reconciles later */ }
             }
             const provisioned = await provisionSale(admin, sale, { customerId, subscriptionId, renewsAt, eventType });
+            if (provisioned.error) throw new Error(provisioned.error);
             if (sale.billing_mode === 'prepaid' && provisioned.access?.id) {
               const eventTime = new Date().toISOString();
               const providerPaymentId = clean(session.payment_intent || session.id, 255);
@@ -791,11 +801,6 @@ Deno.serve(async request => {
       } else if (accessId) {
         const access = await findAccess(admin, { accessId, subscriptionId, customerId });
         if (access?.id) {
-          if (!succeeded && access.subscription_status !== 'cancelled') {
-            // Restrição é fail-closed: o CRM confirma a suspensão antes da Central.
-            // O timestamp original da Stripe permite ao CRM ignorar eventos atrasados.
-            await syncCrmAccessOrThrow(admin, access.id, 'a suspensão por falha de pagamento', 'suspended', eventCreatedAt);
-          }
           const state = await applyStripeContractState(admin, {
             accessId: access.id,
             eventId,
@@ -808,9 +813,14 @@ Deno.serve(async request => {
             lastPaymentStatus: eventType,
             lastPaymentAt: succeeded ? new Date().toISOString() : null,
           });
-          if (succeeded && state.applied === true) {
-            await syncCrmAccessOrThrow(admin, access.id, 'a reativação após o pagamento', 'active', eventCreatedAt);
-          }
+          await syncCrmAccessOrThrow(
+            admin,
+            access.id,
+            succeeded ? 'a reativação após o pagamento' : 'a suspensão por falha de pagamento',
+            undefined,
+            eventCreatedAt,
+            state.applied === true,
+          );
         }
       }
     }
@@ -834,7 +844,11 @@ Deno.serve(async request => {
         if (paid) { salePatch.sale_status = sale.sale_status === 'provisioned' ? 'provisioned' : 'paid'; salePatch.paid_at = sale.paid_at || new Date().toISOString(); }
         await admin.from('nexus_sales').update(salePatch).eq('id', sale.id);
         sale = { ...sale, ...salePatch };
-        if (paid && !access?.id) access = (await provisionSale(admin, sale, { customerId, subscriptionId, renewsAt, eventType })).access;
+        if (paid && !access?.id) {
+          const provisioned = await provisionSale(admin, sale, { customerId, subscriptionId, renewsAt, eventType });
+          if (provisioned.error) throw new Error(provisioned.error);
+          access = provisioned.access;
+        }
       }
 
       if (access?.id) {
@@ -863,9 +877,6 @@ Deno.serve(async request => {
           updated_at: eventTime,
         }, { onConflict: 'provider_payment_id' });
 
-        if (!paid && access.subscription_status !== 'cancelled') {
-          await syncCrmAccessOrThrow(admin, access.id, 'a suspensão após falha da fatura', 'suspended', eventCreatedAt);
-        }
         const state = await applyStripeContractState(admin, {
           accessId: access.id,
           eventId,
@@ -880,9 +891,14 @@ Deno.serve(async request => {
           lastPaymentDueDate: dueDate,
           renewsAt,
         });
-        if (paid && state.applied === true) {
-          await syncCrmAccessOrThrow(admin, access.id, 'a reativação após a fatura paga', 'active', eventCreatedAt);
-        }
+        await syncCrmAccessOrThrow(
+          admin,
+          access.id,
+          paid ? 'a reativação após a fatura paga' : 'a suspensão após falha da fatura',
+          undefined,
+          eventCreatedAt,
+          state.applied === true,
+        );
       }
     }
 
@@ -909,16 +925,6 @@ Deno.serve(async request => {
           ? 'suspended'
           : null;
 
-        if (restrictiveStatus && access.subscription_status !== 'cancelled') {
-          await syncCrmAccessOrThrow(
-            admin,
-            access.id,
-            restrictiveStatus === 'cancelled' ? 'o cancelamento da assinatura' : 'a suspensão da assinatura',
-            restrictiveStatus,
-            eventCreatedAt,
-          );
-        }
-
         const state = await applyStripeContractState(admin, {
           accessId: access.id,
           eventId,
@@ -930,9 +936,18 @@ Deno.serve(async request => {
           subscriptionId,
           renewsAt,
         });
-        if (!restrictiveStatus && state.applied === true && (internalStatus === 'active' || internalStatus === 'trial')) {
-          await syncCrmAccessOrThrow(admin, access.id, 'a atualização da assinatura', 'active', eventCreatedAt);
-        }
+        await syncCrmAccessOrThrow(
+          admin,
+          access.id,
+          restrictiveStatus === 'cancelled'
+            ? 'o cancelamento da assinatura'
+            : restrictiveStatus === 'suspended'
+            ? 'a suspensão da assinatura'
+            : 'a atualização da assinatura',
+          undefined,
+          eventCreatedAt,
+          state.applied === true,
+        );
       }
     }
 
