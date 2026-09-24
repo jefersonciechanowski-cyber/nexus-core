@@ -114,7 +114,7 @@ async function authenticatedPilotContext(admin: any, request: Request, productId
 
   const { data: access } = await admin
     .from('organization_product_access')
-    .select('id,organization_id,subscription_status,access_status,plan:nexus_plans(code,status)')
+    .select('id,organization_id,subscription_status,access_status,provider_customer_id,plan:nexus_plans(code,status)')
     .eq('organization_id', profile.organization_id)
     .eq('product_id', productId)
     .maybeSingle();
@@ -133,6 +133,7 @@ async function authenticatedPilotContext(admin: any, request: Request, productId
     userEmail: clean(user.email, 180).toLowerCase(),
     organizationId: profile.organization_id,
     accessId: access.id,
+    providerCustomerId: clean(access.provider_customer_id, 200) || null,
     responsibleName: clean(profile.full_name, 140),
     employeeCount: count || 0,
   };
@@ -446,20 +447,11 @@ Deno.serve(async request => {
   if (saleInsertError) return json(request, { error: 'Não foi possível iniciar a contratação.' }, 500);
 
   const stripe = new Stripe(stripeSecretKey, { httpClient: Stripe.createFetchHttpClient() });
-  let customerId = '';
+  // Never reuse a Stripe customer from an anonymous CPF/CNPJ lookup.
+  // Reuse is allowed only when the authenticated pilot tenant already owns that customer.
+  let customerId = clean(pilotContext?.providerCustomerId, 200);
 
   try {
-    const { data: previousCustomer } = await admin.from('nexus_sales')
-      .select('provider_customer_id')
-      .eq('provider', 'stripe')
-      .eq('environment', environment)
-      .eq('registration_number', registrationNumber)
-      .not('provider_customer_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    customerId = clean(previousCustomer?.provider_customer_id, 200);
-
     if (!customerId) {
       const customer = await stripe.customers.create({
         name: companyName,
