@@ -403,12 +403,22 @@ for (const required of [
   'stripe.subscriptions.retrieve',
   'crm_sync_revision',
   'syncCrmEntitlement',
+  'createRemoteJWKSet',
+  "audience: 'nexus-billing-reconcile'",
+  "repository !== 'jefersonciechanowski-cyber/nexus-core'",
+  "ref !== 'refs/heads/main'",
 ]) {
-  if (!reconcileSource.includes(required)) fail(`nexus-billing-reconcile: reconciliação ausente: ${required}`);
+  if (!reconcileSource.includes(required)) fail(`nexus-billing-reconcile: reconciliação/autenticação ausente: ${required}`);
 }
 const billingWorkflow = await readFile(join(projectRoot, '.github', 'workflows', 'billing-reconciliation.yml'), 'utf8');
-if (!billingWorkflow.includes("cron: '17 */6 * * *'") || !billingWorkflow.includes('nexus-billing-reconcile')) {
-  fail('billing-reconciliation workflow: agendamento periódico ausente.');
+if (!billingWorkflow.includes("cron: '17 */6 * * *'")
+  || !billingWorkflow.includes('nexus-billing-reconcile')
+  || !billingWorkflow.includes('id-token: write')
+  || !billingWorkflow.includes('ACTIONS_ID_TOKEN_REQUEST_TOKEN')) {
+  fail('billing-reconciliation workflow: agendamento OIDC periódico ausente.');
+}
+if (billingWorkflow.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+  fail('billing-reconciliation workflow: service role não pode ser armazenada no GitHub Actions.');
 }
 
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
