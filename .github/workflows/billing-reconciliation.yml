@@ -7,25 +7,26 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   reconcile:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Reconcile Stripe contracts and pending CRM revisions
-        env:
-          SERVICE_ROLE_KEY: ${{ secrets.NEXUS_CENTRAL_SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Request short-lived GitHub OIDC token
+        id: oidc
+        shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${SERVICE_ROLE_KEY:-}" ]; then
-            echo "Missing NEXUS_CENTRAL_SUPABASE_SERVICE_ROLE_KEY"
-            exit 1
-          fi
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-billing-reconcile" \
-            --header "apikey: ${SERVICE_ROLE_KEY}" \
-            --header "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
-            --header "Content-Type: application/json" \
-            --data '{}'
+          RESPONSE="$(curl --fail-with-body --silent --show-error             --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-billing-reconcile")"
+          TOKEN="$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          printf 'token=%s\n' "${TOKEN}" >> "${GITHUB_OUTPUT}"
+
+      - name: Reconcile Stripe contracts and pending CRM revisions
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error             --request POST             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-billing-reconcile"             --header "Authorization: Bearer ${OIDC_TOKEN}"             --header "Content-Type: application/json"             --data '{}'
