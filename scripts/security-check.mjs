@@ -334,6 +334,83 @@ if (!unitsWriteAal2Migration) {
   }
 }
 
+const crmDeliveryRevisionMigration = migrationFiles.find(file => file.endsWith('20260924140000_crm_delivery_revision.sql'));
+if (!crmDeliveryRevisionMigration) {
+  fail('supabase/migrations: revisão monotônica de entrega CRM ausente.');
+} else {
+  const deliverySource = await readFile(crmDeliveryRevisionMigration, 'utf8');
+  for (const required of [
+    'crm_sync_revision',
+    'crm_sync_confirmed_revision',
+    'public.ensure_crm_sync_delivery',
+    'public.confirm_crm_sync_delivery',
+    'public.fail_crm_sync_delivery',
+  ]) {
+    if (!deliverySource.includes(required)) fail(`migration de revisão CRM: ausente ${required}`);
+  }
+}
+
+const crmProvisioningSource = await readFile(join(projectRoot, 'supabase', 'functions', 'stripe-webhook', 'crm-provisioning.ts'), 'utf8');
+for (const required of [
+  'revision: delivery.revision',
+  'environment,',
+  "['founder', 'courtesy'].includes",
+  "rpc('ensure_crm_sync_delivery'",
+  "rpc('confirm_crm_sync_delivery'",
+  "rpc('fail_crm_sync_delivery'",
+]) {
+  if (!crmProvisioningSource.includes(required)) fail(`crm-provisioning: garantia financeira ausente: ${required}`);
+}
+
+if (/\.eq\('registration_number', registrationNumber\)[\s\S]{0,260}provider_customer_id/.test(publicSalesSource)) {
+  fail('nexus-public-sales: customer Stripe não pode ser reutilizado por CPF/CNPJ em checkout anônimo.');
+}
+if (!publicSalesSource.includes('providerCustomerId: clean(access.provider_customer_id')) {
+  fail('nexus-public-sales: reaproveitamento de customer precisa estar vinculado ao tenant autenticado.');
+}
+
+for (const required of [
+  'charge.refunded',
+  'refund.updated',
+  'charge.dispute.created',
+  'charge.dispute.closed',
+  'partially_refunded',
+  'resolveFinancialAccess',
+  'if (provisioned.error) throw new Error(provisioned.error);',
+]) {
+  if (!stripeWebhookSource.includes(required)) fail(`stripe-webhook: regra financeira ausente: ${required}`);
+}
+if (stripeWebhookSource.includes('Restrição é fail-closed')) {
+  fail('stripe-webhook: fluxo remoto-antes-local antigo não pode retornar.');
+}
+
+const adminCrmAccessSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-admin-crm-access', 'index.ts'), 'utf8');
+for (const required of [
+  "p_force: true",
+  "NEXUS_CRM_ENTITLEMENT_SYNC_PENDING",
+  "confirmedRevision",
+  "pending_sync: true",
+]) {
+  if (!adminCrmAccessSource.includes(required)) fail(`nexus-admin-crm-access: convergência autoritativa ausente: ${required}`);
+}
+if (adminCrmAccessSource.includes('compensation') || adminCrmAccessSource.includes('remote_before_local')) {
+  fail('nexus-admin-crm-access: compensação por snapshot antigo não pode retornar.');
+}
+
+const reconcileSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-billing-reconcile', 'index.ts'), 'utf8');
+for (const required of [
+  'reconcile:prepaid-expired',
+  'stripe.subscriptions.retrieve',
+  'crm_sync_revision',
+  'syncCrmEntitlement',
+]) {
+  if (!reconcileSource.includes(required)) fail(`nexus-billing-reconcile: reconciliação ausente: ${required}`);
+}
+const billingWorkflow = await readFile(join(projectRoot, '.github', 'workflows', 'billing-reconciliation.yml'), 'utf8');
+if (!billingWorkflow.includes("cron: '17 */6 * * *'") || !billingWorkflow.includes('nexus-billing-reconcile')) {
+  fail('billing-reconciliation workflow: agendamento periódico ausente.');
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
