@@ -209,6 +209,50 @@ if (!crossTenantAal2Migration) {
   }
 }
 
+const stripeCreateCheckoutSource = await readFile(join(projectRoot, 'supabase', 'functions', 'stripe-create-checkout', 'index.ts'), 'utf8');
+for (const requiredCheckoutGuard of [
+  "profile.role === 'nexus_admin' && access.organization_id !== profile.organization_id",
+  "rpc('is_nexus_admin_aal2')",
+  'Confirme a autenticação em duas etapas para gerar cobranças de outra empresa.',
+]) {
+  if (!stripeCreateCheckoutSource.includes(requiredCheckoutGuard)) {
+    fail(`stripe-create-checkout: proteção AAL2 cross-tenant ausente: ${requiredCheckoutGuard}`);
+  }
+}
+
+const smoothServiceSource = await readFile(join(projectRoot, 'supabase', 'functions', 'smooth-service', 'index.ts'), 'utf8');
+if (!smoothServiceSource.includes('status: 410')) {
+  fail('supabase/functions/smooth-service/index.ts: endpoint legado precisa permanecer desativado com 410.');
+}
+
+const sstCrossTenantMigration = migrationFiles.find(file => file.endsWith('20260924104500_require_aal2_for_sst_cross_tenant_admin.sql'));
+if (!sstCrossTenantMigration) {
+  fail('supabase/migrations: hardening AAL2 cross-tenant do SST ausente.');
+} else {
+  const sstCrossTenantSource = await readFile(sstCrossTenantMigration, 'utf8');
+  for (const protectedTable of [
+    'employees',
+    'exam_catalog',
+    'exam_records',
+    'exam_evaluation_rules',
+    'training_catalog',
+    'training_records',
+    'sectors',
+    'sector_exam_requirements',
+    'job_roles',
+    'occurrences',
+    'occurrence_types',
+  ]) {
+    if (!sstCrossTenantSource.includes(protectedTable)) {
+      fail(`migration AAL2 SST: proteção cross-tenant ausente para ${protectedTable}.`);
+    }
+  }
+  if (!sstCrossTenantSource.includes('as restrictive')
+    || !sstCrossTenantSource.includes('public.is_nexus_admin_aal2()')) {
+    fail('migration AAL2 SST: policies precisam ser RESTRICTIVE e exigir AAL2.');
+  }
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
