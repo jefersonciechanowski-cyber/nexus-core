@@ -56,16 +56,21 @@ begin
     raise exception 'Entrega CRM inválida.' using errcode = '22023';
   end if;
 
-  select access.*, product.code
-    into v_access, v_product_code
+  select access.*
+    into v_access
     from public.organization_product_access access
-    join public.nexus_products product on product.id = access.product_id
    where access.id = p_access_id
-   for update of access;
+   for update;
 
   if not found then
     return jsonb_build_object('ok', false, 'reason', 'access_not_found');
   end if;
+
+  select product.code
+    into v_product_code
+    from public.nexus_products product
+   where product.id = v_access.product_id;
+
   if v_product_code <> 'crm' then
     return jsonb_build_object('ok', true, 'is_crm', false, 'revision', 0);
   end if;
