@@ -76,6 +76,7 @@ Deno.serve(async request => {
   const summary = {
     prepaid_expired: 0,
     subscriptions_checked: 0,
+    subscriptions_skipped_sandbox: 0,
     subscription_states_changed: 0,
     crm_pending_retried: 0,
     crm_pending_confirmed: 0,
@@ -124,7 +125,7 @@ Deno.serve(async request => {
 
   const { data: recurring, error: recurringError } = await admin
     .from('organization_product_access')
-    .select('id,provider_subscription_id,subscription_status,access_status,renews_at')
+    .select('id,organization_id,product_id,provider_subscription_id,subscription_status,access_status,renews_at')
     .eq('billing_provider', 'stripe')
     .eq('billing_mode', 'recurring')
     .not('provider_subscription_id', 'is', null)
@@ -135,6 +136,22 @@ Deno.serve(async request => {
   } else {
     for (const access of recurring || []) {
       try {
+        const { data: latestSale, error: saleError } = await admin
+          .from('nexus_sales')
+          .select('environment,created_at')
+          .eq('organization_id', access.organization_id)
+          .eq('product_id', access.product_id)
+          .eq('provider', 'stripe')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (saleError) throw new Error(`Não foi possível validar o ambiente da venda Stripe: ${clean(saleError.message, 500)}`);
+        if (clean(latestSale?.environment, 30) === 'sandbox') {
+          summary.subscriptions_skipped_sandbox += 1;
+          continue;
+        }
+
         const subscription: any = await stripe.subscriptions.retrieve(clean(access.provider_subscription_id, 255));
         summary.subscriptions_checked += 1;
         const mapped = mapSubscriptionStatus(subscription.status);
@@ -196,5 +213,5 @@ Deno.serve(async request => {
     ok: summary.errors.length === 0,
     reconciled_at: nowIso,
     ...summary,
-  }, summary.errors.length === 0 ? 200 : 207);
+  }, summary.errors.length === 0 ? 200 : 500);
 });
