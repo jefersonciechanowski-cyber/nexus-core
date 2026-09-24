@@ -407,6 +407,8 @@ for (const required of [
   "audience: 'nexus-billing-reconcile'",
   "repository !== 'jefersonciechanowski-cyber/nexus-core'",
   "ref !== 'refs/heads/main'",
+  'subscriptions_skipped_sandbox',
+  "latestSale?.environment",
 ]) {
   if (!reconcileSource.includes(required)) fail(`nexus-billing-reconcile: reconciliação/autenticação ausente: ${required}`);
 }
@@ -414,7 +416,8 @@ const billingWorkflow = await readFile(join(projectRoot, '.github', 'workflows',
 if (!billingWorkflow.includes("cron: '17 */6 * * *'")
   || !billingWorkflow.includes('nexus-billing-reconcile')
   || !billingWorkflow.includes('id-token: write')
-  || !billingWorkflow.includes('ACTIONS_ID_TOKEN_REQUEST_TOKEN')) {
+  || !billingWorkflow.includes('ACTIONS_ID_TOKEN_REQUEST_TOKEN')
+  || !billingWorkflow.includes('body.get("ok") is True')) {
   fail('billing-reconciliation workflow: agendamento OIDC periódico ausente.');
 }
 if (billingWorkflow.includes('SUPABASE_SERVICE_ROLE_KEY')) {
