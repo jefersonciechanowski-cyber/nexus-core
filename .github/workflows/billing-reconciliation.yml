@@ -1,0 +1,31 @@
+name: Billing reconciliation
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reconcile Stripe contracts and pending CRM revisions
+        env:
+          SERVICE_ROLE_KEY: ${{ secrets.NEXUS_CENTRAL_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SERVICE_ROLE_KEY:-}" ]; then
+            echo "Missing NEXUS_CENTRAL_SUPABASE_SERVICE_ROLE_KEY"
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-billing-reconcile" \
+            --header "apikey: ${SERVICE_ROLE_KEY}" \
+            --header "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/json" \
+            --data '{}'
