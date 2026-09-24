@@ -159,6 +159,56 @@ for (const policy of headers.split(/\r?\n/).filter(line => line.includes('Conten
   }
 }
 
+const nexusAiCoreSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-ai-core', 'index.ts'), 'utf8');
+if (!nexusAiCoreSource.includes("rpc('is_nexus_admin_aal2')")) {
+  fail('supabase/functions/nexus-ai-core/index.ts: Nexus AI administrativa precisa exigir AAL2.');
+}
+if (/rpc\(['"]is_nexus_admin['"]/.test(nexusAiCoreSource)) {
+  fail('supabase/functions/nexus-ai-core/index.ts: checagem administrativa AAL1 não pode substituir AAL2.');
+}
+
+const adminAal2GuardMigration = migrationFiles.find(file => file.endsWith('20260923235000_enforce_admin_aal2_rpc_guards.sql'));
+if (!adminAal2GuardMigration) {
+  fail('supabase/migrations: migration dos guards AAL2 administrativos ausente.');
+} else {
+  const adminAal2Source = await readFile(adminAal2GuardMigration, 'utf8');
+  for (const requiredGuard of [
+    'public.admin_mfa_gate()',
+    'public.configure_nexus_account(',
+    'public.enforce_nexus_admin_recent_mfa_on_organization_create()',
+    'public.enforce_nexus_admin_recent_mfa_on_profile_context_change()',
+    'public.is_nexus_admin_aal2()',
+  ]) {
+    if (!adminAal2Source.includes(requiredGuard)) {
+      fail(`migration AAL2 administrativa: proteção ausente: ${requiredGuard}`);
+    }
+  }
+}
+
+const crossTenantAal2Migration = migrationFiles.find(file => file.endsWith('20260924002000_harden_cross_tenant_admin_aal2.sql'));
+if (!crossTenantAal2Migration) {
+  fail('supabase/migrations: hardening AAL2 cross-tenant ausente.');
+} else {
+  const crossTenantAal2Source = await readFile(crossTenantAal2Migration, 'utf8');
+  for (const sensitivePolicy of [
+    'nexus admin read audit logs',
+    'nexus admin read all profiles',
+    'nexus admins read support requests',
+    'nexus admins update support requests',
+    'sst documents tenant select',
+    'sst documents tenant insert',
+    'sst documents tenant update',
+    'sst documents tenant delete',
+  ]) {
+    if (!crossTenantAal2Source.includes(sensitivePolicy)) {
+      fail(`migration AAL2 cross-tenant: policy sensível ausente: ${sensitivePolicy}`);
+    }
+  }
+  if (!crossTenantAal2Source.includes('public.is_nexus_admin_aal2()')) {
+    fail('migration AAL2 cross-tenant: bypass global ainda não exige AAL2.');
+  }
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
