@@ -109,6 +109,7 @@ async function sendEntitlement(secret: string, endpoint: string, payload: Record
     ok: response.ok && body?.ok === true,
     status: response.status,
     detail: clean(body?.error || text || `HTTP ${response.status}`, 700),
+    confirmedRevision: Number(body?.confirmed_revision ?? 0),
   };
 }
 
@@ -254,54 +255,7 @@ Deno.serve(async request => {
   }
 
   const occurredAt = new Date().toISOString();
-  const buildPayload = (type: string, state: {
-    plan: any;
-    status: string;
-    price: number;
-    baseUsers: number;
-    startsAt: string | null;
-    renewsAt: string | null;
-  }) => ({
-    event_id: crypto.randomUUID(),
-    event_type: type,
-    occurred_at: occurredAt,
-    organization_id: clean(access.external_tenant_id, 80),
-    central_company_id: clean(access.organization_id, 80),
-    contract_id: clean(access.id, 80),
-    entitlement: {
-      product_code: 'nexus_crm',
-      plan_code: clean(state.plan.code, 40),
-      status: state.status,
-      commercial_condition: commercialCondition,
-      base_price_cents: state.price,
-      base_max_users: state.baseUsers,
-      additional_users: additionalUsers,
-      started_at: state.startsAt || null,
-      next_renewal_at: state.renewsAt || null,
-    },
-  });
-
-  const targetPayload = buildPayload(eventType(previousRemoteStatus, targetRemoteStatus, planChanged), {
-    plan: targetPlan,
-    status: targetRemoteStatus,
-    price: targetPrice,
-    baseUsers: targetBaseUsers,
-    startsAt: targetStartsAt || null,
-    renewsAt: targetRenewsAt || null,
-  });
-
-  const remote = await sendEntitlement(webhookSecret, entitlementUrl, targetPayload);
-  if (!remote.ok) {
-    await admin.from('audit_logs').insert({
-      organization_id: access.organization_id,
-      user_id: user.id,
-      action: 'NEXUS_CRM_ENTITLEMENT_SYNC_FAILED',
-      entity: 'organization_product_access',
-      entity_id: access.id,
-      metadata: { stage: 'remote_before_local', status: remote.status, detail: remote.detail },
-    });
-    return json({ error: `O CRM não confirmou a alteração. Nada foi alterado na Central. ${remote.detail}` }, 502);
-  }
+  const targetEventType = eventType(previousRemoteStatus, targetRemoteStatus, planChanged);
 
   const localPatch: Record<string, unknown> = {
     access_status: targetAccessStatus,
@@ -326,37 +280,97 @@ Deno.serve(async request => {
     : await localMutation.select('id').maybeSingle();
 
   if (localError || !updatedLocal?.id) {
-    const compensation = buildPayload('plan.changed', {
-      plan: currentPlan,
-      status: previousRemoteStatus,
-      price: previousPrice,
-      baseUsers: previousBaseUsers,
-      startsAt: access.starts_at || null,
-      renewsAt: access.renews_at || null,
-    });
-    compensation.event_id = crypto.randomUUID();
-    compensation.occurred_at = new Date(Date.now() + 1000).toISOString();
-    const compensationResult = await sendEntitlement(webhookSecret, entitlementUrl, compensation);
+    return json({
+      error: 'O contrato foi alterado por outra operação ou não pôde ser salvo. Nada foi enviado ao CRM.',
+      requires_manual_review: false,
+    }, 409);
+  }
 
+  const { data: deliveryData, error: deliveryError } = await admin.rpc('ensure_crm_sync_delivery', {
+    p_access_id: access.id,
+    p_event_type: targetEventType,
+    p_force: true,
+  });
+  const delivery = deliveryData && typeof deliveryData === 'object' ? deliveryData as Record<string, unknown> : {};
+  const revision = Number(delivery.revision ?? 0);
+  if (deliveryError || !Number.isInteger(revision) || revision < 1) {
     await admin.from('audit_logs').insert({
       organization_id: access.organization_id,
       user_id: user.id,
-      action: 'NEXUS_CRM_ENTITLEMENT_LOCAL_FAILED',
+      action: 'NEXUS_CRM_ENTITLEMENT_REVISION_FAILED',
+      entity: 'organization_product_access',
+      entity_id: access.id,
+      metadata: { error: clean(deliveryError?.message || 'Revisão inválida.', 700) },
+    });
+    return json({
+      error: 'A alteração foi salva na Central, mas não foi possível reservar a revisão de sincronização do CRM. Revisão manual obrigatória.',
+      requires_manual_review: true,
+      pending_sync: true,
+    }, 500);
+  }
+
+  const targetPayload = {
+    event_id: crypto.randomUUID(),
+    event_type: targetEventType,
+    revision,
+    occurred_at: occurredAt,
+    organization_id: clean(access.external_tenant_id, 80),
+    central_company_id: clean(access.organization_id, 80),
+    contract_id: clean(access.id, 80),
+    entitlement: {
+      product_code: 'nexus_crm',
+      plan_code: clean(targetPlan.code, 40),
+      status: targetRemoteStatus,
+      commercial_condition: commercialCondition,
+      base_price_cents: targetPrice,
+      base_max_users: targetBaseUsers,
+      additional_users: additionalUsers,
+      started_at: targetStartsAt || null,
+      next_renewal_at: targetRenewsAt || null,
+    },
+  };
+
+  const remote = await sendEntitlement(webhookSecret, entitlementUrl, targetPayload);
+  if (!remote.ok || !Number.isInteger(remote.confirmedRevision) || remote.confirmedRevision < revision) {
+    const detail = remote.ok
+      ? 'O CRM respondeu sem confirmar a revisão enviada.'
+      : remote.detail;
+    await admin.rpc('fail_crm_sync_delivery', {
+      p_access_id: access.id,
+      p_revision: revision,
+      p_error: detail,
+    });
+    await admin.from('audit_logs').insert({
+      organization_id: access.organization_id,
+      user_id: user.id,
+      action: 'NEXUS_CRM_ENTITLEMENT_SYNC_PENDING',
       entity: 'organization_product_access',
       entity_id: access.id,
       metadata: {
-        local_error: clean(localError?.message || 'Contrato alterado por outra operação concorrente.', 700),
-        compensation_ok: compensationResult.ok,
-        compensation_status: compensationResult.status,
-        compensation_detail: compensationResult.detail,
+        revision,
+        event_type: targetEventType,
+        status: remote.status,
+        detail,
       },
     });
-
     return json({
-      error: compensationResult.ok
-        ? 'A Central não conseguiu salvar a alteração; o CRM foi restaurado ao estado anterior.'
-        : 'Falha crítica de sincronização. A alteração não foi salva na Central e a compensação do CRM também falhou. Revisão manual obrigatória.',
-      requires_manual_review: !compensationResult.ok,
+      error: 'A alteração foi salva na Central, mas o CRM ainda não confirmou. A sincronização ficou pendente para nova tentativa.',
+      pending_sync: true,
+      requires_manual_review: false,
+      revision,
+    }, 502);
+  }
+
+  const { error: confirmError } = await admin.rpc('confirm_crm_sync_delivery', {
+    p_access_id: access.id,
+    p_revision: revision,
+  });
+  if (confirmError) {
+    return json({
+      error: 'O CRM confirmou a alteração, mas a Central não conseguiu registrar a confirmação. Revisão manual obrigatória.',
+      pending_sync: true,
+      requires_manual_review: true,
+      revision,
     }, 500);
   }
 
@@ -367,6 +381,7 @@ Deno.serve(async request => {
     entity: 'organization_product_access',
     entity_id: access.id,
     metadata: {
+      revision,
       event_id: targetPayload.event_id,
       event_type: targetPayload.event_type,
       crm_organization_id: access.external_tenant_id,
@@ -385,5 +400,7 @@ Deno.serve(async request => {
     subscriptionStatus: targetSubscriptionStatus,
     remoteStatus: targetRemoteStatus,
     planCode: targetPlan.code,
+    revision,
   });
+
 });
