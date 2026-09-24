@@ -29,4 +29,6 @@ jobs:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error             --request POST             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-billing-reconcile"             --header "Authorization: Bearer ${OIDC_TOKEN}"             --header "Content-Type: application/json"             --data '{}'
+          RESPONSE="$(curl --fail-with-body --silent --show-error             --request POST             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-billing-reconcile"             --header "Authorization: Bearer ${OIDC_TOKEN}"             --header "Content-Type: application/json"             --data '{}')"
+          printf '%s\n' "${RESPONSE}"
+          printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; body=json.load(sys.stdin); ok=body.get("ok") is True; print("Billing reconciliation ok=true" if ok else "Billing reconciliation returned ok=false", file=sys.stderr if not ok else sys.stdout); sys.exit(0 if ok else 1)'
