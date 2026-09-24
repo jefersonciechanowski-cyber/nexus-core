@@ -280,6 +280,48 @@ if (!commercialReadAal2Migration) {
   }
 }
 
+const legacyCrmLeadSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-public-crm-lead', 'index.ts'), 'utf8');
+const legacyCrmSalesSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-public-crm-sales', 'index.ts'), 'utf8');
+if (!legacyCrmLeadSource.includes('status: 410')) {
+  fail('nexus-public-crm-lead precisa permanecer desativado com 410.');
+}
+if (!legacyCrmSalesSource.includes('status: 410')) {
+  fail('nexus-public-crm-sales precisa permanecer desativado com 410.');
+}
+
+const remainingSensitiveReadMigration = migrationFiles.find(file => file.endsWith('20260924122000_require_aal2_for_remaining_sensitive_reads.sql'));
+if (!remainingSensitiveReadMigration) {
+  fail('supabase/migrations: hardening AAL2 das leituras sensíveis restantes ausente.');
+} else {
+  const remainingSensitiveReadSource = await readFile(remainingSensitiveReadMigration, 'utf8');
+  for (const protectedTable of [
+    'company_documents',
+    'epi_deliveries',
+    'epi_purchases',
+    'notification_alert_states',
+    'notification_delivery_logs',
+    'notification_email_preferences',
+    'regulatory_inspections',
+    'regulatory_requirements',
+    'units',
+    'organizations',
+    'organization_memberships',
+    'nexus_ai_usage_events',
+    'nexus_ai_user_access',
+    'nexus_accounts',
+    'nexus_account_organizations',
+    'nexus_account_users',
+  ]) {
+    if (!remainingSensitiveReadSource.includes(protectedTable)) {
+      fail(`migration AAL2 leituras sensíveis: proteção ausente para ${protectedTable}.`);
+    }
+  }
+  if (!remainingSensitiveReadSource.includes('as restrictive')
+    || !remainingSensitiveReadSource.includes('public.is_nexus_admin_aal2()')) {
+    fail('migration AAL2 leituras sensíveis: policies precisam ser RESTRICTIVE e exigir AAL2.');
+  }
+}
+
 const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const supabaseVersion = packageJson.dependencies?.['@supabase/supabase-js'];
 if (!/^\d+\.\d+\.\d+$/.test(supabaseVersion || '')) {
