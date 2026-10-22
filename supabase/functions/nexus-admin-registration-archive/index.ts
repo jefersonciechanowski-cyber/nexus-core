@@ -52,6 +52,7 @@ Deno.serve(async (request: Request) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
     status, headers: headers(origin || 'https://nexuscore.app.br'),
   });
+  try {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: origin ? 204 : 403, headers: headers(origin || 'https://nexuscore.app.br') });
   }
@@ -143,16 +144,26 @@ Deno.serve(async (request: Request) => {
     if (page > 50) return json({ error: 'A conferência de usuários excedeu o limite seguro.' }, 503);
   }
 
-  const counts = await Promise.all(protectedTables.map(async table => {
-    const { count, error } = await admin.from(table)
-      .select('organization_id', { count: 'exact', head: true }).eq('organization_id', organizationId);
-    return { table, count, error };
-  }));
-  if (counts.some(c => c.error || c.count === null)) {
-    return json({ error: 'Não foi possível concluir a conferência dos dados. Nenhuma remoção realizada.' }, 500);
-  }
-  if (counts.some(c => Number(c.count) > 0)) {
-    return json({ error: 'Cadastro com usuários ou dados reais vinculados. Para evitar perda de dados, a remoção foi bloqueada.' }, 409);
+  // Limitar concorrência evita esgotar conexões durante a conferência de muitos módulos.
+  const counts: Array<{ table: string; count: number | null; error: unknown }> = [];
+  for (let offset = 0; offset < protectedTables.length; offset += 4) {
+    const batch = await Promise.all(protectedTables.slice(offset, offset + 4).map(async table => {
+      const { count, error } = await admin.from(table)
+        .select('organization_id', { count: 'exact', head: true })
+        .eq('organization_id', organizationId);
+      return { table, count, error };
+    }));
+    const failures = batch.filter(item => item.error || item.count === null);
+    if (failures.length) {
+      console.error('[Nexus archive] Falha na conferência:', failures.map(({ table, error }) => ({
+        table, message: String((error as { message?: string } | null)?.message || 'contagem indisponível'),
+      })));
+      return json({ error: 'Não foi possível verificar todos os dados deste cadastro. A remoção foi bloqueada com segurança. Verifique os registros técnicos da Central.' }, 500);
+    }
+    counts.push(...batch);
+    if (batch.some(item => Number(item.count) > 0)) {
+      return json({ error: 'Cadastro com usuários ou dados reais vinculados. Para evitar perda de dados, a remoção foi bloqueada.' }, 409);
+    }
   }
 
   const { data: accountLinks, error: linkError } = await admin.from('nexus_account_organizations')
@@ -197,4 +208,8 @@ Deno.serve(async (request: Request) => {
   });
   if (auditError) console.error('[Nexus archive] Falha ao registrar evento de auditoria:', auditError.message);
   return json({ ok: true, organizationId, status: 'archived' });
+  } catch (error) {
+    console.error('[Nexus archive] Erro não tratado:', error);
+    return json({ error: 'Falha técnica inesperada ao arquivar. Nenhum cadastro foi excluído. A Central registrou detalhes para diagnóstico.' }, 500);
+  }
 });
