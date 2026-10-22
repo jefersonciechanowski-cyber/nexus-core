@@ -144,26 +144,17 @@ Deno.serve(async (request: Request) => {
     if (page > 50) return json({ error: 'A conferência de usuários excedeu o limite seguro.' }, 503);
   }
 
-  // Limitar concorrência evita esgotar conexões durante a conferência de muitos módulos.
-  const counts: Array<{ table: string; count: number | null; error: unknown }> = [];
-  for (let offset = 0; offset < protectedTables.length; offset += 4) {
-    const batch = await Promise.all(protectedTables.slice(offset, offset + 4).map(async table => {
-      const { count, error } = await admin.from(table)
-        .select('organization_id', { count: 'exact', head: true })
-        .eq('organization_id', organizationId);
-      return { table, count, error };
-    }));
-    const failures = batch.filter(item => item.error || item.count === null);
-    if (failures.length) {
-      console.error('[Nexus archive] Falha na conferência:', failures.map(({ table, error }) => ({
-        table, message: String((error as { message?: string } | null)?.message || 'contagem indisponível'),
-      })));
-      return json({ error: 'Não foi possível verificar todos os dados deste cadastro. A remoção foi bloqueada com segurança. Verifique os registros técnicos da Central.' }, 500);
-    }
-    counts.push(...batch);
-    if (batch.some(item => Number(item.count) > 0)) {
-      return json({ error: 'Cadastro com usuários ou dados reais vinculados. Para evitar perda de dados, a remoção foi bloqueada.' }, 409);
-    }
+  // O backend usa uma função de banco que retorna somente booleano.
+  // Não ampliar GRANT SELECT sobre tabelas sensíveis apenas para este fluxo.
+  const { data: hasProtectedData, error: protectedError } = await admin.rpc(
+    'nexus_admin_archive_has_protected_data', { p_org_id: organizationId },
+  );
+  if (protectedError || typeof hasProtectedData !== 'boolean') {
+    console.error('[Nexus archive] Erro na verificação interna:', protectedError?.message || 'retorno inválido');
+    return json({ error: 'Não foi possível concluir a verificação de segurança. Nenhuma remoção realizada.' }, 500);
+  }
+  if (hasProtectedData) {
+    return json({ error: 'Cadastro com usuários ou dados reais vinculados. Para evitar perda de dados, a remoção foi bloqueada.' }, 409);
   }
 
   const { data: accountLinks, error: linkError } = await admin.from('nexus_account_organizations')
