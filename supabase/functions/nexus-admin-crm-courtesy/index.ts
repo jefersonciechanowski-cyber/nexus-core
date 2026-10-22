@@ -169,7 +169,7 @@ Deno.serve(async request => {
   // Nunca vincular um CRM novo a uma empresa antiga apenas por coincidência do e-mail.
   // O administrador deve arquivar o cadastro de teste ou usar a empresa correta.
   if (emailOrganizations?.[0]?.id) {
-    const normalized = (value: string) => value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().replace(/\\s+/g, ' ').toLowerCase();
+    const normalized = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
     if (normalized(emailOrganizations[0].name || '') !== normalized(companyName)) {
       return json({ error: 'Este e-mail já está associado a outra empresa na Central. Revise o cadastro existente antes de conceder a cortesia, para não misturar clientes.' }, 409);
     }
