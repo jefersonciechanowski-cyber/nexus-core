@@ -52,6 +52,7 @@ Deno.serve(async (request: Request) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
     status, headers: headers(origin || 'https://nexuscore.app.br'),
   });
+  try {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: origin ? 204 : 403, headers: headers(origin || 'https://nexuscore.app.br') });
   }
@@ -143,15 +144,16 @@ Deno.serve(async (request: Request) => {
     if (page > 50) return json({ error: 'A conferência de usuários excedeu o limite seguro.' }, 503);
   }
 
-  const counts = await Promise.all(protectedTables.map(async table => {
-    const { count, error } = await admin.from(table)
-      .select('organization_id', { count: 'exact', head: true }).eq('organization_id', organizationId);
-    return { table, count, error };
-  }));
-  if (counts.some(c => c.error || c.count === null)) {
-    return json({ error: 'Não foi possível concluir a conferência dos dados. Nenhuma remoção realizada.' }, 500);
+  // O backend usa uma função de banco que retorna somente booleano.
+  // Não ampliar GRANT SELECT sobre tabelas sensíveis apenas para este fluxo.
+  const { data: hasProtectedData, error: protectedError } = await admin.rpc(
+    'nexus_admin_archive_has_protected_data', { p_org_id: organizationId },
+  );
+  if (protectedError || typeof hasProtectedData !== 'boolean') {
+    console.error('[Nexus archive] Erro na verificação interna:', protectedError?.message || 'retorno inválido');
+    return json({ error: 'Não foi possível concluir a verificação de segurança. Nenhuma remoção realizada.' }, 500);
   }
-  if (counts.some(c => Number(c.count) > 0)) {
+  if (hasProtectedData) {
     return json({ error: 'Cadastro com usuários ou dados reais vinculados. Para evitar perda de dados, a remoção foi bloqueada.' }, 409);
   }
 
@@ -197,4 +199,8 @@ Deno.serve(async (request: Request) => {
   });
   if (auditError) console.error('[Nexus archive] Falha ao registrar evento de auditoria:', auditError.message);
   return json({ ok: true, organizationId, status: 'archived' });
+  } catch (error) {
+    console.error('[Nexus archive] Erro não tratado:', error);
+    return json({ error: 'Falha técnica inesperada ao arquivar. Nenhum cadastro foi excluído. A Central registrou detalhes para diagnóstico.' }, 500);
+  }
 });
