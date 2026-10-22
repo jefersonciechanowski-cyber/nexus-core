@@ -34,12 +34,41 @@ type CrmProvisionResult = {
 
 type CrmProvisionEnvironment = 'production' | 'administrative';
 
-export async function provisionCrmTenant(
-  admin: any,
-  sale: any,
-  access: any,
-  environment: CrmProvisionEnvironment = 'production',
-): Promise<CrmProvisionResult> {
+async function reserveCrmDelivery(admin: any, accessId: string, eventType: string, forceRevision: boolean) {
+  const { data, error } = await admin.rpc('ensure_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_event_type: eventType,
+    p_force: forceRevision,
+  });
+  if (error) throw new Error(`Não foi possível reservar a revisão de sincronização do CRM: ${clean(error.message, 500)}`);
+  const result = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+  const revision = Number(result.revision ?? 0);
+  const confirmedRevision = Number(result.confirmed_revision ?? 0);
+  return {
+    isCrm: result.is_crm !== false,
+    revision,
+    confirmedRevision,
+    pending: result.pending === true || revision > confirmedRevision,
+  };
+}
+
+async function confirmCrmDelivery(admin: any, accessId: string, revision: number) {
+  const { error } = await admin.rpc('confirm_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_revision: revision,
+  });
+  if (error) throw new Error(`O CRM confirmou a revisão, mas a Central não conseguiu registrar a confirmação: ${clean(error.message, 500)}`);
+}
+
+async function failCrmDelivery(admin: any, accessId: string, revision: number, errorMessage: string) {
+  await admin.rpc('fail_crm_sync_delivery', {
+    p_access_id: accessId,
+    p_revision: revision,
+    p_error: clean(errorMessage, 1000),
+  });
+}
+
+export async function provisionCrmTenant(admin: any, sale: any, access: any, environment: CrmProvisionEnvironment = 'production'): Promise<CrmProvisionResult> {
   const { data: plan, error: planError } = await admin
     .from('nexus_plans')
     .select('id,product_id,code,name,price_cents,included_user_limit,status')
@@ -47,21 +76,24 @@ export async function provisionCrmTenant(
     .maybeSingle();
 
   if (planError || !plan?.id) {
-    return { isCrm: false, error: null, crmOrganizationId: null, firstAccessUrl: null };
+    return { isCrm: true, error: 'Não foi possível validar o plano antes do provisionamento.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
-  const { data: product } = await admin
+  const { data: product, error: productError } = await admin
     .from('nexus_products')
     .select('id,code,name,status')
     .eq('id', plan.product_id)
     .maybeSingle();
 
+  if (productError) {
+    return { isCrm: true, error: 'Não foi possível validar o produto antes do provisionamento.', crmOrganizationId: null, firstAccessUrl: null };
+  }
   if (product?.code !== 'crm') {
     return { isCrm: false, error: null, crmOrganizationId: null, firstAccessUrl: null };
   }
 
   const provisionUrl = clean(
-    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtzfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
+    Deno.env.get('NEXUS_CRM_PROVISION_URL') || 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-provision',
     1000,
   );
   const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
@@ -79,6 +111,11 @@ export async function provisionCrmTenant(
     return { isCrm: true, error: 'Contrato do Nexus CRM não encontrado após o pagamento.', crmOrganizationId: null, firstAccessUrl: null };
   }
 
+  const existingTenantId = clean(accessRow.external_tenant_id, 80);
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existingTenantId)) {
+    return { isCrm: true, error: null, crmOrganizationId: existingTenantId, firstAccessUrl: null };
+  }
+
   const baseMaxUsers = Number(accessRow.base_user_limit_override ?? plan.included_user_limit);
   const additionalUsers = Number(accessRow.additional_users ?? 0);
   const basePriceCents = Number(accessRow.contracted_price_cents ?? plan.price_cents);
@@ -90,8 +127,19 @@ export async function provisionCrmTenant(
     ? clean(accessRow.commercial_condition, 30)
     : 'standard';
 
+  let delivery;
+  try {
+    delivery = await reserveCrmDelivery(admin, accessRow.id, 'entitlement.activated', false);
+  } catch (error) {
+    return { isCrm: true, error: clean((error as any)?.message, 700), crmOrganizationId: null, firstAccessUrl: null };
+  }
+  if (!Number.isInteger(delivery.revision) || delivery.revision < 1) {
+    return { isCrm: true, error: 'Revisão inicial do provisionamento CRM inválida.', crmOrganizationId: null, firstAccessUrl: null };
+  }
+
   const payload = {
     event_id: crypto.randomUUID(),
+    revision: delivery.revision,
     occurred_at: new Date().toISOString(),
     environment,
     sale_id: clean(sale.id, 80),
@@ -124,26 +172,31 @@ export async function provisionCrmTenant(
         'x-nexus-signature': `sha256=${signature}`,
       },
       body: rawBody,
+      signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {
-    console.error('[Nexus CRM provision] Falha de rede:', error);
-    return { isCrm: true, error: 'Não foi possível comunicar com o Nexus CRM.', crmOrganizationId: null, firstAccessUrl: null };
+    const detail = `Não foi possível comunicar com o Nexus CRM: ${clean((error as any)?.message, 400)}`;
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId: null, firstAccessUrl: null };
   }
 
   const responseText = await response.text();
   let responseBody: Record<string, unknown> = {};
   try { responseBody = responseText ? JSON.parse(responseText) : {}; } catch { responseBody = {}; }
 
-  if (!response.ok) {
+  const confirmedRevision = Number(responseBody.confirmed_revision ?? 0);
+  if (!response.ok || responseBody?.ok !== true || !Number.isInteger(confirmedRevision) || confirmedRevision < delivery.revision) {
     const detail = clean(responseBody.error, 500) || `HTTP ${response.status}`;
-    console.error('[Nexus CRM provision] Destino rejeitou:', response.status, detail);
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
     return { isCrm: true, error: `Nexus CRM não pôde ser provisionado: ${detail}`, crmOrganizationId: null, firstAccessUrl: null };
   }
 
   const crmOrganizationId = clean(responseBody.crmOrganizationId, 80);
   const firstAccessUrl = clean(responseBody.firstAccessUrl, 1500) || null;
   if (!crmOrganizationId) {
-    return { isCrm: true, error: 'Nexus CRM não retornou o identificador da organização criada.', crmOrganizationId: null, firstAccessUrl };
+    const detail = 'Nexus CRM não retornou o identificador da organização criada.';
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId: null, firstAccessUrl };
   }
 
   const { error: linkError } = await admin
@@ -152,7 +205,15 @@ export async function provisionCrmTenant(
     .eq('id', accessRow.id);
 
   if (linkError) {
-    return { isCrm: true, error: 'CRM criado, mas o vínculo com a Central não pôde ser salvo.', crmOrganizationId, firstAccessUrl };
+    const detail = 'CRM criado, mas o vínculo com a Central não pôde ser salvo.';
+    await failCrmDelivery(admin, accessRow.id, delivery.revision, detail);
+    return { isCrm: true, error: detail, crmOrganizationId, firstAccessUrl };
+  }
+
+  try {
+    await confirmCrmDelivery(admin, accessRow.id, delivery.revision);
+  } catch (error) {
+    return { isCrm: true, error: clean((error as any)?.message, 700), crmOrganizationId, firstAccessUrl };
   }
 
   return { isCrm: true, error: null, crmOrganizationId, firstAccessUrl };
