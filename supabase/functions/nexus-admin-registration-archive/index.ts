@@ -38,6 +38,7 @@ function headers(origin: string) {
 const protectedTables = [
   'profiles', 'organization_memberships', 'nexus_payments',
   'nexus_payment_checkouts', 'nexus_sales', 'support_requests',
+  'nexus_ai_usage_events', 'notification_delivery_logs',
   'employees', 'units', 'company_documents', 'control_matrix_rules',
   'epi_catalog', 'epi_deliveries', 'epi_purchases',
   'exam_catalog', 'exam_records', 'job_roles',
