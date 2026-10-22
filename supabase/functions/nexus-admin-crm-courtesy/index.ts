@@ -92,7 +92,7 @@ Deno.serve(async request => {
   const { data: { user }, error: userError } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Sessão inválida.' }, 401);
 
-  const accessToken = authorization.replace(/^Bearer\\s+/i, '').trim();
+  const accessToken = authorization.replace(/^Bearer\s+/i, '').trim();
   const { data: aalData, error: aalError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel(accessToken);
   if (aalError || aalData?.currentLevel !== 'aal2') {
     return json({ error: 'Confirme a autenticação em duas etapas para executar esta ação administrativa.' }, 403);
@@ -171,7 +171,7 @@ Deno.serve(async request => {
   if (emailOrganizations?.[0]?.id) {
     const normalized = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
     if (normalized(emailOrganizations[0].name || '') !== normalized(companyName)) {
-      return json({ error: 'Este e-mail já está associado a outra empresa na Central. Revise o cadastro existente antes de conceder a cortesia, para não misturar clientes.' }, 409);
+      return json({ error: `Este e-mail já pertence ao cadastro "${emailOrganizations[0].name}" na Central Nexus. Acesse Clientes e Acessos, busque pelo e-mail e remova o cadastro de teste antigo (se não estiver mais em uso) antes de criar uma nova cortesia. Nenhuma conta foi alterada.` }, 409);
     }
   }
 
