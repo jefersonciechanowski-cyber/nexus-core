@@ -6,7 +6,7 @@ const source = readFileSync(new URL('../supabase/functions/nexus-public-crm-inta
 
 test('CRM demo intake is off by default and never creates checkout', () => {
   assert.match(source, /NEXUS_CRM_DEMO_INTAKE_ENABLED/);
-  assert.match(source, /=== 'true'/);
+  assert.match(source, /!== 'true'/);
   assert.match(source, /sale_status: 'lead'/);
   assert.doesNotMatch(source, /checkout\.sessions\.create|createSubscription/);
 });
