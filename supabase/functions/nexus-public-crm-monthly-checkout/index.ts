@@ -51,7 +51,6 @@ async function hashReference(secret: string, input: string) {
   return Array.from(await hmacBytes(secret, input)).map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 function existingCheckoutResponse(sale: any) {
-  if (!sale) return null;
   if (sale.sale_status === 'paid' || sale.sale_status === 'provisioned') return reply({ error: 'Este cadastro já possui um pagamento. Entre em contato com a Nexus.' }, 409);
   if (sale.sale_status === 'checkout_created' && typeof sale.provider_checkout_url === 'string'
     && sale.provider_checkout_url.startsWith('https://checkout.stripe.com/')) {
@@ -106,7 +105,7 @@ Deno.serve(async request => {
     .select('id,code,name,price_cents,currency,billing_interval_months,status,public_visible')
     .eq('product_id', product.id).eq('code', input.planCode).maybeSingle();
   const testHiddenAllowed = mode === 'sandbox' && getEnv('NEXUS_CRM_CHECKOUT_TEST_ALLOW_HIDDEN_PLANS') === 'true';
-  if (planError || !planIsMonthly(plan, testHiddenAllowed) || plan.currency !== 'BRL') {
+  if (planError || !plan || !planIsMonthly(plan, testHiddenAllowed) || plan.currency !== 'BRL') {
     return reply({ error: 'Plano mensal indisponível para contratação.' }, 409);
   }
 
