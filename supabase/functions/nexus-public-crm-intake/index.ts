@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
+import { isHoneypotFilled } from './honeypot.mjs';
 
 /**
  * Nexus CRM public demo intake (not checkout and never provisions a tenant).
@@ -86,8 +87,13 @@ Deno.serve(async request => {
 
   const body = await readJson(request);
   if (!body) return answer({ error: 'Dados inválidos ou tamanho excedido.' }, 400, origin);
-  // Never persist honeypot contents and do not reveal that bot protection fired.
-  if (clean(body.website, 200)) return answer({ ok: true }, 200, origin);
+  // A populated hidden field may be autofill or spam. Never report
+  // successful registration without a matching existing lead or a DB insert.
+  // Do not log body values or personally identifying information.
+  if (isHoneypotFilled(body)) {
+    console.warn('crm_demo_intake_rejected_hidden_field');
+    return answer({ error: 'Não foi possível confirmar a solicitação. Atualize a página e tente novamente.' }, 422, origin);
+  }
 
   const companyName = clean(body.companyName, 140);
   const responsibleName = clean(body.responsibleName, 140);
