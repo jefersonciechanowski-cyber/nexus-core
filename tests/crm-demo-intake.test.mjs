@@ -16,7 +16,8 @@ test('CRM demo intake restricts origin and request content', () => {
   assert.match(source, /allowedOrigins\(\)\.has\(origin\)/);
   assert.match(source, /total > 16_384/);
   assert.match(source, /'application\/json'/);
-  assert.match(source, /body\.website/);
+  assert.match(source, /isHoneypotFilled\(body\)/);
+  assert.match(source, /422, origin/);
 });
 
 test('CRM demo intake is product-scoped with rate limit and duplicate protection', () => {
