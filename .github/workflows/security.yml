@@ -33,7 +33,7 @@ jobs:
         run: npm run security:check
 
       - name: Check CRM demo intake contract
-        run: node --test tests/crm-demo-intake.test.mjs
+        run: node --test tests/crm-demo-intake.test.mjs tests/crm-demo-honeypot.test.mjs
 
       - name: Set up Deno for CRM Edge Function
         uses: denoland/setup-deno@v2
