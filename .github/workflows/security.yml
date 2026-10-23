@@ -32,5 +32,16 @@ jobs:
       - name: Run security checks
         run: npm run security:check
 
+      - name: Check CRM demo intake contract
+        run: node --test tests/crm-demo-intake.test.mjs
+
+      - name: Set up Deno for CRM Edge Function
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check CRM intake Edge Function syntax and imports
+        run: deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-intake/index.ts
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
