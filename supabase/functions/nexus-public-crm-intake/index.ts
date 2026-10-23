@@ -138,7 +138,7 @@ Deno.serve(async request => {
   const recent = new Date(Date.now() - 15 * 60_000).toISOString();
   const { count, error: duplicateError } = await admin.from('nexus_sales')
     .select('id', { count: 'exact', head: true })
-    .eq('product_id', product.id).eq('source', 'site-captacao').eq('sale_status', 'lead')
+    .eq('product_id', product.id).eq('source', 'site-captacao')
     .eq('email', email).gte('created_at', recent);
   if (duplicateError) return answer({ error: 'Serviço temporariamente indisponível.' }, 503, origin);
   if (count && count > 0) return answer({ ok: true }, 200, origin);
@@ -155,7 +155,12 @@ Deno.serve(async request => {
   ];
   const leadNotes = attributions.filter(([, value]) => value).map(([key, value]) => key + ': ' + value).join('\n').slice(0, 1800);
   const campaign = clean(body.utmCampaign, 160);
+  // Stable per-15-minute idempotency reference also handles concurrent posts.
+  // Unique index already exists on nexus_sales.external_reference.
+  const bucket = Math.floor(Date.now() / (15 * 60_000));
+  const referenceHash = await hmacHex(serviceKey, `crm-demo-v1:${email}:${bucket}`);
   const { error: insertError } = await admin.from('nexus_sales').insert({
+    external_reference: 'crm-demo-' + referenceHash,
     product_id: product.id,
     plan_id: planId,
     sale_status: 'lead',
@@ -174,6 +179,7 @@ Deno.serve(async request => {
     billing_cycle_months: 1,
   });
   if (insertError) {
+    if (insertError.code === '23505') return answer({ ok: true }, 200, origin);
     console.error('CRM demo intake insert failed:', insertError.code || 'unknown');
     return answer({ error: 'Não foi possível registrar a solicitação.' }, 503, origin);
   }
