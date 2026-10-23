@@ -52,7 +52,10 @@ test('backend only trusts signed proxy and reads monthly price from Central', ()
   assert.match(source, /consume_nexus_public_request_limit/);
   assert.match(source, /p_limit: 3/);
   assert.match(source, /plan\.price_cents/);
-  assert.match(source, /payment_method_types: \['card'\]/);
+  assert.match(source, /payment_method_configuration: methodConfig/);
+  assert.match(source, /NEXUS_CRM_CARD_PAYMENT_CONFIG_LIVE/);
+  assert.match(source, /NEXUS_CRM_CARD_PAYMENT_CONFIG_TEST/);
+  assert.doesNotMatch(source, /(?:^|[{,]\\s*)payment_method_types\\s*:/m);
   assert.match(source, /mode: 'subscription'/);
   assert.match(source, /interval_count: 1/);
   assert.match(source, /nexus_sale_id: sale\.id/);
