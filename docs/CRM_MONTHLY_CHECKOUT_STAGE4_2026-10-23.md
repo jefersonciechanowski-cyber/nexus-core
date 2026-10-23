@@ -12,7 +12,7 @@ Há **dois caminhos independentes**, que NÃO devem ser confundidos:
 
 ### Provedor de pagamento
 
-- Cartão de crédito: **Stripe Checkout Hosted**, `mode=subscription`, `interval=month`, `interval_count=1`, `payment_method_types=['card']`.
+- Cartão de crédito: **Stripe Checkout Hosted**, `mode=subscription`, `interval=month`, `interval_count=1`, `payment_method_configuration` com configuração Stripe **restrita a cartão** verificada no dashboard.
 - **Pix/boleto mensal:** requer implementação separada Asaas, com boleto/fatura por mês e pagamento manual do cliente (ou modalidade automática expressamente autorizada). O Stripe brasileiro **não oferece Pix recorrente automático neste fluxo**. Não exibir Pix/boleto como disponíveis até homologação real.
 - **Não há parcela de 12 meses nem fidelidade anual:** os preços e periodicidades são carregados do catálogo `nexus_plans`, nunca enviados pelo usuário.
 
@@ -27,6 +27,7 @@ CRM: `app/api/public/crm-checkout/route.ts` com ponte autenticada servidor-servi
 
 - Secret compartilhado >=32 caracteres `NEXUS_CRM_CHECKOUT_BRIDGE_SECRET` deve existir no ambiente servidor Next.js **e** no Supabase Central. Next envia HMAC-SHA256 sobre timestamp + corpo JSON; Edge verifica assinatura e tolerância de 5 minutos. **Nunca disponibilizar esse segredo no client-side**.
 - `NEXUS_CRM_MONTHLY_CHECKOUT_ENABLED=true` na Central, ausente/desativado por padrão.
+- Definir `NEXUS_CRM_CARD_PAYMENT_CONFIG_TEST=pmc_...` e `NEXUS_CRM_CARD_PAYMENT_CONFIG_LIVE=pmc_...` para as configurações de meios de pagamento da Stripe **verificadas como somente cartão** em cada ambiente. Se não configurado, o serviço não abre checkout. Não utilizar a mesma configuração nas contas de teste e produção.
 - **Somente sandbox:** `NEXUS_CRM_MONTHLY_CHECKOUT_MODE=sandbox`, `STRIPE_TEST_SECRET_KEY=sk_test_...`. Com planos `public_visible=false`, somente permitir teste autorizado com `NEXUS_CRM_CHECKOUT_TEST_ALLOW_HIDDEN_PLANS=true` em sandbox; manter flag falsa no live.
 - **Live exige TRÊS condições** `NEXUS_CRM_MONTHLY_CHECKOUT_ENABLED=true`, `NEXUS_CRM_LIVE_CHECKOUT_ENABLED=true`, `NEXUS_PAYMENT_LIVE_ENABLED=true`, além de `NEXUS_CRM_MONTHLY_CHECKOUT_MODE=production`, chave `STRIPE_SECRET_KEY=sk_live_...`, catálogo público homologado. Nenhuma condição isolada gera checkout.
 - Configurações em **Supabase Central** `svphwbccqeoakpmcpvhy`, não no Supabase CRM/Agency. Chave service-role continua privada no Edge.
@@ -43,6 +44,7 @@ O webhook atual `stripe-webhook` consulta `nexus_sale_id`, persiste pagamentos, 
 
 - [ ] Revisão técnica: CI com audit, testes sem cobranças, Deno, TypeScript, build.
 - [ ] Confirmação de secret de ponte em Next e Central (ambos seguros, não no navegador).
+- [ ] Configuração Stripe Payment Method Configuration test/live revisada, cartão somente, id verificado.
 - [ ] Sandbox da Stripe: criar Checkout em modo assinatura mensal e completar pagamento com cartão de testes.
 - [ ] Webhook de sandbox assinado: venda sai de checkout_created -> paid -> provisioned; organização/CRM corretos; usuário com e-mail existente não duplica.
 - [ ] Repetição/replay/webhook fora de ordem não duplica cobrança nem cria tenant duplicado.
