@@ -151,10 +151,21 @@ Deno.serve(async request => {
   }
 
   const stripeKey = mode === 'production' ? getEnv('STRIPE_SECRET_KEY') : getEnv('STRIPE_TEST_SECRET_KEY');
+  const methodConfig = mode === 'production'
+    ? getEnv('NEXUS_CRM_CARD_PAYMENT_CONFIG_LIVE')
+    : getEnv('NEXUS_CRM_CARD_PAYMENT_CONFIG_TEST');
+  // Payment Method Configuration must be verified as card-only in the Stripe
+  // Dashboard for the selected environment; never hard-code payment method types.
+  if (!/^pmc_[A-Za-z0-9]+$/.test(methodConfig)) {
+    await admin.from('nexus_sales').update({
+      sale_status: 'failed', last_error: 'Configuração de pagamento mensal por cartão ausente.',
+    }).eq('id', sale.id);
+    return reply({ error: 'Pagamento mensal ainda não configurado.' }, 503);
+  }
   const stripe = new Stripe(stripeKey, { httpClient: Stripe.createFetchHttpClient() });
   try {
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription', payment_method_types: ['card'],
+      mode: 'subscription', payment_method_configuration: methodConfig,
       customer_email: input.email,
       client_reference_id: sale.id,
       success_url: CRM_PUBLIC_ORIGIN + '/site-captacao?checkout_status=return&session_id={CHECKOUT_SESSION_ID}#planos',
