@@ -48,7 +48,7 @@ test('default off; test/live keys cannot be confused; live needs 3 gates', () =>
 test('backend only trusts signed proxy and reads monthly price from Central', () => {
   const source = readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-checkout/index.ts', import.meta.url), 'utf8');
   assert.match(source, /verifyProxySignature\(raw, request, bridgeKey\)/);
-  assert.match(source, /crypto\.subtle\.verify\('HMAC'/);
+  assert.match(source, /verifyCheckoutBridgeSignature\(/);
   assert.match(source, /consume_nexus_public_request_limit/);
   assert.match(source, /p_limit: 3/);
   assert.match(source, /plan\.price_cents/);
