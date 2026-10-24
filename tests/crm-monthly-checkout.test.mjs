@@ -61,5 +61,10 @@ test('backend only trusts signed proxy and reads monthly price from Central', ()
   assert.match(source, /nexus_sale_id: sale\.id/);
   assert.match(source, /idempotencyKey: 'crm-monthly-' \+ sale\.id/);
   assert.match(source, /return_origin: CRM_PUBLIC_ORIGIN/);
+  assert.match(source, /from\('organizations'\)/);
+  assert.match(source, /eq\('registration_number', input\.registrationNumber\)/);
+  assert.match(source, /if \(existingCompany\?\.id\)/);
+  assert.match(source, /vinculação do plano à Central antes de pagar/);
+  assert.ok(source.indexOf("if (existingCompany?.id)") < source.indexOf("stripe.checkout.sessions.create("));
   assert.doesNotMatch(source, /createUser|grantCourtesy|grantTrial|courtesyMonths/);
 });
