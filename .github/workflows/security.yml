@@ -32,5 +32,16 @@ jobs:
       - name: Run security checks
         run: npm run security:check
 
+      - name: Test CRM monthly checkout contract (no charges)
+        run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-asaas-monthly-contract.test.mjs tests/crm-asaas-monthly-events.test.mjs tests/crm-asaas-monthly-endpoint.test.mjs tests/crm-asaas-reconciliation.test.mjs
+
+      - name: Setup Deno for subscription checkout
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck CRM public Stripe function
+        run: deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-monthly-checkout/index.ts supabase/functions/nexus-public-crm-monthly-asaas/index.ts supabase/functions/nexus-crm-asaas-monthly-events/index.ts
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
