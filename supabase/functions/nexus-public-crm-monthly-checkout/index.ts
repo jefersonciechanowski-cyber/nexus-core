@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
 import { clean, normalizeCheckout, planIsMonthly, checkoutFeatureMode, CRM_PUBLIC_ORIGIN } from './contract.mjs';
+import { verifyCheckoutBridgeSignature } from './signature.mjs';
 
 // Public interface exposed by the CRM's signed server-side proxy.
 // Intentionally uses a distinct endpoint, leaving old 410 services untouched.
@@ -18,14 +19,12 @@ async function hmacBytes(secret: string, message: string) {
   return new Uint8Array(signed);
 }
 async function verifyProxySignature(raw: string, request: Request, secret: string) {
-  const when = request.headers.get('x-nexus-checkout-timestamp') || '';
-  const signature = request.headers.get('x-nexus-checkout-signature') || '';
-  if (!secret || !/^\d{13}$/.test(when) || !/^[a-f0-9]{64}$/.test(signature)) return false;
-  if (Math.abs(Date.now() - Number(when)) > 5 * 60_000) return false;
-  const bytes = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', bytes.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const signatureBytes = Uint8Array.from(signature.match(/../g) || [], part => parseInt(part, 16));
-  return crypto.subtle.verify('HMAC', key, signatureBytes, bytes.encode(when + '.' + raw));
+  return verifyCheckoutBridgeSignature(
+    raw,
+    request.headers.get('x-nexus-checkout-timestamp'),
+    request.headers.get('x-nexus-checkout-signature'),
+    secret,
+  );
 }
 async function limitedBody(request: Request) {
   const reader = request.body?.getReader();
