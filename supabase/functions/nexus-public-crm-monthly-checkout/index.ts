@@ -108,6 +108,18 @@ Deno.serve(async request => {
     return reply({ error: 'Plano mensal indisponível para contratação.' }, 409);
   }
 
+  // IMPORTANT: do not charge an existing Nexus company before its CRM or
+  // agency courtesy is reconciled. The dedicated paid conversion flow will
+  // be handled after safe account linking, not through anonymous checkout.
+  // This check is deliberately before Stripe session creation and sale insert.
+  const { data: existingCompany, error: existingCompanyError } = await admin.from('organizations')
+    .select('id').eq('registration_number', input.registrationNumber)
+    .limit(1).maybeSingle();
+  if (existingCompanyError) return reply({ error: 'Não foi possível verificar o cadastro existente.' }, 503);
+  if (existingCompany?.id) {
+    return reply({ error: 'Esta empresa já possui cadastro na Nexus. Solicite a vinculação do plano à Central antes de pagar.' }, 409);
+  }
+
   // Never overwrite an existing agency courtesy or turn a trial into paid access.
   // This creates only a new pending sale. Provisioning happens on signed payment webhooks.
   const { data: recentSale, error: recentError } = await admin.from('nexus_sales')
