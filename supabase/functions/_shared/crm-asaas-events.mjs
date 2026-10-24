@@ -18,8 +18,11 @@ export function trustedAsaasToken(actual, expected) {
 export function sanitizeCrmAsaasEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
   const id = event.id, type = event.event;
-  if (typeof id !== 'string' || !/^evt_[A-Za-z0-9_-]{6,150}$/.test(id)) return null;
-  if (typeof type !== 'string' || !CRM_ASAAS_FINANCIAL_EVENTS.has(type)) return null;
+  if (typeof id !== 'string' || !/^evt_[A-Za-z0-9_&.-]{6,150}$/.test(id)) return null;
+  // The provider can add PAYMENT_/SUBSCRIPTION_ variants over time. Since this
+  // inbox only persists and never provisions, retain valid future variants
+  // rather than returning 422 and blocking Asaas delivery retries.
+  if (typeof type !== 'string' || !/^(PAYMENT|SUBSCRIPTION)_[A-Z0-9_]{2,90}$/.test(type)) return null;
   const isPayment = type.startsWith('PAYMENT_');
   const data = isPayment ? event.payment : event.subscription;
   if (!data || typeof data !== 'object' || Array.isArray(data)
