@@ -35,6 +35,15 @@ test('normalization preserves payment link/subscription ID but drops customer da
   assert.doesNotMatch(JSON.stringify(safe), /sensitive@example|should-not-be-saved|cus_123/);
 });
 
+test('Asaas financial event variants and documented composite event ids are stored safely', () => {
+  const composite = {
+    ...event, id: 'evt_6561b631fa5580caadd00bbe3b858607&9193', event: 'PAYMENT_PARTIALLY_REFUNDED',
+  };
+  const safe = sanitizeCrmAsaasEvent(composite);
+  assert.equal(safe.provider_event_id, 'asaas:' + composite.id);
+  assert.equal(safe.event_type, 'PAYMENT_PARTIALLY_REFUNDED');
+});
+
 test('unknown events and malformed provider IDs do not enter payment inbox', () => {
   for (const altered of [
     { ...event, id: 'no-id' },
