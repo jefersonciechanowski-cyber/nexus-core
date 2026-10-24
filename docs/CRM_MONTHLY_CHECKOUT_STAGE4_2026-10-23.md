@@ -63,3 +63,19 @@ Primeiro desligar `NEXUS_CRM_MONTHLY_CHECKOUT_ENABLED` na Central para interromp
 - Stripe Checkout assinaturas: https://docs.stripe.com/billing/subscriptions/build-subscriptions?payment-ui=checkout&ui=stripe-hosted
 - Stripe Pix no Brasil: https://support.stripe.com/questions/how-to-enable-pix-as-a-payment-method-in-brazil
 - Asaas assinaturas Pix/boleto: https://docs.asaas.com/docs/assinaturas
+
+## Proteção de contas existentes e agências (24/10/2026)
+
+Antes de criar uma venda ou uma sessão Stripe, o novo endpoint verifica o CPF/CNPJ já cadastrado em `organizations`. Se existir, interrompe com HTTP 409 e orienta o cliente a solicitar vinculação na Central, evitando cobrar duas vezes enquanto a conversão de cortesia/conta existente ainda está na etapa 07. O novo checkout não modifica cortesias.
+
+O contrato de HMAC agora é testado ponta a ponta **sem cobrança**: Node `createHmac` do site assina um corpo JSON e a Central valida com WebCrypto. Testes cobrem alteração do plano/termos/empresa, segredo divergente, assinatura inválida e janela de 5 minutos. Isso substitui a dependência anterior de testes puramente por expressões regulares e ainda exige homologação HTTP após deploy controlado.
+
+## Pix e boleto via Asaas (preparação, SEM habilitar endpoint)
+
+Documento oficial: https://docs.asaas.com/reference/create-a-payments-link e https://docs.asaas.com/docs/assinaturas
+
+- Adicionado `supabase/functions/_shared/crm-asaas-monthly-contract.mjs` e teste `tests/crm-asaas-monthly-contract.test.mjs`: construtor puro do payload de **payment link recorrente** com `billingType` PIX ou BOLETO, `chargeType=RECURRENT`, `subscriptionCycle=MONTHLY`, referência de venda e valor do catálogo. Garante preço em BRL, plano publicamente liberado e ciclo de um mês; impede pacote anual e métodos não autorizados.
+- `BOLETO` gera nova fatura mensal; `PIX` convencional também requer ação mensal do pagador — **não** confundir com Pix Automático. Documentação: https://docs.asaas.com/docs/como-o-asaas-trata-receitas-na-conta
+- **Este é somente o contrato de criação**; nenhuma chamada à API Asaas ou criação de cobrança foi feita. Os endpoints legados `asaas-create-checkout` e `asaas-webhook` permanecem 410.
+- Bloqueio obrigatório: criar função pública nova protegida pela ponte HMAC, segredos Sandbox/Production distintos; criar endpoint de webhook autenticado `asaas-access-token` (32+ caracteres, diferente da API key), persistir evento idempotentemente por `event.id` e retornar HTTP 200 **após persistir**, sem liberar CRM antes de cobrança `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` vinculada à venda e ao plano. Webhooks são `at least once` e podem chegar fora de ordem. Documentação: https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook
+- Nunca usar `success redirect` como prova de pagamento; jamais ativar acesso com link gerado, fatura emitida ou status pendente. Exigir testes de reenvio do webhook, vencimento, pagamento duplicado, reconciliação e suspensão antes de considerar Pix/boleto prontos.
