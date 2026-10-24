@@ -123,14 +123,18 @@ Deno.serve(async request => {
   // Never overwrite an existing agency courtesy or turn a trial into paid access.
   // This creates only a new pending sale. Provisioning happens on signed payment webhooks.
   const { data: recentSale, error: recentError } = await admin.from('nexus_sales')
-    .select('id,provider_checkout_url,provider_checkout_id,sale_status')
-    .eq('product_id', product.id).eq('plan_id', plan.id).eq('environment', mode)
-    .eq('provider', 'stripe').eq('registration_number', input.registrationNumber)
+    .select('id,provider,provider_checkout_url,provider_checkout_id,sale_status')
+    .eq('product_id', product.id).eq('registration_number', input.registrationNumber)
     .eq('email', input.email).in('sale_status', ['checkout_created', 'paid', 'provisioned'])
     .gte('created_at', new Date(Date.now() - 24 * 3600_000).toISOString())
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (recentError) return reply({ error: 'Não foi possível verificar a contratação.' }, 503);
-  if (recentSale) return existingCheckoutResponse(recentSale);
+  if (recentSale) {
+    if (recentSale.provider !== 'stripe' || recentSale.sale_status !== 'checkout_created') {
+      return reply({ error: 'Já existe uma contratação para esta empresa. Consulte a Nexus antes de pagar novamente.' }, 409);
+    }
+    return existingCheckoutResponse(recentSale);
+  }
 
   const bucket = Math.floor(Date.now() / (24 * 3600_000));
   const reference = 'crm-monthly-' + await hashReference(serviceRoleKey,
