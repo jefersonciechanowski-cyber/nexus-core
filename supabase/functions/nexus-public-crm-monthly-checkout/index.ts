@@ -120,6 +120,25 @@ Deno.serve(async request => {
     return reply({ error: 'Esta empresa já possui cadastro na Nexus. Solicite a vinculação do plano à Central antes de pagar.' }, 409);
   }
 
+  // An existing e-mail can belong to another Nexus product even when the
+  // submitted CPF/CNPJ is new. NEVER create a subscription for that account
+  // through anonymous checkout: identity-linking must be authenticated.
+  // Service-role RPC checks auth.users + organizations without exposing user
+  // enumeration to the public site. A missing migration FAILS CLOSED.
+  const { data: identityDecision, error: identityError } = await admin.rpc(
+    'preflight_nexus_crm_public_identity', {
+      p_document: input.registrationNumber,
+      p_email: input.email,
+    },
+  );
+  if (identityError || identityDecision?.eligible !== true) {
+    return reply({
+      error: identityError
+        ? 'A validação da conta está temporariamente indisponível.'
+        : 'Este e-mail ou documento pode já possuir uma conta Nexus. Solicite vinculação à Central antes de pagar.',
+    }, identityError ? 503 : 409);
+  }
+
   // Never overwrite an existing agency courtesy or turn a trial into paid access.
   // This creates only a new pending sale. Provisioning happens on signed payment webhooks.
   const { data: recentSale, error: recentError } = await admin.from('nexus_sales')
