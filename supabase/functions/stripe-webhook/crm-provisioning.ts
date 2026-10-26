@@ -387,7 +387,7 @@ async function auditCrmEmailFailure(admin: any, sale: any, reason: string) {
   });
 }
 
-export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, firstAccessUrl: string | null) {
+export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, firstAccessUrl: string | null, billingProvider: 'stripe' | 'asaas' = 'stripe') {
   const brevoKey = Deno.env.get('BREVO_API_KEY');
   const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
   if (!brevoKey || !fromEmail || !sale?.email || !firstAccessUrl) {
@@ -420,7 +420,7 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
       <p style="margin:28px 0"><a href="${firstAccessUrl}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir senha e acessar o Nexus CRM</a></p>
       <p style="font-size:13px;color:#68757b">Depois do primeiro acesso, sua equipe pode ser convidada em Equipe e Acessos, respeitando o limite do plano contratado.</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
-      <p style="font-size:12px;color:#7b858a">Nexus Core · ambiente criado automaticamente após confirmação financeira da Stripe.</p>
+      <p style="font-size:12px;color:#7b858a">Nexus Core · ambiente criado automaticamente após confirmação do pagamento pelo ${billingProvider === 'stripe' ? 'Stripe' : 'Asaas'}.</p>
     </div>`;
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -452,7 +452,7 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
     action: 'NEXUS_CRM_ONBOARDING_EMAIL_SENT',
     entity: 'nexus_sales',
     entity_id: sale.id,
-    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'brevo', billing_provider: 'stripe', message_id: messageId },
+    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'brevo', billing_provider: billingProvider, message_id: messageId },
   });
   return true;
 }
