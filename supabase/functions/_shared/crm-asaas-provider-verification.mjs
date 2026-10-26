@@ -17,14 +17,10 @@ export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource }) {
     return reject('not_settlement_event','hold');
   }
   if (!sale || sale.provider !== 'asaas' || sale.environment !== 'sandbox'
-    || !sale.id || !safeId(sale.asaas_checkout_id, 'plink') && !safeId(sale.asaas_checkout_id, 'plk')) {
-    // Asaas link IDs vary by account/version: validate by printable path-safe
-    // ID below instead of depending on a provider-specific prefix.
-    if (!sale || sale.provider !== 'asaas' || sale.environment !== 'sandbox'
-      || typeof sale.asaas_checkout_id !== 'string'
-      || !/^[A-Za-z0-9_-]{4,120}$/.test(sale.asaas_checkout_id)) {
-      return reject('sale_invalid');
-    }
+    || typeof sale.id !== 'string' || !/^[0-9a-f-]{36}$/.test(sale.id)
+    || typeof sale.asaas_checkout_id !== 'string'
+    || !/^[A-Za-z0-9_-]{4,120}$/.test(sale.asaas_checkout_id)) {
+    return reject('sale_invalid');
   }
   if (typeof fetchResource !== 'function') return reject('provider_reader_missing');
   const paymentId = eventRow.payload?.resource?.id;
