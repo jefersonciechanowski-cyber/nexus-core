@@ -24,8 +24,22 @@ export async function provisionSaleForProvider(
     // courtesy or company merely because a payment has been generated.
     if (saleInput?.provider !== 'asaas' || saleInput?.environment !== 'sandbox'
       || saleInput?.source !== 'site-captacao' || saleInput?.billing_mode !== 'recurring'
-      || saleInput?.billing_cycle_months !== 1 || !saleInput?.paid_at) {
+      || saleInput?.billing_cycle_months !== 1 || saleInput?.sale_status !== 'paid'
+      || !saleInput?.paid_at || !saleInput?.id || !context.subscriptionId) {
       return { access: null, error: 'Venda Asaas não elegível para provisionamento.' };
+    }
+    // Provisioning is forbidden until an independent atomic settlement step
+    // advances an authenticated, provider-verified reservation to
+    // "provision_ready" (not done by the public checkout or webhook inbox).
+    const { data: reserved, error: reservedError } = await admin
+      .from('nexus_crm_asaas_verified_payments')
+      .select('sale_id,provider_subscription_id,decision')
+      .eq('sale_id', saleInput.id)
+      .eq('provider_subscription_id', context.subscriptionId)
+      .eq('decision', 'provision_ready')
+      .limit(1).maybeSingle();
+    if (reservedError || !reserved?.sale_id) {
+      return { access: null, error: 'Pagamento Asaas ainda não liberado pela conciliação.' };
     }
     const { data: linkedOrg, error: linkedOrgError } = await admin
       .from('organizations').select('id')
