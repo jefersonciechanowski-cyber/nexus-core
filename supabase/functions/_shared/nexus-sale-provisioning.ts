@@ -9,7 +9,7 @@ export async function provisionSaleForProvider(
   admin: any, saleInput: any,
   context: { customerId?: string | null; subscriptionId?: string | null; renewsAt?: string | null; eventType?: string | null } = {},
   deps: {
-    provider: provider | 'asaas',
+    provider: 'stripe' | 'asaas',
     clean: (value: unknown, size?: number) => string,
     slugify: (value: unknown) => string,
     addMonthsDate: (months: number) => string,
