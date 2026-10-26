@@ -39,6 +39,27 @@
       </div>
     </section>
 
+    <section class="panel" id="trialPanel" hidden>
+      <h2>Teste gratuito — 15 ou 30 dias</h2>
+      <div class="note">Disponível apenas para administradores autorizados e novos cadastros. Não cobra automaticamente no vencimento e não altera cortesias da agência. CPF/CNPJ e e-mail que já utilizaram teste exigem revisão manual.</div>
+      <form id="trialForm" class="courtesy-grid" autocomplete="off">
+        <label class="field">Empresa<input id="trialCompany" maxlength="160" required></label>
+        <label class="field">Responsável<input id="trialResponsible" maxlength="160" required></label>
+        <label class="field wide">E-mail<input id="trialEmail" type="email" maxlength="254" required></label>
+        <label class="field">CPF/CNPJ<input id="trialDocument" maxlength="20" required placeholder="Documento do cliente"></label>
+        <label class="field">Plano<select id="trialPlan" required><option value="">Carregando...</option></select></label>
+        <label class="field">Prazo<select id="trialDuration" required><option value="15">15 dias</option><option value="30">30 dias</option></select></label>
+        <button class="action primary submit" id="trialSubmit" type="submit">Conceder teste</button>
+      </form>
+      <div id="trialStatus" class="status-line" role="status" hidden></div>
+      <div class="result" id="trialResult" hidden>
+        <strong>Link de primeiro acesso do teste</strong>
+        <input id="trialLink" readonly aria-label="Link de primeiro acesso do teste CRM">
+        <button class="action" id="copyTrialLink" type="button">Copiar</button>
+        <small id="trialResultNote">Envie este link somente ao responsável informado. No fim dos 15/30 dias, a contratação mensal exige aceite explícito.</small>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="toolbar"><div><strong>Clientes CRM</strong><div class="note">Suspender/Liberar só conclui quando o CRM confirma o evento assinado pelo backend.</div></div><input class="search" id="search" type="search" placeholder="Buscar empresa, e-mail ou plano"></div>
       <div class="table-wrap"><table><thead><tr><th>Empresa</th><th>E-mail</th><th>Plano</th><th>Contrato</th><th>Vigência</th><th>Acesso</th><th>Tenant CRM</th><th>Ação</th></tr></thead><tbody id="rows"><tr><td colspan="8" class="empty">Carregando...</td></tr></tbody></table></div>
@@ -56,13 +77,56 @@
     function effectiveStatus(row){if(row.subscription_status==='cancelled')return 'cancelled';if(row.access_status==='suspended'||row.subscription_status==='past_due')return 'suspended';return 'active';}
     function render(){const q=document.getElementById('search').value.trim().toLowerCase(),visible=rows.filter(r=>[r.organization?.name,r.organization?.email,r.plan?.name,r.subscription_status,r.commercial_condition].join(' ').toLowerCase().includes(q));document.getElementById('rows').innerHTML=visible.length?visible.map(r=>{const status=effectiveStatus(r),linked=Boolean(r.external_tenant_id),condition=r.commercial_condition==='courtesy'?'Cortesia':r.commercial_condition==='founder'?'Founder':'Padrão',vigency=r.commercial_condition==='courtesy'&&r.renews_at?`Até ${dateLabel(r.renews_at)}`:(r.renews_at?`Renova ${dateLabel(r.renews_at)}`:'—');return `<tr><td><strong>${esc(r.organization?.name||'—')}</strong><div class="note">${esc(condition)}</div></td><td class="email-cell">${esc(r.organization?.email||'—')}</td><td>${esc(r.plan?.name||r.plan_name||'—')}</td><td><span class="badge ${r.subscription_status==='active'?'good':r.subscription_status==='past_due'?'warn':'bad'}">${esc(subscriptionLabel(r.subscription_status))}</span></td><td>${esc(vigency)}</td><td><span class="badge ${status==='active'?'good':status==='suspended'?'warn':'bad'}">${status==='active'?'Liberado':status==='suspended'?'Suspenso':'Cancelado'}</span></td><td>${linked?'Vinculado':'<span class="badge bad">Sem vínculo</span>'}</td><td><button class="action" data-toggle="${esc(r.id)}" data-status="${esc(r.access_status)}" ${!linked||r.subscription_status==='cancelled'?'disabled':''}>${r.access_status==='active'?'Suspender':'Liberar'}</button></td></tr>`}).join(''):'<tr><td colspan="8" class="empty">Nenhum cliente CRM encontrado.</td></tr>';document.querySelectorAll('[data-toggle]').forEach(button=>button.onclick=()=>toggle(button));}
     async function load(){const client=window.NexusAuth.getClient();const{data,error}=await client.from('organization_product_access').select('id,access_status,subscription_status,plan_name,commercial_condition,external_tenant_id,starts_at,renews_at,organization:organizations(name,email,status),product:nexus_products(code),plan:nexus_plans(name)').eq('product.code','crm').order('created_at');if(error)throw error;rows=(data||[]).filter(r=>r.product?.code==='crm'&&r.organization?.status!=='archived');render();}
-    async function loadPlans(){const client=window.NexusAuth.getClient();const{data,error}=await client.from('nexus_plans').select('id,name,code,status,product:nexus_products(code)').eq('status','active').order('sort_order');if(error)throw error;const plans=(data||[]).filter(p=>p.product?.code==='crm');const select=document.getElementById('courtesyPlan');select.innerHTML='<option value="">Selecione...</option>'+plans.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');}
+    async function loadPlans(){const client=window.NexusAuth.getClient();const{data,error}=await client.from('nexus_plans').select('id,name,code,status,product:nexus_products(code)').eq('status','active').order('sort_order');if(error)throw error;const plans=(data||[]).filter(p=>p.product?.code==='crm');const options='<option value="">Selecione...</option>'+plans.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+      document.getElementById('courtesyPlan').innerHTML=options;
+      document.getElementById('trialPlan').innerHTML=options;}
     async function toggle(button){const next=button.dataset.status==='active'?'suspended':'active';button.disabled=true;try{const client=window.NexusAuth.getClient();const{data,error}=await client.functions.invoke('nexus-admin-crm-access',{body:{accessId:button.dataset.toggle,accessStatus:next}});if(error)throw new Error(error.message||'Falha ao chamar o controle do CRM.');if(data?.error)throw new Error(data.error);if(data?.ok!==true)throw new Error('O CRM não confirmou a alteração.');await load();}catch(error){alert(error.message||'Não foi possível atualizar o acesso.');}finally{button.disabled=false;}}
     async function createCourtesy(event){event.preventDefault();const submit=document.getElementById('courtesySubmit'),status=document.getElementById('courtesyStatus'),result=document.getElementById('courtesyResult'),link=document.getElementById('courtesyLink'),note=document.getElementById('courtesyResultNote');submit.disabled=true;result.hidden=true;link.value='';status.hidden=false;status.className='status-line';status.textContent='Provisionando cortesia na Central e no CRM...';try{const client=window.NexusAuth.getClient();const{data,error}=await client.functions.invoke('nexus-admin-crm-courtesy',{body:{companyName:document.getElementById('courtesyCompany').value,responsibleName:document.getElementById('courtesyResponsible').value,email:document.getElementById('courtesyEmail').value,planId:document.getElementById('courtesyPlan').value,durationMonths:Number(document.getElementById('courtesyDuration').value)}});if(error){let serverMessage='';try{const response=error.context;if(response&&typeof response.json==='function'){const body=await response.json();serverMessage=String(body?.error||body?.message||'').trim();}}catch{}throw new Error(serverMessage||error.message||'Falha ao chamar o provisionamento de cortesia.');}if(data?.error)throw new Error(data.error);if(data?.ok!==true)throw new Error('O CRM não confirmou a cortesia.');status.className='status-line good-text';status.textContent=data.message||'Cortesia provisionada com sucesso.';note.textContent=data.courtesyEndsAt?`Cortesia válida até ${dateLabel(data.courtesyEndsAt)}. Envie este link somente ao e-mail informado. Para gerar outro acesso depois, use a recuperação de senha do CRM.`:'Envie este link somente ao e-mail informado. Para gerar outro acesso depois, use a recuperação de senha do CRM.';if(data.firstAccessUrl){link.value=data.firstAccessUrl;result.hidden=false;}await load();}catch(error){status.className='status-line error';status.textContent=error.message||'Não foi possível criar a cortesia.';}finally{submit.disabled=false;}}
+    async function createTrial(event){
+      event.preventDefault();
+      const submit=document.getElementById('trialSubmit'),status=document.getElementById('trialStatus'),
+        result=document.getElementById('trialResult'),link=document.getElementById('trialLink');
+      submit.disabled=true;status.hidden=false;result.hidden=true;link.value='';
+      status.className='status-line';status.textContent='Verificando elegibilidade e provisionando teste...';
+      try{
+        const client=window.NexusAuth.getClient();
+        const {data,error}=await client.functions.invoke('nexus-admin-crm-trial',{body:{
+          companyName:document.getElementById('trialCompany').value,
+          responsibleName:document.getElementById('trialResponsible').value,
+          email:document.getElementById('trialEmail').value,
+          registrationNumber:document.getElementById('trialDocument').value,
+          planId:document.getElementById('trialPlan').value,
+          trialDays:Number(document.getElementById('trialDuration').value),
+        }});
+        if(error){
+          let serverMessage='';
+          try{if(error.context?.json){serverMessage=String((await error.context.json())?.error||'');}}catch{}
+          throw new Error(serverMessage||error.message||'Falha ao conceder teste.');
+        }
+        if(data?.error)throw new Error(data.error);
+        if(data?.ok!==true)throw new Error('O CRM não confirmou o teste.');
+        status.className='status-line good-text';
+        status.textContent=data.message||'Teste ativado.';
+        document.getElementById('trialResultNote').textContent=
+          `Teste válido até ${dateLabel(data.trialEndsAt)}. Envie o link somente ao responsável. O prazo termina sem cobrança automática.`;
+        if(data.firstAccessUrl){link.value=data.firstAccessUrl;result.hidden=false;}
+        await load();
+      }catch(error){status.className='status-line error';status.textContent=error.message||'Não foi possível conceder teste.';}
+      finally{submit.disabled=false;}
+    }
+    document.getElementById('trialForm').addEventListener('submit',createTrial);
+    document.getElementById('copyTrialLink').addEventListener('click',async()=>{
+      const link=document.getElementById('trialLink');
+      if(!link.value)return;
+      try{await navigator.clipboard.writeText(link.value);}catch{link.select();}
+    });
     document.getElementById('courtesyForm').addEventListener('submit',createCourtesy);
     document.getElementById('copyCourtesyLink').addEventListener('click',async()=>{const value=document.getElementById('courtesyLink').value;if(!value)return;try{await navigator.clipboard.writeText(value);document.getElementById('copyCourtesyLink').textContent='Copiado';setTimeout(()=>document.getElementById('copyCourtesyLink').textContent='Copiar',1500);}catch{document.getElementById('courtesyLink').select();}});
     document.getElementById('search').addEventListener('input',render);
-    (async()=>{try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html');return;}if(session.role!=='nexus_admin')throw new Error('Acesso restrito à administração Nexus.');document.getElementById('profile').textContent=session.name||session.email;await Promise.all([loadPlans(),load()]);}catch(error){document.getElementById('message').hidden=false;document.getElementById('message').textContent=error.message||'Não foi possível carregar os acessos do CRM.';}})();
+    (async()=>{try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html');return;}if(session.role!=='nexus_admin')throw new Error('Acesso restrito à administração Nexus.');document.getElementById('profile').textContent=session.name||session.email;
+      // Separate release gate from the backend flag; hidden for existing customers.
+      document.getElementById('trialPanel').hidden=window.NEXUS_CRM_TRIALS_ENABLED!==true;
+      await Promise.all([loadPlans(),load()]);}catch(error){document.getElementById('message').hidden=false;document.getElementById('message').textContent=error.message||'Não foi possível carregar os acessos do CRM.';}})();
   </script>
 </body>
 </html>
