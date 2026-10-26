@@ -24,19 +24,32 @@ function createDb({claimDecision='provisioning',existing=null,insertFailure=fals
         data:claimError?null:claim,error:claimError?{code:'failed'}:null})}}}}};
     }
     if(table==='nexus_payments'){
-      return {select(){return {eq(_k,value){return {maybeSingle:async()=>{
-        state.reads++;
-        return {data:state.payments.find(p=>p.provider_payment_id===value)||null,error:null};
-      }}}}}},
-      insert:async body=>{
-        state.writes.push(body);
-        if(insertFailure)return {error:{code:'23505'}};
-        state.payments.push({
-          id:'44444444-5555-4666-8777-888888888888',...body,
-          ...(wrongReceipt?{organization_id:'wrong-org'}:{}),
-        });
-        return {error:null};
-      }};
+      return {
+        select(){
+          return {
+            eq(_k,value){
+              return {
+                maybeSingle:async()=>{
+                  state.reads++;
+                  return {
+                    data:state.payments.find(p=>p.provider_payment_id===value)||null,
+                    error:null,
+                  };
+                },
+              };
+            },
+          };
+        },
+        insert:async body=>{
+          state.writes.push(body);
+          if(insertFailure)return {error:{code:'23505'}};
+          state.payments.push({
+            id:'44444444-5555-4666-8777-888888888888',...body,
+            ...(wrongReceipt?{organization_id:'wrong-org'}:{}),
+          });
+          return {error:null};
+        },
+      };
     }
     throw Error('Unexpected table '+table);
   }};
