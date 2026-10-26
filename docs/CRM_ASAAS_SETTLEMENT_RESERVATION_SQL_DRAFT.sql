@@ -11,7 +11,7 @@ create table if not exists public.nexus_crm_asaas_verified_payments (
   amount_cents bigint not null check (amount_cents > 0),
   billing_type text not null check (billing_type in ('PIX','BOLETO')),
   decision text not null default 'verified_pending_provisioning'
-    check (decision in ('verified_pending_provisioning','provision_ready','manual_review','provisioned')),
+    check (decision in ('verified_pending_provisioning','provision_ready','provisioning','manual_review','provisioned')),
   verified_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint crm_asaas_verified_payment_id_format
