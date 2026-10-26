@@ -69,3 +69,48 @@ revoke all on function public.confirm_nexus_crm_trial(uuid,uuid,uuid)
 grant execute on function public.confirm_nexus_crm_trial(uuid,uuid,uuid)
   to service_role;
 -- Intentionally NO DELETE or RESET function: reuse only via audited manual review.
+
+-- Trial expiration: compare-and-swap under a row lock; only the new CRM
+-- trial ledger may authorize expiration. Courtesy/Stripe/founder untouched.
+create or replace function public.expire_nexus_crm_trial_access(
+  p_access_id uuid,p_expected_end date
+) returns jsonb
+language plpgsql security definer set search_path=''
+as $$
+declare v_access public.organization_product_access%rowtype;
+begin
+  if p_access_id is null or p_expected_end is null then
+    return pg_catalog.jsonb_build_object('applied',false,'reason','bad_input');
+  end if;
+  select * into v_access from public.organization_product_access
+    where id=p_access_id for update;
+  if not found then return pg_catalog.jsonb_build_object('applied',false,'reason','not_found'); end if;
+  if v_access.renews_at is distinct from p_expected_end
+    or v_access.renews_at > current_date
+    or v_access.subscription_status <> 'trial'
+    or v_access.access_status <> 'active'
+    or v_access.billing_provider is not null
+    or v_access.commercial_condition <> 'standard'
+    or v_access.contracted_price_cents <> 0
+    or not exists (
+      select 1 from public.nexus_products p
+        where p.id=v_access.product_id and p.code='crm'
+    )
+    or not exists (
+      select 1 from public.nexus_crm_trial_claims c
+        where c.access_id=p_access_id and c.state='provisioned'
+    )
+  then return pg_catalog.jsonb_build_object('applied',false,'reason','not_eligible'); end if;
+
+  update public.organization_product_access set
+    access_status='suspended',
+    subscription_status='past_due',
+    last_payment_status='trial_expired',
+    updated_at=pg_catalog.now()
+    where id=p_access_id;
+  return pg_catalog.jsonb_build_object('applied',true,'reason','trial_expired');
+end; $$;
+revoke all on function public.expire_nexus_crm_trial_access(uuid,date)
+  from PUBLIC,anon,authenticated;
+grant execute on function public.expire_nexus_crm_trial_access(uuid,date)
+  to service_role;
