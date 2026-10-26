@@ -35,7 +35,7 @@ function fakeDatabase({status='suspended', commercialCondition='standard', pendi
     async rpc(name:string,args:Record<string,unknown>){
       calls.push({name,args});
       if(name==='ensure_crm_sync_delivery'){
-        return {data:{is_crm:true,revision:7,confirmed_revision:6,pending},error:null};
+        return {data:{is_crm:true,revision:7,confirmed_revision:pending?6:7,pending},error:null};
       }
       if(['confirm_crm_sync_delivery','fail_crm_sync_delivery'].includes(name)){
         return {data:{ok:true},error:null};
