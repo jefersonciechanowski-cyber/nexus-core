@@ -30,8 +30,8 @@ export async function recordVerifiedCrmAsaasPayment({admin,sale,access,payment})
   if(claimError) return reject('claim_lookup_failed');
   if(!claim || claim.sale_id!==sale.id || claim.provider_subscription_id!==payment.subscriptionId
     || Number(claim.amount_cents)!==payment.amountCents
-    || claim.billing_type!==payment.billingType || claim.decision!=='provision_ready'){
-    return reject('claim_not_provision_ready');
+    || claim.billing_type!==payment.billingType || claim.decision!=='provisioning'){
+    return reject('claim_not_provisioning');
   }
   const getExisting=()=>admin.from('nexus_payments')
     .select('id,provider,provider_payment_id,organization_id,access_id,provider_subscription_id,provider_customer_id,billing_type,provider_status,amount_cents,currency')
