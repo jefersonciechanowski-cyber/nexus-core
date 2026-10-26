@@ -263,7 +263,7 @@ Deno.serve(async request => {
     if (accessInsertError || !insertedAccess?.id) {
       if (createdOrganization) {
         const { error: cleanupError } = await admin.from('organizations').delete().eq('id', organizationId);
-        if (cleanupError) console.error('[Nexus CRM courtesy] Falha ao remover empresa do teste sem contrato:', cleanupError.message);
+        if (cleanupError) console.error('[Nexus CRM trial] Falha ao remover empresa do teste sem contrato:', cleanupError.message);
       }
       return json({ error: 'Não foi possível registrar o teste na Nexus Central.' }, 500);
     }
@@ -294,12 +294,12 @@ Deno.serve(async request => {
         duration_days: trialDays,
         trial_ends_at: trialEndsAt,
         error: clean(provisioned.error || 'CRM não confirmou o provisionamento.', 700),
-        retry_safe: true,
+        retry_safe: false,
       },
     });
     return json({
-      error: 'O teste ficou registrado na Central, mas o CRM não confirmou o provisionamento. É seguro tentar novamente com os mesmos dados.',
-      retryable: true,
+      error: 'O teste foi registrado, mas o CRM não confirmou o provisionamento. A administração precisa conferir o cadastro antes de outra tentativa.',
+      retryable: false,
       organizationId,
       accessId: access.id,
     }, 502);
