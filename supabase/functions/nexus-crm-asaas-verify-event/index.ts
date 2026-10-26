@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { trustedAsaasToken } from '../_shared/crm-asaas-events.mjs';
 import { verifyCrmAsaasPayment } from '../_shared/crm-asaas-provider-verification.mjs';
+import { reconcileCrmAsaasSettlement } from '../_shared/crm-asaas-settlement-pipeline.mjs';
 
 // STRICT read-only sandbox reconciliation probe. Never call this endpoint from
 // a browser or provider webhook. It cannot mark a sale paid or provision a CRM.
@@ -90,37 +91,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return JSON.parse(body);
   };
   const decision=await verifyCrmAsaasPayment({eventRow,sale,fetchResource});
-  // The reservation draft is a separate deployment gate. OFF by default.
-  // The only permitted write here is to a pending-verification ledger; it
-  // NEVER marks sales paid nor creates access/tenant/organization/customer.
-  if (decision.decision !== 'verified_for_review'
-    || Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_ENABLED') !== 'true') {
-    return json(decision,decision.decision==='retry'?503:200);
-  }
-  const {data: reservation, error: reserveError}=await admin
-    .rpc('reserve_nexus_crm_asaas_verified_payment',{
-      p_sale_id: decision.saleId,
-      p_provider_event_id: eventRow.provider_event_id,
-      p_provider_payment_id: decision.paymentId,
-      p_provider_subscription_id: decision.subscriptionId,
-      p_amount_cents: decision.amountCents,
-      p_billing_type: decision.billingType,
-    });
-  if(reserveError){
-    // A missing migration, locked table or database outage MUST block
-    // settlement rather than treating the verified event as paid.
-    console.error('crm-asaas-reservation-unavailable',String(reserveError.code||'unknown').slice(0,40));
-    return json({decision:'retry',reason:'reservation_unavailable',canActivateCrm:false},503);
-  }
-  if(reservation?.decision !== 'reserved_for_review'){
-    return json({
-      decision:'manual_review',
-      reason:typeof reservation?.reason==='string'?reservation.reason:'reservation_rejected',
-      canActivateCrm:false,
-    });
-  }
-  return json({
-    decision:'reserved_for_review',paymentId:decision.paymentId,
-    saleId:decision.saleId,canActivateCrm:false,
+  const result=await reconcileCrmAsaasSettlement({
+    verification:decision,
+    eventId:eventRow.provider_event_id,
+    environment:'sandbox',
+    reservationEnabled:Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_ENABLED')==='true',
+    claimEnabled:Deno.env.get('NEXUS_CRM_ASAAS_CLAIM_ENABLED')==='true',
+    callRpc:async(name:string,args:Record<string,unknown>)=>{
+      // Never accept arbitrary RPC names from request bodies.
+      if(!['reserve_nexus_crm_asaas_verified_payment',
+           'claim_nexus_crm_asaas_provisioning'].includes(name)){
+        throw new Error('invalid_rpc');
+      }
+      return admin.rpc(name,args);
+    },
   });
+  // This endpoint NEVER creates an Auth user, tenant, invoice or entitlement.
+  // A separate, independently authorized and audited worker is needed for
+  // provisionSaleForProvider; do NOT trigger from untrusted webhook requests.
+  return json(result,result.decision==='retry'?503:200);
 });
