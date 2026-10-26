@@ -40,6 +40,7 @@ test('simultaneous checkouts cannot use a different email or plan to charge same
   assert.match(sql,/create unique index if not exists nexus_crm_stripe_public_unique_email_idx/);
   assert.match(sql,/pg_catalog\.lower\(email\)/);
   assert.match(sql,/sale_status in \('lead','checkout_created','paid','provisioned'\)/);
+  assert.equal((sql.match(/external_reference like 'crm-monthly-%'/g)||[]).length,2);
 });
 
 test('live card payment still requires independent gates; no Asaas or courtesy activation',()=>{
