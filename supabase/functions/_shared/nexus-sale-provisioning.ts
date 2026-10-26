@@ -34,13 +34,13 @@ export async function provisionSaleForProvider(
     }
     // Provisioning is forbidden until an independent atomic settlement step
     // advances an authenticated, provider-verified reservation to
-    // "provision_ready" (not done by the public checkout or webhook inbox).
+    // "provisioning" through a non-retryable one-worker lease (not done by the public checkout or webhook inbox).
     const { data: reserved, error: reservedError } = await admin
       .from('nexus_crm_asaas_verified_payments')
       .select('sale_id,provider_subscription_id,decision')
       .eq('sale_id', saleInput.id)
       .eq('provider_subscription_id', context.subscriptionId)
-      .eq('decision', 'provision_ready')
+      .eq('decision', 'provisioning')
       .limit(1).maybeSingle();
     if (reservedError || !reserved?.sale_id) {
       return { access: null, error: 'Pagamento Asaas ainda não liberado pela conciliação.' };
