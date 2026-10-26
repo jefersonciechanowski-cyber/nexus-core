@@ -50,6 +50,36 @@ BEGIN
   SELECT count(*) INTO x FROM public.nexus_payments;
   IF x<>0 THEN RAISE EXCEPTION 'claim inserted provider payments too early!'; END IF;
 
+  -- Different link+invoice, same CPF/CNPJ as an already claimed checkout.
+  -- Must not create a second paid sale/organization with the same identity.
+  INSERT INTO public.nexus_sales(id,product_id,plan_id,sale_status,provider,
+    environment,source,billing_mode,billing_cycle_months,checkout_amount_cents,
+    asaas_checkout_id,registration_number,email) VALUES
+    ('50000000-0000-4000-8000-000000000005',
+     '10000000-0000-4000-8000-000000000001',
+     '20000000-0000-4000-8000-000000000001',
+     'checkout_created','asaas','sandbox','site-captacao','recurring',1,7900,
+     'plink_second_identity','44444444000199','different-owner@example.test');
+  INSERT INTO public.nexus_payment_webhook_events(provider_event_id,provider,event_type,payload)
+  VALUES ('asaas:evt_sameidentity1','asaas','PAYMENT_RECEIVED',
+    '{"event":"PAYMENT_RECEIVED","resource":{"id":"pay_sameidentity1",
+       "paymentLink":"plink_second_identity","subscription":"sub_secondidentity1",
+       "billingType":"PIX","value":79}}'::jsonb);
+  r:=public.reserve_nexus_crm_asaas_verified_payment(
+    '50000000-0000-4000-8000-000000000005','asaas:evt_sameidentity1',
+    'pay_sameidentity1','sub_secondidentity1',7900,'PIX');
+  IF r->>'decision'<>'reserved_for_review' THEN
+    RAISE EXCEPTION 'second identity fixture cannot reserve: %',r;
+  END IF;
+  r:=public.claim_nexus_crm_asaas_provisioning(
+    '50000000-0000-4000-8000-000000000005','pay_sameidentity1');
+  IF r->>'reason'<>'identity_already_claimed' THEN
+    RAISE EXCEPTION 'same company claimed twice via new payment link: %',r;
+  END IF;
+  SELECT count(*) INTO x FROM public.nexus_sales
+    WHERE provider='asaas' AND sale_status='paid';
+  IF x<>1 THEN RAISE EXCEPTION 'duplicate paid company was created'; END IF;
+
   -- A single free trial per email AND per document, separate from courtesy.
   IF NOT public.reserve_nexus_crm_trial(
     '60000000-0000-4000-8000-000000000001',repeat('a',64),repeat('b',64),15) THEN
