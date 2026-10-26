@@ -14,7 +14,6 @@ export async function recordVerifiedCrmAsaasPayment({admin,sale,access,payment})
     || access.billing_provider!=='asaas'
     || access.commercial_condition!=='standard'
     || access.subscription_status!=='active'
-    || !access.external_tenant_id && access.tenantWasAlreadyProvisioned===true
     || !['PIX','BOLETO'].includes(payment.billingType)
     || !['CONFIRMED','RECEIVED'].includes(payment.status)
     || typeof payment.paymentId!=='string' || !/^pay_[a-zA-Z0-9_-]{5,120}$/.test(payment.paymentId)
