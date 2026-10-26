@@ -7,6 +7,7 @@ import { classifyCrmAsaasSettlement } from './crm-asaas-reconciliation.mjs';
 const safeId = (v, prefix) => typeof v === 'string' && new RegExp('^' + prefix + '_[A-Za-z0-9_-]{4,120}$').test(v);
 const numericCents = v => typeof v === 'number' && Number.isFinite(v) && v > 0
   ? Math.round(v * 100) : null;
+/** @param {string} reason @param {'manual_review'|'retry'|'hold'} [status] */
 const reject = (reason, status = 'manual_review') => Object.freeze({ decision: status, reason });
 
 export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource }) {
