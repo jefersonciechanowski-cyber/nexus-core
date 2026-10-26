@@ -49,7 +49,7 @@ jobs:
         run: npm run security:check
 
       - name: Test CRM monthly checkout contract (no charges)
-        run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-asaas-monthly-contract.test.mjs tests/crm-asaas-monthly-events.test.mjs tests/crm-asaas-monthly-endpoint.test.mjs tests/crm-asaas-reconciliation.test.mjs tests/crm-asaas-provider-verification.test.mjs tests/crm-asaas-reservation.test.mjs tests/crm-shared-sale-provisioning.test.mjs tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs
+        run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-asaas-monthly-contract.test.mjs tests/crm-asaas-monthly-events.test.mjs tests/crm-asaas-monthly-endpoint.test.mjs tests/crm-asaas-reconciliation.test.mjs tests/crm-asaas-provider-verification.test.mjs tests/crm-asaas-reservation.test.mjs tests/crm-shared-sale-provisioning.test.mjs tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-asaas-lifecycle.test.mjs
 
       - name: Execute CRM billing/trial SQL against isolated PostgreSQL
         env:
@@ -67,6 +67,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_assertions.sql
           bash tests/sql/crm_billing_concurrency.sh
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_LIFECYCLE_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_assertions.sql
 
       - name: Setup Deno for subscription checkout
         uses: denoland/setup-deno@v2
