@@ -79,5 +79,8 @@ jobs:
       - name: Typecheck CRM public Stripe function
         run: deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-monthly-checkout/index.ts supabase/functions/nexus-public-crm-monthly-asaas/index.ts supabase/functions/nexus-crm-asaas-monthly-events/index.ts supabase/functions/nexus-crm-asaas-verify-event/index.ts supabase/functions/stripe-webhook/index.ts supabase/functions/_shared/nexus-sale-provisioning.ts supabase/functions/nexus-admin-crm-trial/index.ts supabase/functions/nexus-crm-trial-reconcile/index.ts
 
+      - name: Test signed Central-to-CRM delivery and retry without network
+        run: deno test --allow-env=NEXUS_CENTRAL_WEBHOOK_SECRET,NEXUS_CRM_ENTITLEMENT_URL tests/crm-central-delivery.test.ts
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
