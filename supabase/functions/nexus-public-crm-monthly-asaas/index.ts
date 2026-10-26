@@ -109,6 +109,24 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (orgError) return reply({ error: 'Erro ao verificar o cadastro.' }, 503);
   if (existingOrg?.id) return reply({ error: 'Empresa já cadastrada: solicite vinculação antes de contratar.' }, 409);
 
+  // Match Stripe's identity preflight before registering a sale or creating
+  // a payment link. An e-mail already used by another Nexus product must be
+  // linked through an authenticated flow, never an anonymous checkout.
+  // Missing RPC/migration fails closed to avoid double subscriptions.
+  const { data: identityDecision, error: identityError } = await admin.rpc(
+    'preflight_nexus_crm_public_identity', {
+      p_document: input.registrationNumber,
+      p_email: input.email,
+    },
+  );
+  if (identityError || identityDecision?.eligible !== true) {
+    return reply({
+      error: identityError
+        ? 'A validação da conta está temporariamente indisponível.'
+        : 'Este e-mail ou documento pode já possuir uma conta Nexus. Solicite vinculação à Central antes de pagar.',
+    }, identityError ? 503 : 409);
+  }
+
   const { data: recent, error: recentError } = await admin.from('nexus_sales')
     .select('id,sale_status').eq('product_id', product.id).eq('registration_number', input.registrationNumber)
     .eq('email', input.email).in('sale_status', ['checkout_created','paid','provisioned'])
