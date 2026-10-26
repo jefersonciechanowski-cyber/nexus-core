@@ -84,6 +84,16 @@ for (const requiredPilotCheckoutGuard of [
 }
 
 const stripeWebhookSource = await readFile(join(projectRoot, 'supabase', 'functions', 'stripe-webhook', 'index.ts'), 'utf8');
+const sharedSaleProvisionSource = await readFile(join(projectRoot, 'supabase', 'functions', '_shared', 'nexus-sale-provisioning.ts'), 'utf8');
+// Even after extraction, Stripe MUST explicitly invoke the audited shared flow
+// as the Stripe provider; pilot conversion guards remain compulsory there.
+for (const stripeSharedGuard of [
+  'provisionSaleForProvider(admin, saleInput, context',
+  "provider: 'stripe'",
+  "import { provisionSaleForProvider }",
+]) {
+  if (!stripeWebhookSource.includes(stripeSharedGuard)) fail(`stripe-webhook: provedor compartilhado desvinculado: ${stripeSharedGuard}`);
+}
 for (const requiredPilotProvisionGuard of [
   "sale.source === 'portal-pilot-upgrade'",
   "existingAccess?.subscription_status === 'trial'",
@@ -92,10 +102,22 @@ for (const requiredPilotProvisionGuard of [
   "plan.employee_limit && Number(activeEmployeeCount || 0) > Number(plan.employee_limit)",
   'NEXUS_PILOT_CONVERTED',
   'sendPilotConversionEmail',
-  'Sua empresa, usuários e todos os registros do período piloto foram preservados.',
 ]) {
-  if (!stripeWebhookSource.includes(requiredPilotProvisionGuard)) {
-    fail(`stripe-webhook: proteção da conversão do piloto ausente: ${requiredPilotProvisionGuard}`);
+  if (!sharedSaleProvisionSource.includes(requiredPilotProvisionGuard)) {
+    fail(`nexus-sale-provisioning: proteção da conversão do piloto ausente: ${requiredPilotProvisionGuard}`);
+  }
+}
+if (!stripeWebhookSource.includes('Sua empresa, usuários e todos os registros do período piloto foram preservados.')) {
+  fail('stripe-webhook: e-mail de conversão do piloto alterado ou ausente.');
+}
+for (const requiredCourtesyGuard of [
+  "saleInput?.provider !== 'asaas'",
+  "saleInput?.source !== 'site-captacao'",
+  "linkedOrg?.id",
+  "provider: provider",
+]) {
+  if (!sharedSaleProvisionSource.includes(requiredCourtesyGuard)) {
+    fail(`nexus-sale-provisioning: guardas do provedor Asaas/cortesia ausentes: ${requiredCourtesyGuard}`);
   }
 }
 
