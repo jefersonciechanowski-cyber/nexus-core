@@ -2,6 +2,9 @@
 -- Stripe-first public checkout: prevent charging an existing Nexus identity
 -- or creating two public CRM sales from one email/document in a race.
 -- The public endpoint authenticates to these RPCs exclusively via service_role.
+-- IMPORTANT: site-captacao is also used for legacy CRM lead intake.
+-- Unique indexes MUST target ONLY external_reference prefix crm-monthly-;
+-- otherwise existing forms and paid sandbox sales would be disrupted.
 -- Validate against existing historical CRM sales before migration (index builds
 -- may fail if legacy duplicate public sales already exist).
 
@@ -40,11 +43,13 @@ grant execute on function public.preflight_nexus_crm_public_identity(text,text)
 create unique index if not exists nexus_crm_stripe_public_unique_doc_idx
   on public.nexus_sales(registration_number)
   where provider='stripe' and source='site-captacao'
+    and external_reference like 'crm-monthly-%'
     and billing_mode='recurring' and billing_cycle_months=1
     and sale_status in ('lead','checkout_created','paid','provisioned');
 create unique index if not exists nexus_crm_stripe_public_unique_email_idx
   on public.nexus_sales(pg_catalog.lower(email))
   where provider='stripe' and source='site-captacao'
+    and external_reference like 'crm-monthly-%'
     and billing_mode='recurring' and billing_cycle_months=1
     and sale_status in ('lead','checkout_created','paid','provisioned');
 
