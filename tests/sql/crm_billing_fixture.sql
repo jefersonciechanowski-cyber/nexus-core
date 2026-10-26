@@ -23,6 +23,9 @@ CREATE TABLE public.organization_product_access(
   subscription_status text not null,access_status text not null,
   renews_at date,billing_provider text,commercial_condition text,
   contracted_price_cents bigint,last_payment_status text,
+  billing_mode text,provider_subscription_id text,external_tenant_id text,
+  provider_state_event_id text,provider_state_event_created_at timestamptz,
+  provider_state_event_type text,
   updated_at timestamptz not null default now()
 );
 CREATE TABLE public.nexus_sales(
@@ -35,13 +38,18 @@ CREATE TABLE public.nexus_sales(
   checkout_amount_cents bigint,asaas_checkout_id text,asaas_subscription_id text,
   provider_subscription_id text,registration_number text,email text,
   paid_at timestamptz,organization_id uuid,user_id uuid,
+  created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 CREATE TABLE public.nexus_payment_webhook_events(
   provider_event_id text primary key,provider text not null,
-  event_type text not null,payload jsonb not null
+  event_type text not null,payload jsonb not null,
+  created_at timestamptz not null default now()
 );
-CREATE TABLE public.nexus_payments(provider_payment_id text primary key);
+CREATE TABLE public.nexus_payments(provider_payment_id text primary key,
+  provider text not null,access_id uuid not null,organization_id uuid not null,
+  provider_subscription_id text,amount_cents bigint not null
+);
 INSERT INTO public.nexus_products(id,code,status) VALUES
 ('10000000-0000-4000-8000-000000000001','crm','active'),
 ('10000000-0000-4000-8000-000000000002','sst','active');
