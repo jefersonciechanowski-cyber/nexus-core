@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {reconcileCrmAsaasSettlement} from '../supabase/functions/_shared/crm-asaas-settlement-pipeline.mjs';
+import {verifyCrmAsaasPayment} from '../supabase/functions/_shared/crm-asaas-provider-verification.mjs';
 
 const saleId='a187d10a-86c2-4304-b571-ef3a7d0f32d1';
 const eventId='asaas:evt_abcde123456789';
@@ -109,4 +110,65 @@ test('endpoint only calls pipeline under private sandbox authentication, no gran
   assert.match(s,/verifyCrmAsaasPayment\(/);
   assert.match(s,/reconcileCrmAsaasSettlement\(/);
   assert.doesNotMatch(s,/provisionSaleForProvider\(|sendCrmAccessEmail\(/);
+});
+
+test('offline provider-to-ledger integration: four Asaas reads -> reserve -> claim, without CRM access',async()=>{
+  const sale={
+    id:saleId,provider:'asaas',environment:'sandbox',sale_status:'checkout_created',
+    billing_mode:'recurring',billing_cycle_months:1,
+    asaas_checkout_id:'plink_public123',registration_number:'12345678909',
+    checkout_amount_cents:7900,asaas_subscription_id:null,
+  };
+  const resource={
+    id:'pay_abc12345',paymentLink:'plink_public123',
+    subscription:'sub_abc12345',customer:'cus_abc12345',
+    billingType:'PIX',status:'RECEIVED',value:79,
+  };
+  const provider=new Map([
+    ['/payments/pay_abc12345',resource],
+    ['/paymentLinks/plink_public123',{
+      id:'plink_public123',externalReference:'nexus-crm-monthly-'+saleId,
+      chargeType:'RECURRENT',subscriptionCycle:'MONTHLY',billingType:'PIX',value:79,
+    }],
+    ['/customers/cus_abc12345',{id:'cus_abc12345',cpfCnpj:'12345678909'}],
+    ['/subscriptions/sub_abc12345',{
+      id:'sub_abc12345',customer:'cus_abc12345',cycle:'MONTHLY',
+      billingType:'PIX',value:79,
+    }],
+  ]);
+  const actualPaths=[];
+  const checked=await verifyCrmAsaasPayment({
+    eventRow:{provider_event_id:eventId,provider:'asaas',event_type:'PAYMENT_RECEIVED',
+      payload:{event:'PAYMENT_RECEIVED',resource}},
+    sale,
+    fetchResource:async path=>{
+      actualPaths.push(path);
+      if(!provider.has(path))throw Error('Unexpected provider API path');
+      return provider.get(path);
+    },
+  });
+  assert.equal(checked.decision,'verified_for_review');
+  assert.equal(checked.canActivateCrm,false);
+  assert.equal(actualPaths.length,4);
+  const captured=[];
+  const result=await reconcileCrmAsaasSettlement({
+    verification:checked,eventId,environment:'sandbox',
+    reservationEnabled:true,claimEnabled:true,
+    callRpc:async(name,args)=>{
+      captured.push({name,args});
+      if(name==='reserve_nexus_crm_asaas_verified_payment'){
+        return {data:{decision:'reserved_for_review',sale_id:saleId,payment_id:checked.paymentId},error:null};
+      }
+      if(name==='claim_nexus_crm_asaas_provisioning'){
+        return {data:{decision:'provision_ready',sale_id:saleId},error:null};
+      }
+      throw Error('Forbidden RPC');
+    },
+  });
+  assert.equal(result.decision,'ready_for_provisioning');
+  assert.equal(result.canActivateCrm,false);
+  assert.deepEqual(captured.map(x=>x.name),[
+    'reserve_nexus_crm_asaas_verified_payment','claim_nexus_crm_asaas_provisioning']);
+  assert.equal(captured[0].args.p_amount_cents,7900);
+  assert.equal(captured[0].args.p_billing_type,'PIX');
 });
