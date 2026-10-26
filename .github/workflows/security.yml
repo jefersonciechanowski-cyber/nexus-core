@@ -66,6 +66,7 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_assertions.sql
+          bash tests/sql/crm_billing_concurrency.sh
 
       - name: Setup Deno for subscription checkout
         uses: denoland/setup-deno@v2
