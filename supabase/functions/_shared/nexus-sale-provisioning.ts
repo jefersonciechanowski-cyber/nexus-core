@@ -4,10 +4,11 @@
 // DO NOT CALL THIS DIRECTLY from a public endpoint or webhook payload.
 // Only use after a durable, verified settlement and authorized orchestration.
 import { provisionCrmTenant, sendCrmAccessEmail } from '../stripe-webhook/crm-provisioning.ts';
+import { recordVerifiedCrmAsaasPayment } from './crm-asaas-payment-record.mjs';
 
 export async function provisionSaleForProvider(
   admin: any, saleInput: any,
-  context: { customerId?: string | null; subscriptionId?: string | null; renewsAt?: string | null; eventType?: string | null } = {},
+  context: { customerId?: string | null; subscriptionId?: string | null; renewsAt?: string | null; eventType?: string | null; paymentId?: string | null; paymentBillingType?: string | null; paymentStatus?: string | null } = {},
   deps: {
     provider: 'stripe' | 'asaas',
     clean: (value: unknown, size?: number) => string,
@@ -25,7 +26,10 @@ export async function provisionSaleForProvider(
     if (saleInput?.provider !== 'asaas' || saleInput?.environment !== 'sandbox'
       || saleInput?.source !== 'site-captacao' || saleInput?.billing_mode !== 'recurring'
       || saleInput?.billing_cycle_months !== 1 || saleInput?.sale_status !== 'paid'
-      || !saleInput?.paid_at || !saleInput?.id || !context.subscriptionId) {
+      || !saleInput?.paid_at || !saleInput?.id || !context.subscriptionId
+      || !context.paymentId || !context.customerId
+      || !['PIX','BOLETO'].includes(String(context.paymentBillingType))
+      || !['CONFIRMED','RECEIVED'].includes(String(context.paymentStatus))) {
       return { access: null, error: 'Venda Asaas não elegível para provisionamento.' };
     }
     // Provisioning is forbidden until an independent atomic settlement step
@@ -272,6 +276,32 @@ export async function provisionSaleForProvider(
     if (accessUpdateError) {
       await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Pagamento confirmado, mas o plano existente não pôde ser atualizado.' }).eq('id', sale.id);
       return { access: null, error: 'Acesso não atualizado.' };
+    }
+  }
+
+  if (provider === 'asaas') {
+    // The Central's financial ledger must own this exact payment, company
+    // and subscription BEFORE we contact CRM provisioning or send an email.
+    // If ledger insertion fails, leave a reviewable partial Central record;
+    // never create a tenant or silently adopt an existing customer's access.
+    const receipt = await recordVerifiedCrmAsaasPayment({
+      admin,sale,
+      access:{...access,...accessPayload},
+      payment:{
+        paymentId:context.paymentId,
+        subscriptionId:context.subscriptionId,
+        customerId:context.customerId,
+        billingType:context.paymentBillingType,
+        status:context.paymentStatus,
+        amountCents:contractedPrice,
+      },
+    });
+    if(!receipt.ok){
+      await admin.from('nexus_sales').update({
+        sale_status:'manual_review',
+        last_error:'Registro da cobrança requer conciliação manual: '+receipt.reason,
+      }).eq('id',sale.id);
+      return {access:null,error:'Pagamento não registrado com segurança; acesso não liberado.'};
     }
   }
 
