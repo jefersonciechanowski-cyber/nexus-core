@@ -93,3 +93,18 @@ Documento oficial: https://docs.asaas.com/reference/create-a-payments-link e htt
 - Para ambiente real requer PR separada, autorização de publicação e aprovação do novo reconciliador, testes em sandbox do Asaas, confirmação de acesso CRM e auditoria de cancelamento, devolução, cobrança atrasada e duplicação antes de qualquer habilitação em produção.
 
 Referências: https://docs.asaas.com/docs/criando-um-link-de-pagamentos ; https://docs.asaas.com/docs/eventos-de-webhooks ; https://docs.asaas.com/docs/faq-de-webhooks ; https://docs.asaas.com/docs/como-o-asaas-trata-receitas-na-conta
+
+## 26/10 — Verificação direta de pagamentos Asaas, sem ativação
+
+Adicionada a nova Edge Function privada **`nexus-crm-asaas-verify-event`**, isolada do webhook de recepção, **desligada por padrão** e restrita ao `sandbox`. Sua chamada é somente de servidor administrativo usando **`x-nexus-central-internal-key`** com segredo dedicado **`NEXUS_CRM_ASAAS_VERIFY_SECRET`** (>=32 caracteres), flag `NEXUS_CRM_ASAAS_VERIFY_ENABLED=true`, `NEXUS_CRM_ASAAS_MONTHLY_MODE=sandbox`, `ASAAS_SANDBOX_API_KEY`. Nunca invocar do browser; não aceita URL arbitrária ou evento fornecido diretamente pelo chamador, apenas `eventId` já persistido na Central.
+
+Passos de verificação **read-only**:
+1. Recupera o evento financeiro autenticado e guardado em `nexus_payment_webhook_events` e localiza venda Asaas sandbox única vinculada ao `paymentLink` ou assinatura já reconhecida.
+2. Faz GETs **pontuais** na API oficial sandbox do Asaas: `/v3/payments/{id}`, `/v3/paymentLinks/{id}`, `/v3/customers/{id}`, `/v3/subscriptions/{id}`. Usa caminho estritamente validado, sem expor chave no cliente.
+3. Confere CPF/CNPJ do pagador com o cadastro da venda, valor em centavos do plano, periodicidade MONTHLY, meio PIX/BOLETO, `externalReference` do link, identificador do assinante e status **atual** no Asaas. Eventos antigos de pagamentos agora estornados **não** podem ser considerados quitados.
+4. Retorna `verified_for_review` apenas como **candidato para conciliação**, com `canActivateCrm:false`. Qualquer divergência retorna `hold`, `manual_review` ou `retry`. Esta função **NÃO altera `nexus_sales`, `nexus_payment_webhook_events`, `nexus_payments`, `organization_product_access` ou o tenant CRM**, e não envia e-mail.
+5. Testes com leitor Asaas simulado (sem API real) cobrem confirmação, estorno, CPF/CNPJ divergente, assinatura e link errados, método, valor alterado, plano anual e proteção de endpoints.
+
+Documentação oficial consultada: https://docs.asaas.com/reference/retrieve-a-single-payment ; https://docs.asaas.com/reference/retrieve-a-single-payments-link ; https://docs.asaas.com/reference/retrieve-a-single-subscription . A API do Asaas recomenda GET pontual para recuperação e reconciliação, não polling contínuo.
+
+**Ainda é BLOQUEADOR para liberar clientes:** desenvolver e revisar fluxo transacional de baixa da cobrança `provider_payment_id`, vinculação da assinatura, provisionamento CRM usando mecanismos de revisão/entitlement já empregados no Stripe, proteção contra concorrência, repetição, cancelamento, atraso e estorno. O teste histórico do Stripe Sandbox de 03/09/2026 permanece válido; não criar outro usuário de teste sem necessidade. Nenhuma chave/flag configurada e nenhum deploy realizado nesta rodada.
