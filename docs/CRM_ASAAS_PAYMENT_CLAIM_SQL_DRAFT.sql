@@ -63,7 +63,7 @@ begin
   -- A lock on an individual sale alone cannot protect from two concurrently
   -- paid public checkouts attempting to create two distinct organizations.
   if v_sale.registration_number is null or pg_catalog.length(v_sale.registration_number)<11
-    or v_sale.email is null or pg_catalog.position('@' in v_sale.email)=0 then
+    or v_sale.email is null or pg_catalog.strpos(v_sale.email,'@')=0 then
     return pg_catalog.jsonb_build_object('decision','manual_review','reason','sale_identity_missing');
   end if;
   perform pg_catalog.pg_advisory_xact_lock(
