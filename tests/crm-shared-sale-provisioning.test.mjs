@@ -32,7 +32,7 @@ test('Asaas cannot call shared CRM provisioner merely after webhook or paid even
   assert.match(shared,/!saleInput\?\.paid_at/);
   assert.match(shared,/!context\.subscriptionId/);
   assert.match(shared,/from\('nexus_crm_asaas_verified_payments'\)/);
-  assert.match(shared,/eq\('decision', 'provision_ready'\)/);
+  assert.match(shared,/eq\('decision', 'provisioning'\)/);
   assert.match(shared,/eq\('registration_number', saleInput\.registration_number\)/);
   assert.match(shared,/if \(linkedOrgError \|\| linkedOrg\?\.id\)/);
   // Provider-specific hard stop: a paid Asaas checkout must never silently
