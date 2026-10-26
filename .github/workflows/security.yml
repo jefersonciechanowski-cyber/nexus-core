@@ -12,7 +12,23 @@ permissions:
 jobs:
   security:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+    # A short-lived, isolated PostgreSQL sidecar in the EXISTING CI runner.
+    # No Supabase branch, customer data, additional hosted database or billing.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: nexus_crm_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexus_crm_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,6 +50,22 @@ jobs:
 
       - name: Test CRM monthly checkout contract (no charges)
         run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-asaas-monthly-contract.test.mjs tests/crm-asaas-monthly-events.test.mjs tests/crm-asaas-monthly-endpoint.test.mjs tests/crm-asaas-reconciliation.test.mjs tests/crm-asaas-provider-verification.test.mjs tests/crm-asaas-reservation.test.mjs tests/crm-shared-sale-provisioning.test.mjs tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs
+
+      - name: Execute CRM billing/trial SQL against isolated PostgreSQL
+        env:
+          PGPASSWORD: postgres
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: nexus_crm_ci
+        run: |
+          set -euo pipefail
+          psql --version
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_assertions.sql
 
       - name: Setup Deno for subscription checkout
         uses: denoland/setup-deno@v2
