@@ -40,10 +40,11 @@ test('database function is private, default-deny, and never changes courtesy or 
 });
 test('internal sandbox-only verifier reserves ONLY after provider-read comparison',()=>{
   assert.match(edge,/NEXUS_CRM_ASAAS_RESERVATION_ENABLED/);
-  assert.match(edge,/decision\.decision !== 'verified_for_review'/);
-  assert.match(edge,/rpc\('reserve_nexus_crm_asaas_verified_payment'/);
-  assert.match(edge,/decision:'retry',reason:'reservation_unavailable',canActivateCrm:false/);
-  assert.match(edge,/decision:'reserved_for_review'/);
+  assert.match(edge,/reconcileCrmAsaasSettlement\(/);
+  assert.match(edge,/NEXUS_CRM_ASAAS_CLAIM_ENABLED/);
+  assert.match(edge,/reservationEnabled:Deno\.env\.get/);
+  assert.match(edge,/claimEnabled:Deno\.env\.get/);
+  assert.match(edge,/callRpc:async/);
   assert.match(edge,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
   assert.match(edge,/NEXUS_CRM_ASAAS_MONTHLY_MODE/);
   assert.match(verify,/canActivateCrm: false/);
