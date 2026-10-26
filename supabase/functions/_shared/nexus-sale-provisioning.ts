@@ -77,6 +77,16 @@ export async function provisionSaleForProvider(
   if (!userId) {
     const { data: created, error: createError } = await admin.auth.admin.createUser({ email: sale.email, email_confirm: true, user_metadata: { full_name: sale.responsible_name } });
     if (createError || !created?.user?.id) {
+      // Asaas public-site contracts are NEW companies only. An existing
+      // authentication email must go through an independently authenticated
+      // account-linking workflow, NEVER be adopted by an automated payment.
+      if (provider === 'asaas') {
+        await admin.from('nexus_sales').update({
+          sale_status: 'manual_review',
+          last_error: 'E-mail existente ou falha de criação de usuário no checkout Asaas.',
+        }).eq('id', sale.id);
+        return { access: null, error: 'E-mail já cadastrado; requer vinculação manual.' };
+      }
       const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const existing = list?.users?.find((item: any) => String(item.email || '').toLowerCase() === String(sale.email || '').toLowerCase());
       if (!existing?.id) {
@@ -249,6 +259,15 @@ export async function provisionSaleForProvider(
     }
     access = createdAccess;
   } else {
+    if (provider === 'asaas') {
+      // Never overwrite a courtesy, founder or another organization's
+      // entitlement after an unexpected concurrency collision.
+      await admin.from('nexus_sales').update({
+        sale_status: 'manual_review',
+        last_error: 'A empresa já tem acesso ao produto. Requer vinculação manual.',
+      }).eq('id', sale.id);
+      return { access: null, error: 'Contrato CRM existente; nenhuma alteração realizada.' };
+    }
     const { error: accessUpdateError } = await admin.from('organization_product_access').update(accessPayload).eq('id', access.id);
     if (accessUpdateError) {
       await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Pagamento confirmado, mas o plano existente não pôde ser atualizado.' }).eq('id', sale.id);
