@@ -236,7 +236,7 @@ export async function provisionSaleForProvider(
   const renewsAt = context.renewsAt || (billingMode === 'prepaid' ? addMonthsDate(billingCycleMonths) : null);
   const planName = billingMode === 'prepaid' ? `${plan.name} · Anual à vista` : plan.name;
 
-  let { data: access } = await admin.from('organization_product_access').select('id,organization_id,plan_id,renews_at').eq('organization_id', organizationId).eq('product_id', plan.product_id).maybeSingle();
+  let { data: access } = await admin.from('organization_product_access').select('id,organization_id,plan_id,renews_at,billing_provider,commercial_condition,subscription_status').eq('organization_id', organizationId).eq('product_id', plan.product_id).maybeSingle();
   const accessPayload: Record<string, unknown> = {
     plan_id: plan.id,
     plan_name: planName,
@@ -256,7 +256,7 @@ export async function provisionSaleForProvider(
   if (renewsAt) accessPayload.renews_at = renewsAt;
 
   if (!access?.id) {
-    const { data: createdAccess, error: accessError } = await admin.from('organization_product_access').insert({ organization_id: organizationId, product_id: plan.product_id, starts_at: new Date().toISOString().slice(0, 10), ...accessPayload }).select('id,organization_id,plan_id,renews_at').single();
+    const { data: createdAccess, error: accessError } = await admin.from('organization_product_access').insert({ organization_id: organizationId, product_id: plan.product_id, starts_at: new Date().toISOString().slice(0, 10), ...accessPayload }).select('id,organization_id,plan_id,renews_at,billing_provider,commercial_condition,subscription_status').single();
     if (accessError || !createdAccess?.id) {
       await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: 'Empresa e usuário criados, mas o produto não pôde ser liberado.' }).eq('id', sale.id);
       return { access: null, error: 'Acesso não criado.' };
