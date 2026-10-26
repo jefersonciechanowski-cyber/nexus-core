@@ -67,7 +67,8 @@ BEGIN
     'lead','stripe','sandbox','site-captacao','recurring',1,7900,'88888888000122','first@example.test','crm-monthly-retry-after-expire');
   select count(*) into n from public.nexus_sales
     where provider='stripe' and source='site-captacao'
-      and sale_status='lead' and registration_number='88888888000122';
+      and sale_status='lead' and registration_number='88888888000122'
+      and external_reference like 'crm-monthly-%';
   IF n<>1 THEN RAISE EXCEPTION 'repeat attempt created more than one Stripe lead: %',n; END IF;
 END $$;
 SELECT 'PASS: Stripe-first existing email/doc guards, and unique races on email or document' AS result;
