@@ -88,6 +88,9 @@ export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource }) {
     eventId: eventRow.provider_event_id,
     paymentId: payment.id,
     subscriptionId: subscription.id,
+    providerCustomerId: payment.customer,
+    paymentStatus: payment.status,
+    subscriptionStatus: subscription.status || null,
     billingType: payment.billingType,
     amountCents: cents,
     // This is NEVER a grant. The atomic paid->provisioned transaction, provider
