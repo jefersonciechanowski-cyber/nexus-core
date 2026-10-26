@@ -38,6 +38,7 @@ CREATE TABLE public.nexus_sales(
   checkout_amount_cents bigint,asaas_checkout_id text,asaas_subscription_id text,
   provider_subscription_id text,registration_number text,email text,
   paid_at timestamptz,organization_id uuid,user_id uuid,
+  provisioned_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
