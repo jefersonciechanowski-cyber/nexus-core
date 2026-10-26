@@ -90,8 +90,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return JSON.parse(body);
   };
   const decision=await verifyCrmAsaasPayment({eventRow,sale,fetchResource});
-  // No writes to sales, payment events, payments, tenant or entitlement.
-  // Approved events remain pending until the separately reviewed atomic
-  // settlement + provisioning workflow is implemented and homologated.
-  return json(decision,decision.decision==='retry'?503:200);
+  // The reservation draft is a separate deployment gate. OFF by default.
+  // The only permitted write here is to a pending-verification ledger; it
+  // NEVER marks sales paid nor creates access/tenant/organization/customer.
+  if (decision.decision !== 'verified_for_review'
+    || Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_ENABLED') !== 'true') {
+    return json(decision,decision.decision==='retry'?503:200);
+  }
+  const {data: reservation, error: reserveError}=await admin
+    .rpc('reserve_nexus_crm_asaas_verified_payment',{
+      p_sale_id: decision.saleId,
+      p_provider_event_id: eventRow.provider_event_id,
+      p_provider_payment_id: decision.paymentId,
+      p_provider_subscription_id: decision.subscriptionId,
+      p_amount_cents: decision.amountCents,
+      p_billing_type: decision.billingType,
+    });
+  if(reserveError){
+    // A missing migration, locked table or database outage MUST block
+    // settlement rather than treating the verified event as paid.
+    console.error('crm-asaas-reservation-unavailable',String(reserveError.code||'unknown').slice(0,40));
+    return json({decision:'retry',reason:'reservation_unavailable',canActivateCrm:false},503);
+  }
+  if(reservation?.decision !== 'reserved_for_review'){
+    return json({
+      decision:'manual_review',
+      reason:typeof reservation?.reason==='string'?reservation.reason:'reservation_rejected',
+      canActivateCrm:false,
+    });
+  }
+  return json({
+    decision:'reserved_for_review',paymentId:decision.paymentId,
+    saleId:decision.saleId,canActivateCrm:false,
+  });
 });
