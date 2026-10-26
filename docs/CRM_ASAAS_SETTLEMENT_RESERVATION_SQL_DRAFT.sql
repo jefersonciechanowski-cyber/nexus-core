@@ -69,7 +69,9 @@ begin
   if not found or (v_event.payload->>'event') <> v_event.event_type
     or (v_event.payload#>>'{resource,id}') <> p_provider_payment_id
     or (v_event.payload#>>'{resource,subscription}') <> p_provider_subscription_id
-    or (v_event.payload#>>'{resource,billingType}') <> p_billing_type then
+    or (v_event.payload#>>'{resource,billingType}') <> p_billing_type
+    or jsonb_typeof(v_event.payload#>'{resource,value}') <> 'number'
+    or round(((v_event.payload#>>'{resource,value}')::numeric) * 100)::bigint <> p_amount_cents then
     return jsonb_build_object('decision','manual_review','reason','event_not_matching');
   end if;
   v_payment_link := v_event.payload#>>'{resource,paymentLink}';
@@ -92,6 +94,12 @@ begin
       where v.provider_subscription_id=p_provider_subscription_id and v.sale_id<>p_sale_id
   ) then
     return jsonb_build_object('decision','manual_review','reason','subscription_reserved_elsewhere');
+  end if;
+  if exists (
+    select 1 from public.nexus_crm_asaas_verified_payments v
+      where v.sale_id=p_sale_id and v.provider_subscription_id<>p_provider_subscription_id
+  ) then
+    return jsonb_build_object('decision','manual_review','reason','sale_has_another_subscription');
   end if;
 
   insert into public.nexus_crm_asaas_verified_payments
