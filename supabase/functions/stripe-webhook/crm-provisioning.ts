@@ -120,11 +120,15 @@ export async function syncCrmEntitlement(
 
   const canonicalEntitlementUrl = 'https://ngxqtztfotkpdvynstae.supabase.co/functions/v1/nexus-central-entitlement';
   const configuredEntitlementUrl = clean(Deno.env.get('NEXUS_CRM_ENTITLEMENT_URL'), 1000);
-  const endpoint = configuredEntitlementUrl.startsWith('https://') && !configuredEntitlementUrl.includes('.vercel.app/')
-    ? configuredEntitlementUrl
-    : canonicalEntitlementUrl;
+  // A signing secret must NEVER be sent to an arbitrary HTTPS endpoint by
+  // configuration mistake: only the official CRM Edge Function is trusted.
+  // Future sandbox endpoints need explicit, separately reviewed allowlisting.
+  if (configuredEntitlementUrl && configuredEntitlementUrl !== canonicalEntitlementUrl) {
+    return { isCrm: true, synced: false, error: 'Destino da sincronização CRM não autorizado.' };
+  }
+  const endpoint = canonicalEntitlementUrl;
   const secret = clean(Deno.env.get('NEXUS_CENTRAL_WEBHOOK_SECRET'), 1000);
-  if (!endpoint.startsWith('https://') || secret.length < 32) {
+  if (secret.length < 32) {
     return { isCrm: true, synced: false, error: 'Integração de entitlement do CRM não configurada.' };
   }
 
