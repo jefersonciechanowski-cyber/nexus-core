@@ -35,6 +35,14 @@ test('Asaas cannot call shared CRM provisioner merely after webhook or paid even
   assert.match(shared,/eq\('decision', 'provision_ready'\)/);
   assert.match(shared,/eq\('registration_number', saleInput\.registration_number\)/);
   assert.match(shared,/if \(linkedOrgError \|\| linkedOrg\?\.id\)/);
+  // Provider-specific hard stop: a paid Asaas checkout must never silently
+  // appropriate another login or update an existing courtesy/contract.
+  assert.match(shared,/if \(provider === 'asaas'\) \{\s*await admin\.from\('nexus_sales'\)\.update\(\{\s*sale_status: 'manual_review'/);
+  assert.match(shared,/E-mail já cadastrado; requer vinculação manual/);
+  assert.match(shared,/Contrato CRM existente; nenhuma alteração realizada/);
+  assert.ok(shared.indexOf("if (provider === 'asaas') {",shared.indexOf("createError ||")) <
+    shared.indexOf("auth.admin.listUsers"));
+
   assert.ok(shared.indexOf("eq('decision', 'provision_ready')") < shared.indexOf("auth.admin.createUser"));
 });
 
