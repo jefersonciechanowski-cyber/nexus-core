@@ -59,6 +59,27 @@ begin
     return pg_catalog.jsonb_build_object('decision','manual_review','reason','plan_or_amount_changed');
   end if;
 
+  -- Serialize separate paid checkouts for the same document and email.
+  -- A lock on an individual sale alone cannot protect from two concurrently
+  -- paid public checkouts attempting to create two distinct organizations.
+  if v_sale.registration_number is null or pg_catalog.length(v_sale.registration_number)<11
+    or v_sale.email is null or pg_catalog.position('@' in v_sale.email)=0 then
+    return pg_catalog.jsonb_build_object('decision','manual_review','reason','sale_identity_missing');
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('crm:asaas:doc:'||v_sale.registration_number,13479));
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('crm:asaas:email:'||pg_catalog.lower(v_sale.email),13479));
+  if exists (
+    select 1 from public.nexus_sales other
+    where other.id<>p_sale_id and other.provider='asaas' and other.environment='sandbox'
+      and other.source='site-captacao' and other.sale_status in ('paid','provisioned')
+      and (other.registration_number=v_sale.registration_number
+        or pg_catalog.lower(other.email)=pg_catalog.lower(v_sale.email))
+  ) then
+    return pg_catalog.jsonb_build_object('decision','manual_review','reason','identity_already_claimed');
+  end if;
+
   -- Fail closed on existing agency/courtesy/other tenant identity. The separate
   -- stage-07 authenticated account-linking flow must handle such cases.
   if exists(select 1 from public.organizations
