@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import Stripe from 'npm:stripe@22.1.1';
-import { clean, normalizeCheckout, planIsMonthly, checkoutFeatureMode, CRM_PUBLIC_ORIGIN } from './contract.mjs';
+import { clean, normalizeCheckout, planIsMonthly, checkoutFeatureMode, checkoutOriginIsAllowed, CRM_PUBLIC_ORIGIN } from './contract.mjs';
 import { verifyCheckoutBridgeSignature } from './signature.mjs';
 
 // Public interface exposed by the CRM's signed server-side proxy.
@@ -64,7 +64,6 @@ Deno.serve(async request => {
   if (STAGED_CHECKOUT_DISABLED) return reply({ error: 'A contratação mensal está em homologação.' }, 503);
   if (request.method !== 'POST') return reply({ error: 'Método não permitido.' }, 405);
   // A server-to-server signed bridge is mandatory even for test-mode checkout.
-  if (request.headers.get('origin') !== CRM_PUBLIC_ORIGIN) return reply({ error: 'Origem não autorizada.' }, 403);
   if (!(request.headers.get('content-type') || '').toLowerCase().startsWith('application/json')) {
     return reply({ error: 'Conteúdo inválido.' }, 415);
   }
@@ -77,10 +76,17 @@ Deno.serve(async request => {
     STRIPE_SECRET_KEY: getEnv('STRIPE_SECRET_KEY'),
   });
   if (!mode) return reply({ error: 'A contratação mensal ainda não está disponível.' }, 503);
+  const checkoutOrigin = request.headers.get('origin');
+  if (!checkoutOriginIsAllowed(checkoutOrigin, mode, getEnv('NEXUS_CRM_CHECKOUT_PREVIEW_ORIGIN'))) {
+    return reply({ error: 'Origem não autorizada.' }, 403);
+  }
 
   const supabaseUrl = getEnv('SUPABASE_URL');
   const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
-  const bridgeKey = getEnv('NEXUS_CRM_CHECKOUT_BRIDGE_SECRET');
+  // TEST and live credentials are strictly distinct, including their HMAC keys.
+  const bridgeKey = mode === 'sandbox'
+    ? getEnv('NEXUS_CRM_CHECKOUT_BRIDGE_SECRET_TEST')
+    : getEnv('NEXUS_CRM_CHECKOUT_BRIDGE_SECRET');
   if (!supabaseUrl || !serviceRoleKey || bridgeKey.length < 32) return reply({ error: 'Checkout temporariamente indisponível.' }, 503);
 
   const raw = await limitedBody(request);
@@ -178,7 +184,7 @@ Deno.serve(async request => {
     city: input.city, state: input.state, campaign_name: input.utmCampaign || null,
     provider: 'stripe', environment: mode, billing_mode: 'recurring',
     billing_cycle_months: 1, checkout_amount_cents: Number(plan.price_cents),
-    external_reference: reference, return_origin: CRM_PUBLIC_ORIGIN, lead_notes: attributes,
+    external_reference: reference, return_origin: checkoutOrigin, lead_notes: attributes,
   }).select('id').single();
   if (saleError) {
     if (saleError.code === '23505') return reply({ error: 'Já existe uma contratação em andamento. Aguarde e tente novamente.' }, 409);
@@ -204,8 +210,8 @@ Deno.serve(async request => {
       mode: 'subscription', payment_method_configuration: methodConfig,
       customer_email: input.email,
       client_reference_id: sale.id,
-      success_url: CRM_PUBLIC_ORIGIN + '/site-captacao?checkout_status=return&session_id={CHECKOUT_SESSION_ID}#planos',
-      cancel_url: CRM_PUBLIC_ORIGIN + '/site-captacao?checkout_status=cancelado#planos',
+      success_url: checkoutOrigin + '/site-captacao?checkout_status=return&session_id={CHECKOUT_SESSION_ID}#planos',
+      cancel_url: checkoutOrigin + '/site-captacao?checkout_status=cancelado#planos',
       line_items: [{
         quantity: 1,
         price_data: {

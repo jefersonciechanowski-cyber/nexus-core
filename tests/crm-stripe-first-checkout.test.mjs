@@ -49,6 +49,8 @@ test('live card payment still requires independent gates; no Asaas or courtesy a
   assert.match(contract,/NEXUS_PAYMENT_LIVE_ENABLED/);
   assert.match(contract,/STRIPE_SECRET_KEY\?\.startsWith\('sk_live_'\)/);
   assert.match(central,/payment_method_configuration: methodConfig/);
+  assert.match(central,/checkoutOriginIsAllowed/);
+  assert.match(central,/return_origin: checkoutOrigin/);
   assert.match(central,/mode: 'subscription'/);
   assert.match(central,/interval_count: 1/);
   assert.doesNotMatch(central,/grantCourtesy|\.from\('organization_product_access'\)\.insert/);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeCheckout, planIsMonthly, checkoutFeatureMode, CRM_PUBLIC_PLANS } from '../supabase/functions/nexus-public-crm-monthly-checkout/contract.mjs';
+import { normalizeCheckout, planIsMonthly, checkoutFeatureMode, checkoutOriginIsAllowed, CRM_PUBLIC_PLANS } from '../supabase/functions/nexus-public-crm-monthly-checkout/contract.mjs';
 
 const sample = Object.freeze({
   companyName: 'Empresa Teste CRM', responsibleName: 'Responsável',
@@ -67,4 +67,27 @@ test('backend only trusts signed proxy and reads monthly price from Central', ()
   assert.match(source, /vinculação do plano à Central antes de pagar/);
   assert.ok(source.indexOf("if (existingCompany?.id)") < source.indexOf("stripe.checkout.sessions.create("));
   assert.doesNotMatch(source, /createUser|grantCourtesy|grantTrial|courtesyMonths/);
+});
+
+test('preview origin can only be an explicit official Preview and only for sandbox', () => {
+  const preview='https://nexus-crm-preview-git-e974cb-nexuscoreindustria-2420s-projects.vercel.app';
+  assert.equal(checkoutOriginIsAllowed(preview, 'sandbox', preview), true);
+  assert.equal(checkoutOriginIsAllowed(preview, 'production', preview), false);
+  assert.equal(checkoutOriginIsAllowed('https://crm.nexuscore.app.br', 'production', ''), true);
+  assert.equal(checkoutOriginIsAllowed('https://evil.vercel.app', 'sandbox', 'https://evil.vercel.app'), false);
+  assert.equal(checkoutOriginIsAllowed(preview, 'sandbox', preview + '.evil.com'), false);
+  assert.equal(checkoutOriginIsAllowed(preview + '/', 'sandbox', preview), false);
+  assert.equal(checkoutOriginIsAllowed(preview, 'sandbox', ''), false);
+});
+
+test('trial preference is denied by the paid checkout until trial entitlement is implemented', () => {
+  assert.equal(normalizeCheckout({ ...sample, trialDays: 0 }).payload?.planCode, 'start');
+  for (const trialDays of [15,30,'15','30','untrusted']) {
+    assert.ok(normalizeCheckout({ ...sample, trialDays }).error);
+  }
+  const source = readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-checkout/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /NEXUS_CRM_CHECKOUT_BRIDGE_SECRET_TEST/);
+  assert.match(source, /NEXUS_CRM_CHECKOUT_PREVIEW_ORIGIN/);
+  assert.match(source, /checkoutOriginIsAllowed\(checkoutOrigin, mode,/);
+  assert.match(source, /STAGED_CHECKOUT_DISABLED = true/);
 });

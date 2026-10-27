@@ -2,6 +2,18 @@
 // The source of prices, entitlement and monthly interval remains the Central database.
 export const CRM_PUBLIC_PLANS = Object.freeze(['start', 'pro', 'gestao']);
 export const CRM_PUBLIC_ORIGIN = 'https://crm.nexuscore.app.br';
+// Preview must be explicitly configured and may talk only to sandbox.
+export function checkoutOriginIsAllowed(origin, mode, previewOrigin) {
+  if (origin === CRM_PUBLIC_ORIGIN) return true;
+  if (mode !== 'sandbox' || typeof previewOrigin !== 'string' || origin !== previewOrigin) return false;
+  try {
+    const url = new URL(previewOrigin);
+    return url.protocol === 'https:' && url.origin === previewOrigin
+      && url.pathname === '/' && !url.search && !url.hash
+      && !url.username && !url.password && !url.port
+      && /^nexus-crm-preview-[a-z0-9-]+-nexuscoreindustria-2420s-projects[.]vercel[.]app$/.test(url.hostname);
+  } catch { return false; }
+}
 
 export function clean(value, max = 160) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : '';
@@ -14,6 +26,10 @@ export function normalizeCheckout(input) {
   const document = digits(input.registrationNumber);
   const email = clean(input.email, 180).toLowerCase();
   const planCode = clean(input.planCode, 30).toLowerCase();
+  // Free trials are a separately claimed product; never silently turn them into a paid checkout.
+  if (input.trialDays !== undefined && input.trialDays !== 0 && input.trialDays !== '0') {
+    return { error: 'O teste gratuito deve ser ativado por um fluxo específico, sem cobrança.' };
+  }
   const acceptedTerms = input.acceptedTerms === true;
   const payload = {
     companyName: clean(input.companyName, 160),
