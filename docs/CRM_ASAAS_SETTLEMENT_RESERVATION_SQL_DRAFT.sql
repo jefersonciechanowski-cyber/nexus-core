@@ -73,7 +73,7 @@ begin
     or (v_event.payload#>>'{resource,subscription}') is distinct from p_provider_subscription_id
     or (v_event.payload#>>'{resource,billingType}') is distinct from p_billing_type
     or jsonb_typeof(v_event.payload#>'{resource,value}') is distinct from 'number'
-    or coalesce((v_event.payload#>>'{resource,value}') ~ '^[0-9]{1,12}(\\.[0-9]{1,2})?
+    or coalesce((v_event.payload#>>'{resource,value}') ~ '^[0-9]{1,12}([.][0-9]{1,2})?
     return jsonb_build_object('decision','manual_review','reason','event_not_matching');
   end if;
   v_payment_link := v_event.payload#>>'{resource,paymentLink}';
