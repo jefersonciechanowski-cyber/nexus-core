@@ -66,72 +66,13 @@ begin
   select * into v_event from public.nexus_payment_webhook_events
   where provider_event_id=p_provider_event_id and provider='asaas'
     and event_type in ('PAYMENT_RECEIVED','PAYMENT_CONFIRMED');
-  -- Fail closed on malformed provider amounts without raising a cast exception.
-  -- The payload is untrusted even after transport authentication.
+  -- Validate event identity and monetary value before a numeric cast.
   if not found or (v_event.payload->>'event') is distinct from v_event.event_type
     or (v_event.payload#>>'{resource,id}') is distinct from p_provider_payment_id
     or (v_event.payload#>>'{resource,subscription}') is distinct from p_provider_subscription_id
     or (v_event.payload#>>'{resource,billingType}') is distinct from p_billing_type
     or jsonb_typeof(v_event.payload#>'{resource,value}') is distinct from 'number'
-    or coalesce((v_event.payload#>>'{resource,value}') ~ '^[0-9]{1,12}([.][0-9]{1,2})?
-    return jsonb_build_object('decision','manual_review','reason','event_not_matching');
-  end if;
-  v_payment_link := v_event.payload#>>'{resource,paymentLink}';
-  if v_payment_link is distinct from v_sale.asaas_checkout_id
-    and (v_sale.asaas_subscription_id is null
-      or v_sale.asaas_subscription_id <> p_provider_subscription_id) then
-    return jsonb_build_object('decision','manual_review','reason','payment_not_linked');
-  end if;
-  if v_sale.asaas_subscription_id is not null
-    and v_sale.asaas_subscription_id <> p_provider_subscription_id then
-    return jsonb_build_object('decision','manual_review','reason','subscription_conflict');
-  end if;
-
-  -- Critical concurrency boundary: only one sale may reserve this subscription.
-  -- A transaction-level advisory lock serializes independent sales racing to
-  -- claim the same subscription. Does not change provider subscription state.
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_provider_subscription_id, 16471));
-  if exists (
-    select 1 from public.nexus_crm_asaas_verified_payments v
-      where v.provider_subscription_id=p_provider_subscription_id and v.sale_id<>p_sale_id
-  ) then
-    return jsonb_build_object('decision','manual_review','reason','subscription_reserved_elsewhere');
-  end if;
-  if exists (
-    select 1 from public.nexus_crm_asaas_verified_payments v
-      where v.sale_id=p_sale_id and v.provider_subscription_id<>p_provider_subscription_id
-  ) then
-    return jsonb_build_object('decision','manual_review','reason','sale_has_another_subscription');
-  end if;
-
-  insert into public.nexus_crm_asaas_verified_payments
-    (provider_payment_id,provider_event_id,sale_id,provider_subscription_id,amount_cents,billing_type)
-  values (p_provider_payment_id,p_provider_event_id,p_sale_id,p_provider_subscription_id,p_amount_cents,p_billing_type)
-  on conflict do nothing;
-
-  select * into v_existing from public.nexus_crm_asaas_verified_payments
-    where provider_payment_id=p_provider_payment_id;
-  if not found
-    or v_existing.sale_id<>p_sale_id
-    or v_existing.provider_subscription_id<>p_provider_subscription_id
-    or v_existing.amount_cents<>p_amount_cents
-    or v_existing.billing_type<>p_billing_type then
-    return jsonb_build_object('decision','manual_review','reason','provider_payment_conflict');
-  end if;
-
-  -- Intentionally never UPDATE nexus_sales / nexus_payments / access here.
-  return jsonb_build_object('decision','reserved_for_review',
-    'sale_id',p_sale_id,'payment_id',p_provider_payment_id,
-    'reservation_state',v_existing.decision);
-end; $$;
-
-revoke all on function public.reserve_nexus_crm_asaas_verified_payment(
-  uuid,text,text,text,bigint,text) from public, anon, authenticated;
-grant execute on function public.reserve_nexus_crm_asaas_verified_payment(
-  uuid,text,text,text,bigint,text) to service_role;
--- This function is NOT a payment-proof oracle: only the internal verifier,
--- after fresh GET checks with Asaas, is allowed to call it with service_role.
-, false) is not true then
+    or coalesce((v_event.payload#>>'{resource,value}') ~ '^[0-9]{1,12}([.][0-9]{1,2})?$', false) is not true then
     return jsonb_build_object('decision','manual_review','reason','event_not_matching');
   end if;
   if round(((v_event.payload#>>'{resource,value}')::numeric) * 100)::bigint <> p_amount_cents then
