@@ -115,6 +115,7 @@ begin
     where provider_payment_id=p_provider_payment_id;
   if not found
     or v_existing.sale_id<>p_sale_id
+    or v_existing.provider_event_id<>p_provider_event_id
     or v_existing.provider_subscription_id<>p_provider_subscription_id
     or v_existing.amount_cents<>p_amount_cents
     or v_existing.billing_type<>p_billing_type then

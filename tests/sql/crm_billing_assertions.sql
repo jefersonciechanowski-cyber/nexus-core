@@ -15,6 +15,26 @@ BEGIN
   SELECT count(*) INTO x FROM public.nexus_crm_asaas_verified_payments;
   IF x<>1 THEN RAISE EXCEPTION 'duplicate payment reservation!'; END IF;
 
+  -- A second event for the SAME payment is not an identical replay.
+  -- Legitimate later Asaas events belong to lifecycle reconciliation.
+  INSERT INTO public.nexus_payment_webhook_events(provider_event_id,provider,event_type,payload)
+  VALUES ('asaas:evt_samepayment123','asaas','PAYMENT_CONFIRMED',
+    jsonb_build_object('event','PAYMENT_CONFIRMED','resource',
+      jsonb_build_object('id','pay_abcdef123','paymentLink','plink_abcdef123',
+        'subscription','sub_abcdef123','billingType','PIX','value',79)));
+  r := public.reserve_nexus_crm_asaas_verified_payment(
+    '50000000-0000-4000-8000-000000000001','asaas:evt_samepayment123',
+    'pay_abcdef123','sub_abcdef123',7900,'PIX');
+  IF r->>'reason'<>'provider_payment_conflict' THEN
+    RAISE EXCEPTION 'different event accepted as identical replay: %',r;
+  END IF;
+  SELECT count(*) INTO x FROM public.nexus_crm_asaas_verified_payments
+    WHERE provider_payment_id='pay_abcdef123'
+      AND provider_event_id<>'asaas:evt_abcdef123456';
+  IF x<>0 THEN RAISE EXCEPTION 'reservation event id overwritten'; END IF;
+  SELECT count(*) INTO x FROM public.nexus_crm_asaas_verified_payments;
+  IF x<>1 THEN RAISE EXCEPTION 'new reservation for repeat payment'; END IF;
+
   -- Rival sale cannot claim another sale's subscription.
   r := public.reserve_nexus_crm_asaas_verified_payment(
     '50000000-0000-4000-8000-000000000002','asaas:evt_defghi123456',

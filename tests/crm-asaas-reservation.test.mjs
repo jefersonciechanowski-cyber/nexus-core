@@ -12,6 +12,7 @@ test('reservation schema cannot hold same payment or event twice',()=>{
   assert.match(sql,/provider_subscription_id text not null/);
   assert.match(sql,/constraint crm_asaas_verified_subscription_id_format/);
   assert.match(sql,/on conflict do nothing/);
+  assert.match(sql,/v_existing\.provider_event_id<>p_provider_event_id/);
   assert.match(sql,/provider_payment_conflict/);
 });
 test('SQL transaction serializes sale and provider subscription; prevents parallel subscriptions',()=>{
