@@ -32,5 +32,8 @@ jobs:
       - name: Run security checks
         run: npm run security:check
 
+      - name: Validate Nexus CRM Stripe monthly checkout without payments
+        run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-stripe-first-checkout.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
