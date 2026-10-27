@@ -60,7 +60,8 @@ test('backend only trusts signed proxy and reads monthly price from Central', ()
   assert.match(source, /interval_count: 1/);
   assert.match(source, /nexus_sale_id: sale\.id/);
   assert.match(source, /idempotencyKey: 'crm-monthly-' \+ sale\.id/);
-  assert.match(source, /return_origin: CRM_PUBLIC_ORIGIN/);
+  assert.match(source, /return_origin: checkoutOrigin/);
+  assert.match(source, /checkoutOriginIsAllowed/);
   assert.match(source, /from\('organizations'\)/);
   assert.match(source, /eq\('registration_number', input\.registrationNumber\)/);
   assert.match(source, /if \(existingCompany\?\.id\)/);
