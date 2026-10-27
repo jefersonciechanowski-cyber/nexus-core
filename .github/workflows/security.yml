@@ -12,7 +12,23 @@ permissions:
 jobs:
   security:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+    # A short-lived, isolated PostgreSQL sidecar in the EXISTING CI runner.
+    # No Supabase branch, customer data, additional hosted database or billing.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: nexus_crm_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexus_crm_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,6 +47,44 @@ jobs:
 
       - name: Run security checks
         run: npm run security:check
+
+      - name: Test CRM monthly checkout contract (no charges)
+        run: node --test tests/crm-monthly-checkout.test.mjs tests/crm-monthly-checkout-bridge.test.mjs tests/crm-asaas-monthly-contract.test.mjs tests/crm-asaas-monthly-events.test.mjs tests/crm-asaas-monthly-endpoint.test.mjs tests/crm-asaas-reconciliation.test.mjs tests/crm-asaas-provider-verification.test.mjs tests/crm-asaas-reservation.test.mjs tests/crm-shared-sale-provisioning.test.mjs tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-asaas-lifecycle.test.mjs tests/crm-asaas-settlement-pipeline.test.mjs tests/crm-asaas-payment-record.test.mjs tests/crm-asaas-provision-worker.test.mjs tests/crm-stripe-first-checkout.test.mjs
+
+      - name: Execute CRM billing/trial SQL against isolated PostgreSQL
+        env:
+          PGPASSWORD: postgres
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: nexus_crm_ci
+        run: |
+          set -euo pipefail
+          psql --version
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_assertions.sql
+          bash tests/sql/crm_billing_concurrency.sh
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_LIFECYCLE_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PROVISION_LEASE_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_provision_lease_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_STRIPE_PUBLIC_IDENTITY_GUARD_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_stripe_public_identity_assertions.sql
+
+      - name: Setup Deno for subscription checkout
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck CRM public Stripe function
+        run: deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-monthly-checkout/index.ts supabase/functions/nexus-public-crm-monthly-asaas/index.ts supabase/functions/nexus-crm-asaas-monthly-events/index.ts supabase/functions/nexus-crm-asaas-verify-event/index.ts supabase/functions/stripe-webhook/index.ts supabase/functions/_shared/nexus-sale-provisioning.ts supabase/functions/nexus-admin-crm-trial/index.ts supabase/functions/nexus-crm-trial-reconcile/index.ts supabase/functions/nexus-crm-asaas-provision/index.ts
+
+      - name: Test signed Central-to-CRM delivery and retry without network
+        run: deno test --node-modules-dir=auto --allow-env=NEXUS_CENTRAL_WEBHOOK_SECRET,NEXUS_CRM_ENTITLEMENT_URL tests/crm-central-delivery.test.ts
 
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
