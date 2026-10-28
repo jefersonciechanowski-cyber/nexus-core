@@ -44,6 +44,9 @@ jobs:
       - name: Test admin CRM trial 15/30 days (fail closed)
         run: node --test tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-trial-release-gates.test.mjs
 
+      - name: Verify temporary read-only Asaas Sandbox credential probe
+        run: node --test tests/crm-asaas-sandbox-probe.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
 
