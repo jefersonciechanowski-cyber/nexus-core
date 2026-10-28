@@ -41,5 +41,8 @@ jobs:
       - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
         run: node --test tests/crm-asaas-*.test.mjs
 
+      - name: Test admin CRM trial 15/30 days (fail closed)
+        run: node --test tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-trial-release-gates.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
