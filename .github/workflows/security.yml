@@ -47,6 +47,9 @@ jobs:
       - name: Verify temporary read-only Asaas Sandbox credential probe
         run: node --test tests/crm-asaas-sandbox-probe.test.mjs
 
+      - name: Test Asaas Sandbox webhook isolated inbox (no billing)
+        run: node --test tests/crm-asaas-sandbox-inbox.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
 
