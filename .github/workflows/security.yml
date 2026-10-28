@@ -46,3 +46,45 @@ jobs:
 
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
+
+  sql_isolated:
+    name: Billing and trials PostgreSQL 17 isolated assertions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: nexus_crm_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexus_crm_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Test settlement, trial and concurrency SQL without customer data
+        env:
+          PGPASSWORD: postgres
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: nexus_crm_ci
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_assertions.sql
+          bash tests/sql/crm_billing_concurrency.sh
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_LIFECYCLE_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PROVISION_LEASE_SQL_DRAFT.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_provision_lease_assertions.sql
