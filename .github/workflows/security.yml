@@ -38,5 +38,8 @@ jobs:
       - name: Test HMAC diagnostic without payments
         run: node --test tests/crm-bridge-diagnostic.test.mjs
 
+      - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
+        run: node --test tests/crm-asaas-*.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
