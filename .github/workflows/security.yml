@@ -84,6 +84,8 @@ jobs:
         run: |
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/CRM_PUBLIC_MONTHLY_CROSS_PROVIDER_UNIQUE_SQL.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_cross_provider_monthly_identity_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql
