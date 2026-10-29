@@ -16,7 +16,7 @@ function safeAsaasUrl(value: unknown) {
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
-    if (url.hostname !== 'asaas.com' && !url.hostname.endsWith('.asaas.com')) return null;
+    if (url.hostname !== 'sandbox.asaas.com') return null;
     return url.toString();
   } catch { return null; }
 }
@@ -51,9 +51,13 @@ async function hashHex(secret: string, payload: string) {
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
-  // HARD-OFF: never call provider, DB or provisioner until separately approved.
-  const STAGED_ASAAS_DISABLED = true;
-  if (STAGED_ASAAS_DISABLED) return reply({ error: 'Pix e boleto estão em homologação.' }, 503);
+  // Isolated Sandbox pilot only. This endpoint NEVER creates real Asaas links.
+  // All three independent switches must be explicitly on before DB or API access.
+  if (Deno.env.get('NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED') !== 'true'
+      || Deno.env.get('NEXUS_CRM_ASAAS_MONTHLY_ENABLED') !== 'true'
+      || Deno.env.get('NEXUS_CRM_ASAAS_MONTHLY_MODE') !== 'sandbox') {
+    return reply({ error: 'Piloto Asaas Sandbox desativado.' }, 503);
+  }
 
   if (request.method !== 'POST') return reply({ error: 'Método não permitido.' }, 405);
   if (request.headers.get('origin') !== CRM_PUBLIC_ORIGIN) return reply({ error: 'Origem não autorizada.' }, 403);
@@ -83,6 +87,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const check = normalizeCheckout(decoded);
   if (!check.payload || check.error) return reply({ error: check.error || 'Dados inválidos.' }, 400);
   const input = check.payload;
+  // This pilot must not create payment links for existing or real customers.
+  // The commercial endpoint remains disabled until separate authorization.
+  if (input.companyName !== 'Nexus CRM Sandbox E2E'
+      || !/^[a-z0-9._+-]+@example[.]test$/.test(input.email)) {
+    return reply({ error: 'Piloto restrito a cadastros sintéticos.' }, 403);
+  }
   const method = decoded && typeof decoded === 'object' && !Array.isArray(decoded)
     ? (decoded as Record<string, unknown>).paymentMethod : null;
   if (method !== 'PIX' && method !== 'BOLETO') return reply({ error: 'Forma de pagamento inválida.' }, 400);
