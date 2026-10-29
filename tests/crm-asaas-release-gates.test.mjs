@@ -13,7 +13,7 @@ test('Sandbox checkout has three hard requirements before database or provider c
   for(const flag of ['NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED','NEXUS_CRM_ASAAS_MONTHLY_ENABLED','NEXUS_CRM_ASAAS_MONTHLY_MODE']){
     assert.ok(checkout.indexOf(flag)>=0);
   }
-  assert.match(checkout, /example[.]test/);
+  assert.ok(checkout.includes('example[.]test'));
   assert.match(checkout, /hostname !== 'sandbox[.]asaas[.]com'/);
   assert.doesNotMatch(checkout,/https:\/\/api[.]asaas[.]com\/v3|fetch\('https:\/\/api[.]asaas[.]com/);
 });
