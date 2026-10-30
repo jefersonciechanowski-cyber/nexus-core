@@ -14,6 +14,23 @@ const safeProviderId=(value,prefix)=>typeof value==='string'
 export async function reconcileCrmAsaasSettlement(options) {
   const {verification,eventId,environment,reservationEnabled,claimEnabled,callRpc}=options||{};
   if(environment!=='sandbox')return response('hold','sandbox_only');
+  // Return only fixed, non-sensitive reason codes from the provider verifier.
+  // Rejected events can never reserve, claim or provision anything.
+  const allowedReasons=new Set([
+    'not_asaas_payment','not_settlement_event','sale_invalid','provider_reader_missing',
+    'payment_id_invalid','link_id_invalid','customer_id_missing','subscription_id_invalid',
+    'provider_lookup_failed','provider_record_mismatch','subscription_not_verified',
+    'provider_customer_mismatch','customer_document_mismatch','link_reference_mismatch',
+    'subscription_conflict','recurrence_config_mismatch','price_mismatch',
+    'untrusted_envelope','not_payment','payment_not_settled','sale_not_safe_to_settle',
+    'asaas_link_configuration_mismatch','payment_does_not_match_link_or_subscription',
+    'method_mismatch','amount_mismatch','status_mismatch','payment_identifier_invalid',
+  ]);
+  if(verification && verification.canActivateCrm!==true &&
+    ['manual_review','retry','hold'].includes(verification.decision)){
+    return response(verification.decision,
+      allowedReasons.has(verification.reason)?verification.reason:'verification_not_authorized');
+  }
   // Never label an unverified provider event "verified" simply because
   // financial reservation is switched off.
   if(!verification || verification.decision!=='verified_for_review'

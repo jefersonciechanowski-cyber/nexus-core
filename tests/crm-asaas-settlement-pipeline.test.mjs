@@ -173,15 +173,54 @@ test('offline provider-to-ledger integration: four Asaas reads -> reserve -> cla
   assert.equal(captured[0].args.p_billing_type,'PIX');
 });
 
-test('disabled financial reservation cannot disguise a rejected provider event as verified',async()=>{
+test('disabled financial reservation exposes only the safe rejection code, never grants',async()=>{
   const calls=[];
   const result=await reconcileCrmAsaasSettlement({
     verification:{decision:'manual_review',reason:'customer_document_mismatch',canActivateCrm:false},
     eventId,environment:'sandbox',reservationEnabled:false,claimEnabled:false,
     callRpc:async()=>{calls.push(1);throw Error('unexpected financial call');},
   });
-  assert.equal(result.decision,'manual_review');
-  assert.equal(result.reason,'verification_not_authorized');
-  assert.equal(result.canActivateCrm,false);
+  assert.deepEqual(result,{decision:'manual_review',reason:'customer_document_mismatch',canActivateCrm:false});
   assert.deepEqual(calls,[]);
+});
+
+test('safe provider failure codes remain visible without any financial RPC',async()=>{
+  for(const [decision,reason] of [
+    ['manual_review','customer_document_mismatch'],
+    ['manual_review','link_reference_mismatch'],
+    ['manual_review','recurrence_config_mismatch'],
+    ['manual_review','price_mismatch'],
+    ['manual_review','status_mismatch'],
+    ['retry','provider_lookup_failed'],
+    ['hold','payment_not_settled'],
+  ]){
+    let calls=0;
+    const result=await reconcileCrmAsaasSettlement({
+      verification:{decision,reason},eventId,environment:'sandbox',
+      reservationEnabled:true,claimEnabled:true,
+      callRpc:async()=>{calls++;throw Error('unexpected financial call');},
+    });
+    assert.deepEqual(result,{decision,reason,canActivateCrm:false});
+    assert.equal(calls,0);
+  }
+});
+
+test('arbitrary diagnostic text and forged approvals are never reflected',async()=>{
+  for(const reason of ['unrecognized_technical_detail','private-value',null]){
+    let calls=0;
+    const result=await reconcileCrmAsaasSettlement({
+      verification:{decision:'manual_review',reason},eventId,environment:'sandbox',
+      reservationEnabled:true,claimEnabled:true,
+      callRpc:async()=>{calls++;throw Error('unexpected financial call');},
+    });
+    assert.deepEqual(result,{decision:'manual_review',reason:'verification_not_authorized',canActivateCrm:false});
+    assert.equal(calls,0);
+  }
+  const forged=await reconcileCrmAsaasSettlement({
+    verification:{decision:'manual_review',reason:'customer_document_mismatch',canActivateCrm:true},
+    eventId,environment:'sandbox',reservationEnabled:false,claimEnabled:false,
+    callRpc:async()=>{throw Error('unexpected financial call');},
+  });
+  assert.equal(forged.reason,'verification_not_authorized');
+  assert.equal(forged.canActivateCrm,false);
 });
