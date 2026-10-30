@@ -11,6 +11,7 @@
 2. Um agendamento GitHub Actions diário de expiração de teste, opt-in e desativado por padrão; usa token de identidade OIDC efêmero, **sem senha estática**. O worker existente só aceita audiência `nexus-crm-trial-reconcile`, repositório Nexus Central, branch main e evento schedule/workflow_dispatch. Usa a RPC de expiração idempotente já existente, com entrega de entitlement ao CRM.
 3. Um relatório automático no CI, `node scripts/crm-commercial-readiness.mjs`, que lista impeditivos de go-live e NUNCA confunde testes Sandbox com pagamentos reais. Um CI verde valida segurança e código, **não** é autorização para faturar ou liberar acesso.
 4. Testes offline das flags, da ordem dos bloqueios, da identidade do workflow, da prevenção de venda duplicada e do status de lançamento.
+5. Pré-validação **somente leitura** para futura conversão de teste grátis em assinatura paga: exige sessão autenticada do dono financeiro, claim de teste concluído, organização/CRM/tenant iguais, plano mensal visível e nenhuma assinatura/cortesia preexistente. Não cria link Asaas nem altera contrato. Ainda falta construir o endpoint autenticado e a RPC atômica antes de oferecer a conversão ao público.
 
 ## Gate de teste grátis — habilitação futura, não neste commit
 
