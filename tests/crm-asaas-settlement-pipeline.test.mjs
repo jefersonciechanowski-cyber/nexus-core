@@ -105,7 +105,8 @@ test('endpoint only calls pipeline under private sandbox authentication, no gran
   assert.match(s,/trustedAsaasToken\(/);
   assert.match(s,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
   assert.match(s,/NEXUS_CRM_ASAAS_MONTHLY_MODE/);
-  assert.match(s,/reservationEnabled:false/);
+  assert.match(s,/reservationEnabled:reservationRequested/);
+  assert.match(s,/NEXUS_CRM_ASAAS_RESERVATION_SECRET/);
   assert.match(s,/claimEnabled:false/);
   assert.match(s,/verifyCrmAsaasPayment\(/);
   assert.match(s,/reconcileCrmAsaasSettlement\(/);
