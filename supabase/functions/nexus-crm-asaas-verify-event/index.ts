@@ -3,17 +3,20 @@ import { trustedAsaasToken } from '../_shared/crm-asaas-events.mjs';
 import { verifyCrmAsaasPayment } from '../_shared/crm-asaas-provider-verification.mjs';
 import { reconcileCrmAsaasSettlement } from '../_shared/crm-asaas-settlement-pipeline.mjs';
 
-// STRICT read-only sandbox reconciliation probe. Never call this endpoint from
-// a browser or provider webhook. It cannot mark a sale paid or provision a CRM.
+// Private Sandbox verification and separately authorized payment reservation.
+// Read-only by default. Only an explicit reserve request + independent server
+// secret may reserve a *provider-verified* payment via a restricted SQL RPC.
+// This endpoint cannot mark a sale paid, claim funds or provision CRM access.
+// Never call it from a browser or Asaas webhook.
 function json(body: unknown,status = 200) {
   return new Response(JSON.stringify(body), {status,headers:{
     'content-type':'application/json; charset=utf-8','cache-control':'no-store',
   }});
 }
 Deno.serve(async (req: Request): Promise<Response> => {
-  // Phase 1: private read-only Asaas Sandbox verification. All financial writes
-  // and CRM access remain blocked, even when provider verification succeeds.
-  // Authentication, sandbox mode, and explicit enable flag are checked below.
+  // Read-only verification stays the default. A second independent key and
+  // explicit flag are required before the reservation RPC may ever execute.
+  // Claims and customer access remain impossible here.
 
   if (req.method !== 'POST') return json({error:'Método não permitido.'},405);
   if (Deno.env.get('NEXUS_CRM_ASAAS_VERIFY_ENABLED') !== 'true'
@@ -43,7 +46,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {payload=JSON.parse(raw);} catch {return json({error:'JSON inválido.'},400);}
   if(!payload || typeof payload !== 'object' || Array.isArray(payload)
     || typeof payload.eventId !== 'string'
-    || !/^asaas:evt_[A-Za-z0-9_&.-]{6,150}$/.test(payload.eventId)) return json({error:'Evento inválido.'},400);
+    || !/^asaas:evt_[A-Za-z0-9_&.-]{6,150}$/.test(payload.eventId)
+    || (payload.reserve !== undefined && typeof payload.reserve !== 'boolean')
+    || Object.keys(payload).some(k => !['eventId','reserve'].includes(k))) {
+    return json({error:'Evento inválido.'},400);
+  }
+
+  const reservationRequested=payload.reserve===true;
+  if(reservationRequested){
+    // An exposed verifier token is never enough to write even a reservation.
+    if(Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_ENABLED')!=='true') {
+      return json({decision:'hold',reason:'reservation_disabled',canActivateCrm:false},403);
+    }
+    const reservationSecret=Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_SECRET')||'';
+    if(reservationSecret===secret || !trustedAsaasToken(
+      req.headers.get('x-nexus-asaas-reservation-key'),reservationSecret
+    )){
+      return json({error:'Reserva não autorizada.'},401);
+    }
+  }
 
   const url=Deno.env.get('SUPABASE_URL')||'';
   const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
@@ -99,11 +120,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     verification:decision,
     eventId:eventRow.provider_event_id,
     environment:'sandbox',
-    // Do not trust financial flags to bypass phase 1 read-only mode.
-    reservationEnabled:false,
+    // The read-only path calls no RPC at all. Reservation is available only
+    // following the two private secret checks above and fresh Asaas API reads.
+    reservationEnabled:reservationRequested,
     claimEnabled:false,
-    callRpc:async()=>{
-      throw new Error('read_only_verifier_must_never_call_financial_rpc');
+    callRpc:async(name:string,args:Record<string,unknown>)=>{
+      if(!reservationRequested || name!=='reserve_nexus_crm_asaas_verified_payment'){
+        throw new Error('forbidden_financial_rpc');
+      }
+      return admin.rpc('reserve_nexus_crm_asaas_verified_payment',args);
     },
   });
   // This endpoint NEVER creates an Auth user, tenant, invoice or entitlement.

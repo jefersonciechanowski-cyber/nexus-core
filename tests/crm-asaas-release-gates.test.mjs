@@ -29,16 +29,23 @@ for (const slug of ['nexus-crm-asaas-monthly-events','nexus-crm-asaas-provision'
   });
 }
 
-test('private Asaas payment verification is read-only, sandbox-only and independently gated',()=>{
+test('Asaas verifier defaults to read only; reservation uses independent authorization',()=>{
   const src=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-verify-event/index.ts',import.meta.url),'utf8');
-  assert.match(src,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
-  assert.match(src,/NEXUS_CRM_ASAAS_MONTHLY_MODE/);
-  assert.match(src,/NEXUS_CRM_ASAAS_VERIFY_SECRET/);
-  assert.match(src,/trustedAsaasToken/);
-  assert.match(src,/api-sandbox\.asaas\.com\/v3/);
-  assert.match(src,/reservationEnabled:false/);
+  const iVerify=src.indexOf("NEXUS_CRM_ASAAS_VERIFY_SECRET");
+  const iReserveFlag=src.indexOf("NEXUS_CRM_ASAAS_RESERVATION_ENABLED");
+  const iReserveSecret=src.indexOf("NEXUS_CRM_ASAAS_RESERVATION_SECRET");
+  const iDb=src.indexOf("const admin=createClient(");
+  const iProvider=src.indexOf("fetch('https://api-sandbox.asaas.com/v3'+path");
+  assert.ok(iVerify>0 && iReserveFlag>iVerify && iReserveSecret>iReserveFlag);
+  assert.ok(iDb>iReserveSecret && iProvider>iDb);
+  assert.match(src,/reservationRequested=payload.reserve===true/);
+  assert.match(src,/reservationEnabled:reservationRequested/);
   assert.match(src,/claimEnabled:false/);
-  assert.match(src,/read_only_verifier_must_never_call_financial_rpc/);
-  assert.doesNotMatch(src,/admin\.rpc\(|\.update\(|\.insert\(|\.delete\(/);
+  assert.match(src,/reservationSecret===secret/);
+  assert.match(src,/x-nexus-asaas-reservation-key/);
+  assert.match(src,/name!=='reserve_nexus_crm_asaas_verified_payment'/);
+  assert.match(src,/admin.rpc\('reserve_nexus_crm_asaas_verified_payment',args\)/);
+  assert.doesNotMatch(src,/admin.rpc\('claim_nexus_crm_asaas_provisioning'/);
+  assert.doesNotMatch(src,/provisionSaleForProvider\(|sendCrmAccessEmail\(|\.update\(|\.insert\(|\.delete\(/);
   assert.doesNotMatch(src,/https:\/\/api\.asaas\.com\/v3/);
 });
