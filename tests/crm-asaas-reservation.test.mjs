@@ -41,7 +41,8 @@ test('database function is private, default-deny, and never changes courtesy or 
 });
 test('internal sandbox-only verifier reserves ONLY after provider-read comparison',()=>{
   assert.match(edge,/reconcileCrmAsaasSettlement\(/);
-  assert.match(edge,/reservationEnabled:false/);
+  assert.match(edge,/reservationEnabled:reservationRequested/);
+  assert.match(edge,/NEXUS_CRM_ASAAS_RESERVATION_SECRET/);
   assert.match(edge,/claimEnabled:false/);
   assert.match(edge,/callRpc:async/);
   assert.match(edge,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
