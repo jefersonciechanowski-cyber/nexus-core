@@ -11,9 +11,9 @@ function json(body: unknown,status = 200) {
   }});
 }
 Deno.serve(async (req: Request): Promise<Response> => {
-  // HARD-OFF: never call provider, DB or provisioner until separately approved.
-  const STAGED_ASAAS_DISABLED = true;
-  if (STAGED_ASAAS_DISABLED) return json({ error: 'Conciliação Asaas desativada.' }, 503);
+  // Phase 1: private read-only Asaas Sandbox verification. All financial writes
+  // and CRM access remain blocked, even when provider verification succeeds.
+  // Authentication, sandbox mode, and explicit enable flag are checked below.
 
   if (req.method !== 'POST') return json({error:'Método não permitido.'},405);
   if (Deno.env.get('NEXUS_CRM_ASAAS_VERIFY_ENABLED') !== 'true'
@@ -99,15 +99,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     verification:decision,
     eventId:eventRow.provider_event_id,
     environment:'sandbox',
-    reservationEnabled:Deno.env.get('NEXUS_CRM_ASAAS_RESERVATION_ENABLED')==='true',
-    claimEnabled:Deno.env.get('NEXUS_CRM_ASAAS_CLAIM_ENABLED')==='true',
-    callRpc:async(name:string,args:Record<string,unknown>)=>{
-      // Never accept arbitrary RPC names from request bodies.
-      if(!['reserve_nexus_crm_asaas_verified_payment',
-           'claim_nexus_crm_asaas_provisioning'].includes(name)){
-        throw new Error('invalid_rpc');
-      }
-      return admin.rpc(name,args);
+    // Do not trust financial flags to bypass phase 1 read-only mode.
+    reservationEnabled:false,
+    claimEnabled:false,
+    callRpc:async()=>{
+      throw new Error('read_only_verifier_must_never_call_financial_rpc');
     },
   });
   // This endpoint NEVER creates an Auth user, tenant, invoice or entitlement.

@@ -40,11 +40,9 @@ test('database function is private, default-deny, and never changes courtesy or 
   assert.doesNotMatch(sql,/\bdelete\s+from\s+public\.(organization_product_access|nexus_sales)/i);
 });
 test('internal sandbox-only verifier reserves ONLY after provider-read comparison',()=>{
-  assert.match(edge,/NEXUS_CRM_ASAAS_RESERVATION_ENABLED/);
   assert.match(edge,/reconcileCrmAsaasSettlement\(/);
-  assert.match(edge,/NEXUS_CRM_ASAAS_CLAIM_ENABLED/);
-  assert.match(edge,/reservationEnabled:Deno\.env\.get/);
-  assert.match(edge,/claimEnabled:Deno\.env\.get/);
+  assert.match(edge,/reservationEnabled:false/);
+  assert.match(edge,/claimEnabled:false/);
   assert.match(edge,/callRpc:async/);
   assert.match(edge,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
   assert.match(edge,/NEXUS_CRM_ASAAS_MONTHLY_MODE/);
