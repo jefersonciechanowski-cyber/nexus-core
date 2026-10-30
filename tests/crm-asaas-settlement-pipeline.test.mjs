@@ -105,8 +105,8 @@ test('endpoint only calls pipeline under private sandbox authentication, no gran
   assert.match(s,/trustedAsaasToken\(/);
   assert.match(s,/NEXUS_CRM_ASAAS_VERIFY_ENABLED/);
   assert.match(s,/NEXUS_CRM_ASAAS_MONTHLY_MODE/);
-  assert.match(s,/NEXUS_CRM_ASAAS_RESERVATION_ENABLED/);
-  assert.match(s,/NEXUS_CRM_ASAAS_CLAIM_ENABLED/);
+  assert.match(s,/reservationEnabled:false/);
+  assert.match(s,/claimEnabled:false/);
   assert.match(s,/verifyCrmAsaasPayment\(/);
   assert.match(s,/reconcileCrmAsaasSettlement\(/);
   assert.doesNotMatch(s,/provisionSaleForProvider\(|sendCrmAccessEmail\(/);
@@ -171,4 +171,17 @@ test('offline provider-to-ledger integration: four Asaas reads -> reserve -> cla
     'reserve_nexus_crm_asaas_verified_payment','claim_nexus_crm_asaas_provisioning']);
   assert.equal(captured[0].args.p_amount_cents,7900);
   assert.equal(captured[0].args.p_billing_type,'PIX');
+});
+
+test('disabled financial reservation cannot disguise a rejected provider event as verified',async()=>{
+  const calls=[];
+  const result=await reconcileCrmAsaasSettlement({
+    verification:{decision:'manual_review',reason:'customer_document_mismatch',canActivateCrm:false},
+    eventId,environment:'sandbox',reservationEnabled:false,claimEnabled:false,
+    callRpc:async()=>{calls.push(1);throw Error('unexpected financial call');},
+  });
+  assert.equal(result.decision,'manual_review');
+  assert.equal(result.reason,'verification_not_authorized');
+  assert.equal(result.canActivateCrm,false);
+  assert.deepEqual(calls,[]);
 });

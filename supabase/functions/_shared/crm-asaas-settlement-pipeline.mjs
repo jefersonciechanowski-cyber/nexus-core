@@ -14,7 +14,8 @@ const safeProviderId=(value,prefix)=>typeof value==='string'
 export async function reconcileCrmAsaasSettlement(options) {
   const {verification,eventId,environment,reservationEnabled,claimEnabled,callRpc}=options||{};
   if(environment!=='sandbox')return response('hold','sandbox_only');
-  if(!reservationEnabled)return response('verified_for_review','reservation_disabled');
+  // Never label an unverified provider event "verified" simply because
+  // financial reservation is switched off.
   if(!verification || verification.decision!=='verified_for_review'
     || verification.canActivateCrm!==false || !safeUuid(verification.saleId)
     || !safeProviderId(verification.paymentId,'pay')
@@ -27,6 +28,7 @@ export async function reconcileCrmAsaasSettlement(options) {
     || typeof callRpc!=='function'){
     return response('manual_review','verification_not_authorized');
   }
+  if(!reservationEnabled)return response('verified_for_review','reservation_disabled');
 
   let reserve;
   try {
