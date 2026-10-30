@@ -34,8 +34,10 @@ test('trial admin and worker deny before any DB access or tenant mutation',()=>{
     for(const op of ['createClient(', "admin.rpc(","admin.from(","provisionCrmTenant("]){
       const index=src.indexOf(op);if(index>=0)assert.ok(gate<index,slug+' '+op);
     }
-    assert.match(src,/NEXUS_CRM_TRIAL_RECONCILE_ENABLED/);
   }
+  const gates=readFileSync(new URL('../supabase/functions/_shared/crm-trial-release-gates.mjs',import.meta.url),'utf8');
+  assert.match(gates,/NEXUS_CRM_TRIAL_RECONCILE_ENABLED/);
+  assert.match(gates,/NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED/);
 });
 
 test('expiry workflow is scheduled daily but skipped until explicitly opted in',()=>{
