@@ -46,7 +46,7 @@ jobs:
 
       - name: Verify CRM commercial launch gates without a real transaction
         run: |
-          node --test tests/crm-commercial-readiness.test.mjs
+          node --test tests/crm-commercial-readiness.test.mjs tests/crm-trial-to-paid-preflight.test.mjs
           node scripts/crm-commercial-readiness.mjs
 
       - name: Verify temporary read-only Asaas Sandbox credential probe
