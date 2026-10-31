@@ -44,6 +44,11 @@ jobs:
       - name: Test admin CRM trial 15/30 days (fail closed)
         run: node --test tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-trial-release-gates.test.mjs
 
+      - name: Verify CRM commercial launch gates without a real transaction
+        run: |
+          node --test tests/crm-commercial-readiness.test.mjs tests/crm-trial-to-paid-preflight.test.mjs
+          node scripts/crm-commercial-readiness.mjs
+
       - name: Verify temporary read-only Asaas Sandbox credential probe
         run: node --test tests/crm-asaas-sandbox-probe.test.mjs
 

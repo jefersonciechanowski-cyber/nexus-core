@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
 import { syncCrmEntitlement } from '../stripe-webhook/crm-provisioning.ts';
+import { canOperateCrmTrial } from '../_shared/crm-trial-release-gates.mjs';
 
 // Central's dedicated CRM-only trial expiration worker.
 // It NEVER attempts to collect payment or converts a courtesy into a plan.
@@ -8,9 +9,13 @@ const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{
   status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},
 });
 Deno.serve(async(request:Request):Promise<Response>=>{
-  // HARD-OFF: no suspension until tested against protected claims.
-  const STAGED_TRIAL_DISABLED = true;
-  if (STAGED_TRIAL_DISABLED) return new Response(JSON.stringify({ error: 'Conciliação de testes em homologação.' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  // Expiry needs its own explicit approval; do not touch customer access
+  // until the controlled pilot and independently scheduled job are confirmed.
+  if (!canOperateCrmTrial(Deno.env.toObject(), 'expire')) {
+    return new Response(JSON.stringify({ error: 'Conciliação de testes em homologação.' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
 
   if(request.method!=='POST')return json({error:'Método não permitido.'},405);
   if(Deno.env.get('NEXUS_CRM_TRIAL_RECONCILE_ENABLED')!=='true') {

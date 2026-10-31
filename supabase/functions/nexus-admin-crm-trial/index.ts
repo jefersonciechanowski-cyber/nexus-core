@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { provisionCrmTenant } from '../_shared/crm-provisioning.ts';
 import { normalizeTrialRequest, addTrialDays, fingerprintTrialIdentity, TRIAL_ALLOWED_PLANS } from '../_shared/crm-trial-contract.mjs';
+import { canOperateCrmTrial } from '../_shared/crm-trial-release-gates.mjs';
 
 const MAX_BODY_BYTES = 24 * 1024;
 const clean = (value: unknown, size = 300) => String(value ?? '').trim().slice(0, size);
@@ -61,9 +62,14 @@ function addUtcMonths(start: Date, months: number) {
 }
 
 Deno.serve(async request => {
-  // HARD-OFF: no user, organization or entitlement until trial expiry is proven.
-  const STAGED_TRIAL_DISABLED = true;
-  if (STAGED_TRIAL_DISABLED) return new Response(JSON.stringify({ error: 'Teste grátis em homologação.' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  // A deployment does not grant CRM trials. An approved pilot, confirmed
+  // expiration schedule and both independent switches must all be enabled.
+  // Keep this before any database access, tenant or email side effect.
+  if (!canOperateCrmTrial(Deno.env.toObject(), 'grant')) {
+    return new Response(JSON.stringify({ error: 'Teste grátis em homologação.' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
 
   // A separate administrative-only trial path; do not change courtesy rules.
   if (Deno.env.get('NEXUS_CRM_TRIAL_GRANTS_ENABLED') !== 'true') {

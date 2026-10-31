@@ -1,0 +1,44 @@
+name: CRM trial expiration — controlled pilot
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  expire_trials:
+    # The workflow is skipped by default. Release requires explicit
+    # repository variable, independent Supabase flags and private OIDC auth.
+    if: vars.NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Get short-lived GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-crm-trial-reconcile")"
+          TOKEN="$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          printf 'token=%s\n' "${TOKEN}" >> "${GITHUB_OUTPUT}"
+
+      - name: Reconcile expired CRM trials without charging customers
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-trial-reconcile" \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{}')"
+          printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; x=json.load(sys.stdin); n=x.get("pending_review"); ok=isinstance(n,int) and n==0; print("CRM trial expiry verified" if ok else "CRM trial expiry requires review"); sys.exit(0 if ok else 1)'

@@ -71,9 +71,9 @@ test('trial ledger is unique, service-role only, with confirm gate',()=>{
   assert.match(sql,/a\.commercial_condition='standard'/);
 });
 
-test('trial admin and expiry worker are disabled before provisioning or suspension',()=>{
-  assert.match(endpoint,/STAGED_TRIAL_DISABLED = true/);
-  assert.match(worker,/STAGED_TRIAL_DISABLED = true/);
-  assert.ok(endpoint.indexOf('if (STAGED_TRIAL_DISABLED)') < endpoint.indexOf('provisionCrmTenant(admin'));
-  assert.ok(worker.indexOf('if (STAGED_TRIAL_DISABLED)') < worker.indexOf("admin.rpc('expire_nexus_crm_trial_access'"));
+test('trial grant and expiry require the explicit pilot gate before side effects',()=>{
+  assert.match(endpoint,/canOperateCrmTrial\(Deno\.env\.toObject\(\), 'grant'\)/);
+  assert.match(worker,/canOperateCrmTrial\(Deno\.env\.toObject\(\), 'expire'\)/);
+  assert.ok(endpoint.indexOf("if (!canOperateCrmTrial(") < endpoint.indexOf('provisionCrmTenant(admin'));
+  assert.ok(worker.indexOf("if (!canOperateCrmTrial(") < worker.indexOf("admin.rpc('expire_nexus_crm_trial_access'"));
 });
