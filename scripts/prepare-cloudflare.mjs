@@ -6,6 +6,7 @@ const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const distRoot = join(projectRoot, 'dist');
 const publicDirectories = [
   'apps/site-captacao',
+  'apps/site-institucional',
   'apps/sst-controle',
   'apps/nexus-admin',
   'apps/portal-cliente',
