@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -28,6 +30,21 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Scan repository for privileged secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE \
+            --exclude-dir='.git' \
+            --exclude='package-lock.json' \
+            --exclude='*.md' \
+            --exclude='*.example' \
+            --exclude='security.yml' \
+            '(^|[^A-Za-z0-9_])(sb_secret_[A-Za-z0-9_-]{16,}|sk_live_[A-Za-z0-9_-]{16,}|whsec_[A-Za-z0-9_-]{16,}|re_[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' .; then
+            echo 'Potential privileged secret value found in repository content.'
+            exit 1
+          fi
 
       - name: Run security checks
         run: npm run security:check

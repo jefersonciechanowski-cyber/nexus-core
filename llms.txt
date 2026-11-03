@@ -1,0 +1,14 @@
+# Nexus Core
+
+Nexus Core é a suíte de software da Nexus Core. Este domínio contém páginas públicas de apresentação e produtos autenticados, incluindo o Nexus SST.
+
+## Conteúdo público recomendado
+- /apps/site-captacao/ — apresentação comercial do Nexus SST
+- /apps/site-captacao/privacidade.html — política de privacidade
+- /apps/site-captacao/termos.html — termos de uso
+
+## Áreas autenticadas
+As áreas de cliente, administração e aplicações internas exigem autenticação e não devem ser tratadas como documentação pública nem indexadas como conteúdo de referência.
+
+## Observação
+Este arquivo é apenas uma camada de documentação legível por agentes. Não substitui sitemap.xml, robots.txt, dados estruturados, políticas de privacidade ou controles de acesso.
