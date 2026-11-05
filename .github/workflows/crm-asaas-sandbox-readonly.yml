@@ -1,0 +1,50 @@
+name: CRM Asaas Sandbox — one-time read-only verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-asaas-sandbox-readonly.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify_existing_sandbox_payment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Create short-lived GitHub OIDC identity
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          R="$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-crm-asaas-readonly-once-v1")"
+          TOKEN="$(printf '%s' "${R}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          printf 'token=%s\n' "${TOKEN}" >> "${GITHUB_OUTPUT}"
+      - name: Verify one existing Sandbox event without reservations
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 95 \
+            --request POST \
+            --url 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-readonly-once' \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{}')"
+          printf '%s' "${RESPONSE}" | python3 -c '
+          import json,sys
+          value=json.load(sys.stdin)
+          result=value.get("decision")
+          reason=value.get("reason")
+          safe=lambda x: str(x)[:90] if isinstance(x,str) and x.replace("_","").isalnum() else "unavailable"
+          print("Asaas Sandbox decision:",safe(result),"reason:",safe(reason))
+          assert value.get("canActivateCrm") is False and value.get("readOnly") is True, "Read-only contract not confirmed"
+          assert result=="verified_for_review","Payment not independently verified by provider"
+          '
