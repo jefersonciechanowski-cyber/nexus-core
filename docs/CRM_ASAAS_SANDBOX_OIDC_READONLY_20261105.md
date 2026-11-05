@@ -28,3 +28,15 @@ O workflow `.github/workflows/crm-asaas-sandbox-readonly.yml` executa **uma úni
 6. Após o ensaio, aposentar o wrapper com HTTP 410 e encerrar o workflow, conservando o resultado no histórico do Actions.
 
 A execução prova leitura real no provedor, **não** testa envio do e-mail e primeiro login do cliente fictício. Ambas as entregas têm gates próprios.
+
+## Resultado real, evidência e retirada
+
+- GitHub Actions: https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/42045106200
+- Autorização OIDC: **aprovada** (token temporário criado e aceito pelo backend).
+- Consulta independente ao Asaas Sandbox: executada, resultado `manual_review`, motivo `customer_document_mismatch`.
+- A identidade CPF/CNPJ da venda fictícia **não coincide** com o documento devolvido pelo cliente Asaas.
+- **Não** reescrever o cadastro apenas para forçar a aprovação; revisar e refazer a ligação com dados fictícios consistentes no Sandbox.
+- Nenhuma reserva, pagamento, usuário, empresa ou contrato persistiu; chave `NEXUS_CRM_ASAAS_VERIFY_SECRET` preservada.
+- Function temporária foi redeployada em versão que sempre retorna **410**, sem acessar qualquer segredo.
+- Workflow de execução única, seu teste e gatilho de CI removidos neste encerramento, com o histórico de Actions preservado.
+- Central/CRM cobrança live e provisionamento automático permanecem **OFF**.
