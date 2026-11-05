@@ -21,6 +21,25 @@ export function clean(value, max = 160) {
 export function digits(value) {
   return clean(value, 40).replace(/\D/g, '');
 }
+// Billing preflight must reject invalid digits BEFORE creating a payment
+// link, even in Sandbox. No provider lookup or personal data is needed.
+function numericCheckDigit(value, weights) {
+  const sum = weights.reduce((total, weight, index) => total + Number(value[index]) * weight, 0);
+  const remainder = sum % 11;
+  return remainder < 2 ? 0 : 11 - remainder;
+}
+
+export function validNationalDocument(value) {
+  if (typeof value !== 'string' || !/^(?:\d{11}|\d{14})$/.test(value)
+    || /^(\d)\1+$/.test(value)) return false;
+  if (value.length === 11) {
+    return Number(value[9]) === numericCheckDigit(value, [10,9,8,7,6,5,4,3,2])
+      && Number(value[10]) === numericCheckDigit(value, [11,10,9,8,7,6,5,4,3,2]);
+  }
+  return Number(value[12]) === numericCheckDigit(value, [5,4,3,2,9,8,7,6,5,4,3,2])
+    && Number(value[13]) === numericCheckDigit(value, [6,5,4,3,2,9,8,7,6,5,4,3,2]);
+}
+
 export function normalizeCheckout(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { error: 'Dados inválidos.' };
   const document = digits(input.registrationNumber);
@@ -56,7 +75,7 @@ export function normalizeCheckout(input) {
   };
   const invalid = payload.companyName.length < 2 || payload.responsibleName.length < 2
     || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    || payload.phone.length < 10 || ![11,14].includes(document.length)
+    || payload.phone.length < 10 || !validNationalDocument(document)
     || payload.postalCode.length !== 8 || payload.street.length < 2
     || payload.streetNumber.length < 1 || payload.district.length < 2
     || payload.city.length < 2 || !/^[A-Z]{2}$/.test(payload.state)
