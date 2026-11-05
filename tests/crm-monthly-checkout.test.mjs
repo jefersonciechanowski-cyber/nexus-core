@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeCheckout, planIsMonthly, checkoutFeatureMode, checkoutOriginIsAllowed, CRM_PUBLIC_PLANS } from '../supabase/functions/nexus-public-crm-monthly-checkout/contract.mjs';
+import { normalizeCheckout, planIsMonthly, checkoutFeatureMode, checkoutOriginIsAllowed, CRM_PUBLIC_PLANS, validNationalDocument } from '../supabase/functions/nexus-public-crm-monthly-checkout/contract.mjs';
 
 const sample = Object.freeze({
   companyName: 'Empresa Teste CRM', responsibleName: 'Responsável',
@@ -35,6 +35,20 @@ test('normalize validated customer details, never accepts caller price or provid
   assert.ok(normalizeCheckout({ ...sample, acceptedTerms: false }).error);
   assert.ok(normalizeCheckout({ ...sample, planCode: 'custom' }).error);
   assert.ok(normalizeCheckout({ ...sample, registrationNumber: 'wrong' }).error);
+});
+
+test('numeric CPF and CNPJ check digits are required before any CRM checkout', () => {
+  assert.equal(validNationalDocument('12345678909'), true);
+  assert.equal(validNationalDocument('11222333000181'), true);
+  for (const number of ['12345678900','11111111111','00000000000',
+    '11222333000180','11111111111111','00000000000000','123456789','']) {
+    assert.equal(validNationalDocument(number), false, number);
+    assert.ok(normalizeCheckout({ ...sample, registrationNumber:number }).error,
+      'document rejected before sale/checkout: '+number);
+  }
+  const cnpj = normalizeCheckout({ ...sample, registrationNumber:'11.222.333/0001-81' });
+  assert.equal(cnpj.payload?.registrationType, 'CNPJ');
+  assert.equal(cnpj.payload?.registrationNumber, '11222333000181');
 });
 
 test('default off; test/live keys cannot be confused; live needs 3 gates', () => {
