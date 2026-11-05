@@ -55,6 +55,9 @@ jobs:
       - name: Test Asaas Sandbox webhook isolated inbox (no billing)
         run: node --test tests/crm-asaas-sandbox-inbox.test.mjs
 
+      - name: Verify isolated OIDC Sandbox check cannot access financial mutations
+        run: node --test tests/crm-asaas-oidc-one-time.test.mjs
+
       - name: Build Cloudflare artifact
         run: npm run build:cloudflare
 
