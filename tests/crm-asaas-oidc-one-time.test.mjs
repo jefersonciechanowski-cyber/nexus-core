@@ -7,7 +7,7 @@ const workflow=readFileSync(new URL('../.github/workflows/crm-asaas-sandbox-read
 
 test('verification is OIDC-signed for one workflow and the main branch only',()=>{
   assert.match(source,/jwtVerify\(auth\.slice\(7\),jwks/);
-  assert.match(source,/issuer:'https:\/\/token\.actions\.github\.com'/);
+  assert.match(source,/issuer:'https:\/\/token\.actions\.githubusercontent\.com'/);
   assert.match(source,/audience:AUDIENCE/);
   assert.match(source,/payload\.repository!==REPO/);
   assert.match(source,/payload\.workflow_ref!==WORKFLOW/);
