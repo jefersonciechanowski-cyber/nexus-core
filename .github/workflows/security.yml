@@ -38,6 +38,14 @@ jobs:
       - name: Test HMAC diagnostic without payments
         run: node --test tests/crm-bridge-diagnostic.test.mjs
 
+      - name: Set up Deno for isolated real Pix admin pilot typecheck
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck hard-off live Pix pilot without credentials or charges
+        run: deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
+
       - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
         run: node --test tests/crm-asaas-*.test.mjs
 
