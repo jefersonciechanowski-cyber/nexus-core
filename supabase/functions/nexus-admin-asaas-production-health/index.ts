@@ -133,7 +133,7 @@ Deno.serve(async (request: Request) => {
       action=String((data as Record<string,unknown>).action);
     }
   } catch { /* rejected */ }
-  if (action !== 'check') return response({ error: 'Solicitação inválida.' }, 400, cors);
+  if (action !== 'check' && action !== 'webhooks') return response({ error: 'Solicitação inválida.' }, 400, cors);
 
   const url = Deno.env.get('SUPABASE_URL') || '';
   const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
