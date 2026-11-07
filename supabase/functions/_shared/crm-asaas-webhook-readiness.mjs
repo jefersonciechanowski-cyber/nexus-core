@@ -14,7 +14,7 @@ const result=(status,partial={})=>Object.freeze({
   ...partial,
 });
 
-export function assessCrmAsaasProductionWebhook(webhooks,expectedUrl,secretConfigured) {
+export function assessCrmAsaasProductionWebhook(webhooks,expectedUrl,secretConfigured,receiveOnlyEnabled=false) {
   if(!Array.isArray(webhooks) || typeof expectedUrl!=='string'
     || !expectedUrl.startsWith('https://'))return result('provider_response_invalid');
   const found=webhooks.filter(row=>row && typeof row==='object' && row.url===expectedUrl);
@@ -31,5 +31,7 @@ export function assessCrmAsaasProductionWebhook(webhooks,expectedUrl,secretConfi
   if(hook.interrupted===true)return result('webhook_interrupted',details);
   if(missing.length)return result('missing_webhook_events',details);
   if(secretConfigured!==true)return result('receiver_token_not_configured',details);
-  return result('configuration_detected_receiver_still_blocked',details);
+  return result(receiveOnlyEnabled===true
+    ? 'receiver_ready_for_delivery_test'
+    : 'configuration_detected_receiver_still_blocked',details);
 }

@@ -25,6 +25,10 @@ test('Asaas diagnostic demands exact required events and a dedicated server-only
  assert.equal(view([row],false).status,'receiver_token_not_configured');
  const present=view([row],true);
  assert.equal(present.status,'configuration_detected_receiver_still_blocked');
+ const ingest=assessCrmAsaasProductionWebhook([row],url,true,true);
+ assert.equal(ingest.status,'receiver_ready_for_delivery_test');
+ assert.equal(ingest.registered,true);
+ assert.ok(!JSON.stringify(ingest).includes('NEVER_RETURN_ME'));
  assert.equal(present.registered,true);
  assert.equal(present.eventsCovered,true);
  assert.deepEqual(present.missingEvents,[]);
@@ -90,7 +94,8 @@ test('admin-only webhook audit is restricted, GET-only and never leaks provider 
  assert.match(src,/profile\?\.role !== 'nexus_admin'/);
  assert.match(src,/action==='webhooks'/);
  assert.match(src,/fetch\(ASAAS_BASE \+ '\/webhooks\?limit=100'/);
- assert.match(src,/assessCrmAsaasProductionWebhook\(entries,expected,secretOk\)/);
+ assert.match(src,/assessCrmAsaasProductionWebhook\(/);
+ assert.match(src,/entries,expected,secretOk,receiveOnlyEnabled\)/);
  assert.match(src,/receiverBlocked:true/);
  assert.match(src,/tokenVerifiedByDelivery:false/);
  assert.match(js,/body:\{action:'webhooks'\}/);

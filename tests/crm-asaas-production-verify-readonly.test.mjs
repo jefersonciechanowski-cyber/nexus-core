@@ -45,7 +45,9 @@ test('fetch is fixed to Asaas production GET with bounded body and protected IDs
 });
 
 test('production events inbox and sandbox remain isolated and code-disabled',()=>{
- assert.match(prodInbox,/STAGED_PRODUCTION_EVENTS_DISABLED = true/);
+ assert.match(prodInbox,/NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED/);
+ assert.match(prodInbox,/NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED/);
+ assert.doesNotMatch(prodInbox,/admin\.rpc\(|sendCrmAccessEmail|provisionSaleForProvider/);
  assert.match(sandbox,/NEXUS_CRM_ASAAS_MONTHLY_MODE'\) !== 'sandbox'/);
  assert.match(sandbox,/https:\/\/api-sandbox\.asaas\.com\/v3/);
  assert.doesNotMatch(sandbox,/nexus_crm_asaas_production_events/);

@@ -71,8 +71,13 @@ async function readWebhooks(key: string, centralUrl: string) {
     && configuredToken!==(Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'')
     && configuredToken!==(Deno.env.get('NEXUS_CRM_ASAAS_PROD_WORKER_SECRET')||'')
     && configuredToken!==(Deno.env.get('NEXUS_CRM_ASAAS_PROD_VERIFY_SECRET')||'');
-  const assessment=assessCrmAsaasProductionWebhook(entries,expected,secretOk);
-  return {...assessment,receiverBlocked:true,createdCharge:false,production:true,
+  const receiveOnlyEnabled =
+    Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED')==='true'
+    && Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')==='true';
+  const assessment=assessCrmAsaasProductionWebhook(
+    entries,expected,secretOk,receiveOnlyEnabled);
+  return {...assessment,receiverBlocked:!receiveOnlyEnabled,
+    financialProcessingBlocked:true,createdCharge:false,production:true,
     // The endpoint URL is not a secret; it is necessary for the provider setup.
     receiverUrl:expected,
     // Inspecting webhook GET does not verify token matching or actual delivery.

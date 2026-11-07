@@ -7,14 +7,19 @@ const src=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-production
 const sql=readFileSync(new URL('../docs/CRM_ASAAS_PRODUCTION_EVENTS_SQL_DRAFT_20261107.sql',import.meta.url),'utf8');
 const sandbox=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-monthly-events/index.ts',import.meta.url),'utf8');
 
-test('production webhook remains unconditionally hard-off ahead of DB or provider calls',()=>{
- const on=src.indexOf('const STAGED_PRODUCTION_EVENTS_DISABLED = true');
- const gate=src.indexOf('if (STAGED_PRODUCTION_EVENTS_DISABLED)');
+test('production inbox is OFF by default; receive-only needs two independent opt-in flags',()=>{
+ const on=src.indexOf('const RECEIVE_ONLY_MODE = true');
+ const gate=src.indexOf("Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')");
  const db=src.indexOf("admin.from('nexus_crm_asaas_production_events')");
  assert.ok(on>=0&&gate>on&&db>gate);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED/);
- assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_HOMOLOGATED/);
- assert.doesNotMatch(src,/NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED|ASAAS_SANDBOX_API_KEY/);
+ assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED/);
+ assert.match(src,/!== 'true'/);
+ assert.doesNotMatch(src,/STAGED_PRODUCTION_EVENTS_DISABLED|NEXUS_CRM_ASAAS_PROD_EVENTS_HOMOLOGATED/);
+ assert.doesNotMatch(src,/NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED|api-sandbox\.asaas\.com/);
+ // It may compare against the Sandbox key to reject token REUSE, but may not
+ // perform Sandbox requests or select the Sandbox financial environment.
+ assert.match(src,/'ASAAS_SANDBOX_API_KEY'/);
  assert.doesNotMatch(src,/https:\/\/api\.asaas\.com|https:\/\/api-sandbox\.asaas\.com|fetch\(/);
 });
 
@@ -24,7 +29,11 @@ test('events require a dedicated token, bounded JSON and sanitization before per
  const sanitize=src.indexOf('sanitizeCrmAsaasEvent(incoming)');
  const db=src.indexOf("admin.from('nexus_crm_asaas_production_events')");
  assert.ok(auth>=0 && auth < parse && parse < sanitize && sanitize < db);
- assert.match(src,/secret === \(Deno\.env\.get\('ASAAS_API_KEY'\) \|\| ''\)/);
+ assert.match(src,/ASAAS_PRODUCTION_API_KEY/);
+ assert.match(src,/ASAAS_SANDBOX_API_KEY/);
+ assert.match(src,/NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
+ assert.match(src,/secret\.length < 32 \|\| secret\.length > 255/);
+ assert.match(src,/trustedAsaasToken\(request\.headers\.get\('asaas-access-token'\),secret\)/);
  assert.match(src,/MAX_BODY_BYTES = 32768/);
  assert.match(src,/request\.headers\.get\('asaas-access-token'\)/);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN/);
@@ -63,4 +72,7 @@ test('no emails, CRM provisioning, charging or access mutations are reachable in
  assert.doesNotMatch(src,/sendCrmAccessEmail|provisionSaleForProvider|provisionCrmTenant|syncCrmEntitlement/);
  assert.doesNotMatch(src,/\/v3\/payments|\/v3\/subscriptions|\/v3\/paymentLinks|checkout\.sessions/);
  assert.doesNotMatch(src,/admin\.rpc\(|\.from\('organization_product_access'\)|\.from\('nexus_payments'\)|\.update\(/);
+ assert.match(src,/await admin\.from\('nexus_crm_asaas_production_events'\)\.insert/);
+ assert.match(src,/\bRECEIVE_ONLY_MODE = true/);
+ assert.doesNotMatch(src,/fetch\(/);
 });

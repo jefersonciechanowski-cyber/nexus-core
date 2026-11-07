@@ -91,7 +91,8 @@ async function checkCrmAsaasWebhook(){
    throw new Error(message);
   }
   if(data?.production!==true||data?.createdCharge!==false
-    ||data?.receiverBlocked!==true)throw new Error('Diagnóstico retornou dados inválidos.');
+    ||typeof data?.receiverBlocked!=='boolean')
+    throw new Error('Diagnóstico retornou dados inválidos.');
   const states={
    webhook_not_registered:'Nenhum webhook exclusivo do Nexus CRM encontrado na conta Asaas de produção.',
    webhook_disabled:'Webhook CRM existente, porém desativado no Asaas.',
@@ -99,6 +100,7 @@ async function checkCrmAsaasWebhook(){
    missing_webhook_events:'Webhook CRM cadastrado, mas faltam eventos obrigatórios.',
    receiver_token_not_configured:'Webhook CRM cadastrado, mas o token exclusivo ainda não está configurado na Nexus Central.',
    configuration_detected_receiver_still_blocked:'Configuração do webhook encontrada. O receptor do CRM continua bloqueado para homologação.',
+   receiver_ready_for_delivery_test:'Webhook cadastrado e receptor liberado para guardar eventos autenticados. A entrega real ainda precisa ser confirmada pelos Logs do Asaas. O checkout e a liberação do CRM permanecem bloqueados.',
    duplicate_webhook_configuration:'Existem múltiplos webhooks para o mesmo endpoint. Revisão manual necessária.',
    provider_response_invalid:'O Asaas retornou uma lista de webhooks não reconhecida.',
    permission_or_ip_restricted:'Asaas bloqueou a consulta de webhooks por permissão ou IP.',
