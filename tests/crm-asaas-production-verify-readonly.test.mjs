@@ -38,7 +38,7 @@ test('fetch is fixed to Asaas production GET with bounded body and protected IDs
  assert.match(src,/text\.length>30000/);
  assert.match(src,/new RegExp\('\^'\+prefix\+/);
  assert.match(src,/const linkedByLink=typeof linkId==='string'/);
- assert.match(src,/linkId\);/);
+ assert.match(src,/saleQuery\.eq\('asaas_checkout_id',linkId\)/);
  assert.match(src,/\.eq\('environment','production'\)/);
  assert.match(src,/saleQuery\.limit\(2\)/);
  assert.doesNotMatch(src,/https:\/\/api-sandbox\.asaas\.com/);
