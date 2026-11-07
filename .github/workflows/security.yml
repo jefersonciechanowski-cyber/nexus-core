@@ -54,7 +54,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/stripe-webhook/crm-provisioning.ts
 
       - name: Verify Brevo first-access sender configuration read-only (no emails)
-        run: node --test tests/crm-onboarding-email-readiness.test.mjs
+        run: node --test tests/crm-onboarding-email-readiness.test.mjs tests/crm-brevo-smtp-transport.test.mjs
 
       - name: Verify normal paid CRM first-access email (no emails actually sent)
         run: node --test tests/crm-crm-first-access-mail.test.mjs
