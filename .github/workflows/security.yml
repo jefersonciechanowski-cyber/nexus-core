@@ -55,6 +55,9 @@ jobs:
       - name: Verify Brevo first-access sender configuration read-only (no emails)
         run: node --test tests/crm-onboarding-email-readiness.test.mjs
 
+      - name: Verify normal paid CRM first-access email (no emails actually sent)
+        run: node --test tests/crm-crm-first-access-mail.test.mjs
+
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
