@@ -128,7 +128,7 @@ Deno.serve(async (request: Request) => {
   try {
     const data: unknown = await request.json();
     if(data && typeof data==='object' && !Array.isArray(data)
-      && Object.keys(data).length===1
+      && Object.keys(data).length === 1
       && ['check','webhooks'].includes(String((data as Record<string,unknown>).action))) {
       action=String((data as Record<string,unknown>).action);
     }
