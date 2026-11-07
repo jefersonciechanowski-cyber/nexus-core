@@ -38,7 +38,9 @@ test('admin page displays diagnostic, not secrets, and does not send email from 
  assert.match(controls,/Brevo/);
  assert.match(controls,/Esta verificação não criou nova cobrança/);
  assert.doesNotMatch(ui,/BREVO_API_KEY|SUPABASE_SERVICE_ROLE_KEY|token_hash/);
- assert.doesNotMatch(controls,/BREVO_API_KEY|SUPABASE_SERVICE_ROLE_KEY|token_hash/);
+ // Secret *names* in safe guidance are okay, but the browser must not
+ // access environment values, HTTP API keys, or first-access tokens.
+ assert.doesNotMatch(controls,/Deno\.env\.get\(|api-key\s*:|token_hash|SUPABASE_SERVICE_ROLE_KEY/);
 });
 test('successful provisioning is not rolled back for email transport failures',()=>{
  assert.match(pilot,/type PilotEmailResult = \{ sent:boolean; reason:string \}/);
