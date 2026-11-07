@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
+import { assessCrmAsaasProductionWebhook } from '../_shared/crm-asaas-webhook-readiness.mjs';
 
 // Read-only authorization diagnostic. No customer, payment, subscription,
 // withdrawal, key material or personally identifiable data can be returned.
@@ -41,6 +42,39 @@ function classify(status: number) {
 function approval(value: unknown) {
   return value === 'APPROVED' || value === 'PENDING'
     || value === 'AWAITING_APPROVAL' || value === 'REJECTED' ? value : 'UNKNOWN';
+}
+
+async function readWebhooks(key: string, centralUrl: string) {
+  // GET only. Never return the provider response: it might contain tokens,
+  // other products' webhook URLs or contact email addresses.
+  const result = await fetch(ASAAS_BASE + '/webhooks?limit=100', {
+    method: 'GET',
+    headers: { access_token:key, accept:'application/json',
+      'User-Agent':'NexusCRM-Webhook-ReadOnly-Diagnostic/1.0' },
+    signal: AbortSignal.timeout(7500),
+  });
+  if (result.status !== 200) return {status:classify(result.status),
+    receiverBlocked:true, createdCharge:false, production:true};
+  if(Number(result.headers.get('content-length')||0)>64000)
+    return {status:'provider_response_invalid',receiverBlocked:true,
+      createdCharge:false,production:true};
+  const raw=await result.text();
+  if(raw.length>64000)return {status:'provider_response_invalid',receiverBlocked:true,
+    createdCharge:false,production:true};
+  let payload:unknown;
+  try{payload=JSON.parse(raw);}catch{payload=null;}
+  const entries=(payload && typeof payload==='object')
+    ?(payload as Record<string,unknown>).data:null;
+  const expected=new URL('/functions/v1/nexus-crm-asaas-production-events',centralUrl).toString();
+  const configuredToken=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
+  const secretOk=configuredToken.length>=32 && configuredToken.length<=255
+    && configuredToken!==(Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'');
+  const assessment=assessCrmAsaasProductionWebhook(entries,expected,secretOk);
+  return {...assessment,receiverBlocked:true,createdCharge:false,production:true,
+    // The endpoint URL is not a secret; it is necessary for the provider setup.
+    receiverUrl:expected,
+    // Inspecting webhook GET does not verify token matching or actual delivery.
+    tokenVerifiedByDelivery:false};
 }
 
 async function checkAsaas(key: string, path: typeof PATHS[number]) {
@@ -91,9 +125,11 @@ Deno.serve(async (request: Request) => {
   let action: string | null = null;
   try {
     const data: unknown = await request.json();
-    if (data && typeof data === 'object' && !Array.isArray(data)
-      && Object.keys(data).length === 1
-      && (data as Record<string, unknown>).action === 'check') action = 'check';
+    if(data && typeof data==='object' && !Array.isArray(data)
+      && Object.keys(data).length===1
+      && ['check','webhooks'].includes(String((data as Record<string,unknown>).action))) {
+      action=String((data as Record<string,unknown>).action);
+    }
   } catch { /* rejected */ }
   if (action !== 'check') return response({ error: 'Solicitação inválida.' }, 400, cors);
 
@@ -130,6 +166,11 @@ Deno.serve(async (request: Request) => {
       connection: 'missing_or_wrong_environment',
       production: true, createdCharge: false,
     }, 200, cors);
+  }
+  if(action==='webhooks') {
+    try { return response(await readWebhooks(key,url),200,cors); }
+    catch { return response({status:'unavailable',receiverBlocked:true,
+      createdCharge:false,production:true},200,cors); }
   }
   const results = [] as { status: string; general: string }[];
   for (const path of PATHS) {
