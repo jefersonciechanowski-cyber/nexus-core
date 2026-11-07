@@ -21,7 +21,8 @@ test('only active Nexus admin with AAL2 can read email configuration',()=>{
 test('Brevo check is read-only; no emails, no payment and no credentials leaked',()=>{
  assert.match(source,/https:\/\/api\.brevo\.com\/v3\/senders/);
  assert.match(source,/method:'GET'/);
- assert.match(source,/Deno\.env\.get\('BREVO_API_KEY'\)/);
+ assert.match(source,/Deno\.env\.get\('BREVO_CRM_API_KEY'\)/);
+ assert.doesNotMatch(source,/Deno\.env\.get\('BREVO_API_KEY'\)/);
  assert.match(source,/Deno\.env\.get\('BREVO_FROM_EMAIL'\)/);
  assert.match(source,/status:match\?\.active===true/);
  assert.match(source,/emailSent:false/);
@@ -37,13 +38,15 @@ test('admin page displays diagnostic, not secrets, and does not send email from 
  assert.match(controls,/await checkEmailReadiness\(\)/);
  assert.match(controls,/Brevo/);
  assert.match(controls,/Esta verificação não criou nova cobrança/);
- assert.doesNotMatch(ui,/BREVO_API_KEY|SUPABASE_SERVICE_ROLE_KEY|token_hash/);
+ assert.doesNotMatch(ui,/BREVO_(?:CRM_)?API_KEY|SUPABASE_SERVICE_ROLE_KEY|token_hash/);
  // Secret *names* in safe guidance are okay, but the browser must not
  // access environment values, HTTP API keys, or first-access tokens.
  assert.doesNotMatch(controls,/Deno\.env\.get\(|api-key\s*:|token_hash|SUPABASE_SERVICE_ROLE_KEY/);
 });
 test('successful provisioning is not rolled back for email transport failures',()=>{
  assert.match(pilot,/type PilotEmailResult = \{ sent:boolean; reason:string \}/);
+ assert.match(pilot,/Deno\.env\.get\('BREVO_CRM_API_KEY'\)/);
+ assert.doesNotMatch(pilot,/Deno\.env\.get\('BREVO_API_KEY'\)/);
  assert.match(pilot,/brevo_configuration_missing/);
  assert.match(pilot,/brevo_http_/);
  assert.match(pilot,/brevo_request_failed/);
