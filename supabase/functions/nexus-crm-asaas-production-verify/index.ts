@@ -75,7 +75,7 @@ Deno.serve(async(req:Request)=>{
  const resource=event.payload?.resource;
  const linkId=resource?.paymentLink;
  const subId=resource?.subscription;
- const linkedByLink=validId(linkId,'plink');
+ const linkedByLink=typeof linkId==='string' && /^[A-Za-z0-9_-]{4,120}$/.test(linkId);
  const linkedBySub=validId(subId,'sub');
  if(!linkedByLink&&!linkedBySub)return reply({
    decision:'manual_review',reason:'provider_relationship_missing',
