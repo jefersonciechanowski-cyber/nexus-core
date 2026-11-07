@@ -45,3 +45,17 @@ O pagamento é real, pode gerar taxas e não é simulação. O operador deve con
 - Falha de provisionamento: pagamento real não é refeito; recuperação depende do mesmo registro e auditoria. Não rodar SQL de `paid`, não criar cortesia como atalho.
 - Interromper se houver dúvida sobre taxas, titularidade da conta Asaas, emissão de documentos fiscais ou vencimento. O resultado desse teste **não libera venda recorrente para clientes externos** nem prova o ciclo completo de cobrança de cartões Stripe e Asaas.
 - Não implantar produção sem revisão de `SECURITY.md`, checkouts públicos OFF e aprovação específica do usuário.
+
+## Etapa de liberação financeira 07/11/2026
+
+A reserva de R$10 está registrada como `prepared` e os GETs Asaas Produção (status, clientes, cobranças) autenticaram. O PR de liberação condiciona a **única** cobrança real ao conjunto de controles:
+1. Status `prepared`, slot único e CPF/e-mail validados;
+2. Administrador Nexus ativo, JWT Supabase + MFA `aal2`, Origin oficial;
+3. `NEXUS_CRM_LIVE_PIX_PILOT_ENABLED=true` **e** `NEXUS_CRM_LIVE_PIX_PILOT_CHARGE_ENABLED=true` no Supabase **Nexus Central**;
+4. Marcação expressa do checkbox + confirmação de criação de cobrança real;
+5. Cobrança em Asaas produção somente por ação `charge` e valor `1000` centavos, cliente/documento vinculados e sem `subscription`;
+6. Em incerteza, `manual_review`, sem tentar gerar segunda cobrança.
+
+**Não enviar valores de secrets ao chat;** os dois flags são booleanos `true`, não tokens. Como são chaves de ambiente temporárias, desligar **ambas** após o teste completo, depois da verificação e provisionamento concluídos.
+
+Uma implantação de código com flags ausentes/não verdadeiras **não libera cobranças**. Não alterar `ASAAS_PRODUCTION_API_KEY`, variáveis Sandbox, planos oficiais ou checkout público.
