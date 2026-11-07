@@ -46,8 +46,9 @@ test('provider requests are fixed GET URLs, and responses hide financial data', 
 
 test('page allows only check while the financial pilot stays hard-off', () => {
   assert.match(financialPilot, /const STAGED_LIVE_PIX_DISABLED = false/);
- assert.match(financialPilot, /const STAGED_LIVE_PIX_CHARGE_DISABLED = true/);
- assert.match(financialPilot, /if \(STAGED_LIVE_PIX_CHARGE_DISABLED\)/);
+ assert.match(financialPilot, /const STAGED_LIVE_PIX_CHARGE_DISABLED = false/);
+ assert.match(financialPilot, /if \(!chargeEnabled\)/);
+ assert.match(financialPilot, /canRunLivePixPilot\(Deno\.env\.toObject\(\),'charge'\)/);
   assert.match(financialPilot, /if \(STAGED_LIVE_PIX_DISABLED\) return reply/);
   assert.match(page, /id="asaasCheck"/);
   assert.match(controls, /nexus-admin-asaas-production-health/);
