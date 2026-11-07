@@ -75,6 +75,53 @@ async function checkAsaasProduction(){
  }finally{$('asaasCheck').disabled=false;}
 }
 $('asaasCheck').addEventListener('click',checkAsaasProduction);
+async function checkCrmAsaasWebhook(){
+ if(!apiClient)return;
+ $('webhookCheck').disabled=true;
+ $('webhookCheckResult').textContent='Conferindo webhooks de produção em modo somente leitura...';
+ try{
+  const {data,error}=await apiClient.functions.invoke('nexus-admin-asaas-production-health',{
+   body:{action:'webhooks'}
+  });
+  if(error){
+   let message='Não foi possível consultar o Asaas.';
+   try{if(typeof error.context?.json==='function'){
+    const parsed=await error.context.json();if(parsed?.error)message=String(parsed.error);
+   }}catch{}
+   throw new Error(message);
+  }
+  if(data?.production!==true||data?.createdCharge!==false
+    ||data?.receiverBlocked!==true)throw new Error('Diagnóstico retornou dados inválidos.');
+  const states={
+   webhook_not_registered:'Nenhum webhook exclusivo do Nexus CRM encontrado na conta Asaas de produção.',
+   webhook_disabled:'Webhook CRM existente, porém desativado no Asaas.',
+   webhook_interrupted:'Fila do webhook CRM interrompida. Examine os logs do Asaas antes de reativar.',
+   missing_webhook_events:'Webhook CRM cadastrado, mas faltam eventos obrigatórios.',
+   receiver_token_not_configured:'Webhook CRM cadastrado, mas o token exclusivo ainda não está configurado na Nexus Central.',
+   configuration_detected_receiver_still_blocked:'Configuração do webhook encontrada. O receptor do CRM continua bloqueado para homologação.',
+   duplicate_webhook_configuration:'Existem múltiplos webhooks para o mesmo endpoint. Revisão manual necessária.',
+   provider_response_invalid:'O Asaas retornou uma lista de webhooks não reconhecida.',
+   permission_or_ip_restricted:'Asaas bloqueou a consulta de webhooks por permissão ou IP.',
+   unauthorized:'Asaas recusou a chave de produção.',
+   rate_limited:'O Asaas limitou a consulta. Evite repetir agora.',
+   unavailable:'Não foi possível confirmar o estado dos webhooks.',
+  };
+  const state=String(data.status||data.connection||'unavailable');
+  let result=states[state]||'A verificação de webhooks está inconclusiva.';
+  if(Array.isArray(data.missingEvents)&&data.missingEvents.length){
+   result+=' Eventos ausentes: '+data.missingEvents.join(', ')+'.';
+  }
+  if(typeof data.receiverUrl==='string'&&data.receiverUrl.startsWith('https://')
+    &&data.receiverUrl.endsWith('/functions/v1/nexus-crm-asaas-production-events')){
+   result+=' Endpoint exclusivo do CRM: '+data.receiverUrl+'.';
+  }
+  result+=' Nenhum pagamento ou webhook foi criado nesta consulta.';
+  $('webhookCheckResult').textContent=result;
+ }catch(error){
+  $('webhookCheckResult').textContent=String(error?.message||'Diagnóstico privado falhou.');
+ }finally{$('webhookCheck').disabled=false;}
+}
+$('webhookCheck').addEventListener('click',checkCrmAsaasWebhook);
 async function checkEmailReadiness(){
  if(!apiClient)return;
  $('emailCheck').disabled=true;
@@ -182,6 +229,7 @@ $('copy').addEventListener('click',async()=>{if($('accessLink').value)await navi
   if(!session){location.replace('login.html?next=crm-live-pix-pilot.html');return}
   if(session.role!=='nexus_admin')throw new Error('Apenas a administração Nexus pode operar este piloto.');
   apiClient=window.NexusAuth.getClient();
+  $('webhookCheck').disabled=false;
   await checkAsaasProduction();
   await call('status');
   await checkEmailReadiness();
