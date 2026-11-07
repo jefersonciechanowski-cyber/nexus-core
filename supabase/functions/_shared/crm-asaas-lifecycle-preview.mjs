@@ -24,7 +24,7 @@ const inspectedTypes=new Set([
  * sale/access/receipt come solely from restricted Supabase reads, never client input.
  */
 export async function previewCrmAsaasLifecycle({eventRow,sale,access,receipt,
-  productCode,fetchResource,now}={}) {
+  productCode,fetchResource,now,environment='sandbox'}={}) {
   if(eventRow?.provider!=='asaas'
     || typeof eventRow.provider_event_id!=='string'
     || !/^asaas:evt_[A-Za-z0-9_&.-]{6,150}$/.test(eventRow.provider_event_id)
@@ -41,7 +41,8 @@ export async function previewCrmAsaasLifecycle({eventRow,sale,access,receipt,
   }
   if(!inspectedTypes.has(eventRow.event_type)) return result('hold','unsupported_transition');
   if(!sale || !access || productCode!=='crm'
-    || sale.provider!=='asaas' || sale.environment!=='sandbox'
+    || !['sandbox','production'].includes(environment)
+    || sale.provider!=='asaas' || sale.environment!==environment
     || sale.sale_status!=='provisioned' || !sale.provisioned_at
     || sale.billing_mode!=='recurring' || sale.billing_cycle_months!==1
     || !sale.organization_id || !sale.asaas_subscription_id
@@ -119,6 +120,7 @@ export async function previewCrmAsaasLifecycle({eventRow,sale,access,receipt,
     subscription,
     now,
     verifiedDeletion:false,
+    environment,
   });
   if(decision.decision!=='candidate') {
     return result(decision.decision,decision.reason||'lifecycle_not_eligible');
