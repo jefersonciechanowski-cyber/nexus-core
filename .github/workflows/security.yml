@@ -56,6 +56,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-verify/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-provision/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-lifecycle-preview/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-renewal/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-send-test/index.ts
           deno check --node-modules-dir=auto supabase/functions/stripe-webhook/crm-provisioning.ts
 
