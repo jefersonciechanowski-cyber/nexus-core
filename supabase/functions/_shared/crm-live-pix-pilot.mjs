@@ -70,5 +70,5 @@ export function assertLivePixCustomer(customer, pilot) {
 
 export function isLivePixExternalReference(value, expectedUuid) {
   return typeof value === 'string' && value === LIVE_PIX_PILOT_PREFIX + expectedUuid
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(expectedUuid);
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(expectedUuid);
 }
