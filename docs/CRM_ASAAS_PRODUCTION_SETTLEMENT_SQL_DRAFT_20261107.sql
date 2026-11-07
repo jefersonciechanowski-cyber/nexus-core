@@ -1,9 +1,12 @@
--- REVIEW STAGING ONLY. Do not apply to production until the hard-off
--- production worker and source proofs have been independently approved.
--- Four service-only SQL financial transitions; independent from Sandbox tables.
--- The function caller must have JUST performed four independent Asaas GETs.
+-- REVIEW/CI ONLY. DO NOT APPLY until production worker, recurring
+-- billing verification, and tenant synchronization have been authorized.
+-- Separate financial claim table and service-only RPCs for production Asaas.
+-- No new charges, subscriptions, or tenant access are created by this SQL.
 begin;
-
+-- REVIEW-ONLY SQL DRAFT (26 Oct 2026). DO NOT APPLY TO PRODUCTION.
+-- Promote to a proper Supabase CLI-generated migration after sandbox approval.
+-- Stores a verified payment reservation; NEVER changes customer access.
+-- Existing company courtesy, provider entitlements and subscriptions untouched.
 
 create table if not exists public.nexus_crm_asaas_production_verified_payments (
   provider_payment_id text primary key,
@@ -26,6 +29,7 @@ create index if not exists nexus_crm_asaas_production_verified_payments_sale_idx
 
 alter table public.nexus_crm_asaas_production_verified_payments enable row level security;
 revoke all on public.nexus_crm_asaas_production_verified_payments from public, anon, authenticated;
+-- No anon/authenticated RLS policies. Only a restricted RPC may reserve.
 
 create or replace function public.reserve_nexus_crm_asaas_production_verified_payment(
   p_sale_id uuid, p_provider_event_id text,
@@ -133,9 +137,15 @@ revoke all on function public.reserve_nexus_crm_asaas_production_verified_paymen
   uuid,text,text,text,bigint,text) from public, anon, authenticated;
 grant execute on function public.reserve_nexus_crm_asaas_production_verified_payment(
   uuid,text,text,text,bigint,text) to service_role;
+-- This function is NOT a payment-proof oracle: only the internal verifier,
+-- after fresh GET checks with Asaas, is allowed to call it with service_role.
 
 grant select, insert, update on public.nexus_crm_asaas_production_verified_payments to service_role;
-
+-- REVIEW ONLY / NOT APPLIED (2026-10-26)
+-- Requires CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql to be reviewed,
+-- turned into a CLI-generated migration, and tested in an isolated sandbox.
+-- This transition records FINANCIAL CONFIRMATION ONLY; it does not grant
+-- CRM entitlements, send emails, create organizations, or modify courtesy.
 
 create or replace function public.claim_nexus_crm_asaas_production_provisioning(
   p_sale_id uuid,
@@ -260,7 +270,15 @@ revoke all on function public.claim_nexus_crm_asaas_production_provisioning(uuid
 grant execute on function public.claim_nexus_crm_asaas_production_provisioning(uuid,text)
   to service_role;
 
+-- Requires authenticated internal orchestration after a fresh Asaas GET
+-- against payment/link/customer/subscription. Not callable by web clients.
+-- Never automate this DRAFT on the production database.
 
+-- REVIEW ONLY / NEVER RUN ON PRODUCTION WITHOUT AUTHORIZED MIGRATION.
+-- Start after reservation + financial claim migrations have been tested.
+-- A one-way provisioning lease prevents two workers from creating 2 tenants.
+-- A crash leaves 'provisioning' for MANUAL review; never auto-expire a lease
+-- while creating users/tenants. Do not automatically retry partial operations.
 
 create or replace function public.begin_nexus_crm_asaas_production_provisioning(
   p_sale_id uuid,p_payment_id text
@@ -305,6 +323,8 @@ revoke all on function public.begin_nexus_crm_asaas_production_provisioning(uuid
   from public,anon,authenticated;
 grant execute on function public.begin_nexus_crm_asaas_production_provisioning(uuid,text) to service_role;
 
+-- Confirmation is allowed ONLY after a real tenant and finance row exist.
+-- This function does not create an organization or alter an entitlement.
 create or replace function public.complete_nexus_crm_asaas_production_provisioning(
   p_sale_id uuid,p_payment_id text
 ) returns jsonb language plpgsql security definer set search_path=''
