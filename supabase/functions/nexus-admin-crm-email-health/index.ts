@@ -90,7 +90,7 @@ Deno.serve(async request => {
     return reply({error:'Somente administrador Nexus autorizado.'},403,cors);
   }
 
-  const key = Deno.env.get('BREVO_API_KEY') || '';
+  const key = Deno.env.get('BREVO_CRM_API_KEY') || '';
   const sender = (Deno.env.get('BREVO_FROM_EMAIL') || '').trim().toLowerCase();
   if (key.length < 16 || !validEmail(sender)) {
     return reply({
