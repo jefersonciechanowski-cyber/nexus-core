@@ -34,6 +34,11 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <p>Verificação somente de leitura da conta, clientes e cobranças. Não cria Pix, assinatura ou cadastro e não mostra a chave API.</p>
 <button class="secondary" id="asaasCheck" type="button" disabled>Verificar conexão (sem cobrança)</button>
 <div class="status" id="asaasCheckResult" aria-live="polite"></div>
+<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+<p><strong>Webhook mensal Asaas — produção.</strong> Consulte se existe uma configuração exclusiva do Nexus CRM e quais eventos ela recebe. Não cria nem altera webhooks, assinaturas, cobranças ou clientes.</p>
+<button id="webhookCheck" class="secondary" type="button" disabled>Conferir webhook mensal (sem alterar)</button>
+<div class="status" id="webhookCheckResult" aria-live="polite"></div>
+</div>
 </section>
 <section class="panel">
 <h2>E-mail automático de primeiro acesso</h2>
