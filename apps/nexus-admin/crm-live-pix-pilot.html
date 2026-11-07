@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="theme-color" content="#071015">
+<title>Pix R$ 10 · Homologação privada CRM | Central Nexus</title>
+<style>
+:root{--bg:#081014;--surface:#111a1f;--line:#2f393f;--text:#f5eee0;--muted:#a0aeb6;--gold:#e0b84a;--good:#9cd1a1;--bad:#ef9e9b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif}
+main{max-width:760px;margin:auto;padding:36px 18px 70px}.panel{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:26px;margin:18px 0}
+h1{font-size:26px;margin:16px 0 8px}h2{font-size:17px;margin:0 0 12px}p{line-height:1.6;color:var(--muted);margin:7px 0 14px}.back{color:var(--gold);text-decoration:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:grid;gap:7px;font-size:13px;color:var(--muted)}
+input{font:inherit;color:var(--text);background:#0c171d;border:1px solid var(--line);border-radius:8px;padding:12px;width:100%;min-width:0}
+input[type="checkbox"]{width:auto;min-width:auto;accent-color:var(--gold)}
+button{background:var(--gold);border:0;color:#181207;font-weight:700;border-radius:8px;padding:12px 16px;cursor:pointer;margin-top:10px}
+button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;color:var(--text);border:1px solid var(--line)}
+.notice{padding:13px;border:1px solid var(--line);border-radius:8px;background:#121e24;font-size:13px;color:var(--muted)}
+.error{color:var(--bad)}.ok{color:var(--good)}[hidden]{display:none!important}
+.status{font-size:13px;margin:8px 0;color:var(--muted)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.wide{grid-column:1/-1}
+@media(max-width:600px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="crm-access.html">← Controle do Nexus CRM</a>
+<h1>Pix real · teste único de R$ 10</h1>
+<p>Homologação interna de uma única cobrança avulsa. Não é assinatura mensal, não altera os planos oficiais e não habilita o checkout público.</p>
+<div class="notice"><strong>Acesso restrito.</strong> Somente administrador Nexus com MFA2. O CPF será enviado apenas ao backend privado, nunca salvo no navegador. O pagamento exige uma confirmação adicional.</div>
+<section class="panel">
+<h2>1. Preparar novo cadastro</h2>
+<form id="prepare" autocomplete="off">
+<div class="grid">
+<label>Empresa de teste<input id="company" maxlength="160" required autocomplete="off"></label>
+<label>Responsável<input id="responsible" maxlength="160" required autocomplete="off"></label>
+<label class="wide">Outro e-mail (não utilizado na Nexus)<input id="email" type="email" maxlength="254" autocomplete="off" required></label>
+<label class="wide">CPF válido de sua titularidade<input id="cpf" type="password" inputmode="numeric" maxlength="14" autocomplete="off" required></label>
+</div>
+<label style="display:flex;gap:10px;align-items:start;margin:20px 0"><input type="checkbox" id="terms" required><span>Estou ciente de que este é um teste contratado por R$ 10, com pagamento único via Pix, sem renovação automática. O acesso de homologação tem vigência de um mês e o encerramento será conferido pela administração.</span></label>
+<button id="prepareButton" type="submit">Validar dados e reservar único teste</button>
+</form>
+</section>
+<section class="panel">
+<h2>2. Criar cobrança Pix real</h2>
+<p>Somente depois da reserva será possível criar a cobrança. Esta ação pode gerar uma cobrança real no Asaas; não repita em caso de timeout.</p>
+<label style="display:flex;gap:10px;align-items:start"><input id="chargeConsent" type="checkbox"><span>Autorizo expressamente criar uma única cobrança Pix real de R$ 10 na minha conta Asaas de produção.</span></label>
+<button id="charge" type="button" disabled>Gerar cobrança real R$ 10</button>
+<div id="invoice" hidden style="margin-top:12px"><a id="invoiceLink" class="back" href="#" target="_blank" rel="noopener noreferrer">Abrir cobrança no Asaas</a><p>Confira o recebedor no Asaas antes de efetuar o Pix.</p></div>
+</section>
+<section class="panel">
+<h2>3. Conferir recebimento e liberar primeiro acesso</h2>
+<p>O backend consulta diretamente o Asaas de produção e exige o status <strong>RECEIVED</strong>, documento e valor corretos, antes de liberar qualquer empresa.</p>
+<div class="row"><button id="verify" type="button" class="secondary" disabled>Verificar pagamento recebido</button><button id="activate" type="button" disabled>Ativar CRM após confirmação</button></div>
+<div id="access" hidden style="margin-top:20px"><label>Primeiro acesso privado — não encaminhe a terceiros<input id="accessLink" readonly type="password"></label><button id="copy" type="button" class="secondary">Copiar primeiro acesso</button></div>
+</section>
+<div class="status" id="progress" aria-live="polite">Verificando autorização administrativa...</div>
+<div class="status error" id="error" role="alert"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../sst-controle/supabase-config.js"></script>
+<script src="../sst-controle/supabase-auth.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let apiClient=null,busy=false,currentStatus='not_prepared';
+const stages=new Set(['payment_pending','paid','provision_pending','provisioned']);
+function showError(msg){$('error').textContent=String(msg||'Falha privada de validação.');}
+function update(state){
+ currentStatus=state?.status||'not_prepared';
+ $('progress').textContent='Status do piloto: '+currentStatus+' · Pix avulso R$ 10,00';
+ $('prepareButton').disabled=busy||currentStatus!=='not_prepared';
+ $('charge').disabled=busy||currentStatus!=='prepared'||!$('chargeConsent').checked;
+ $('verify').disabled=busy||!stages.has(currentStatus);
+ $('activate').disabled=busy||!['paid','provision_pending'].includes(currentStatus);
+ if(state?.invoiceUrl) {
+  try{const url=new URL(state.invoiceUrl);if(url.protocol==='https:'&&['www.asaas.com','asaas.com'].includes(url.hostname)){
+   $('invoiceLink').href=url.toString();$('invoice').hidden=false;
+  }}catch{}
+ }
+}
+async function call(action,payload={}){
+ if(busy) return null;
+ busy=true;showError('');update({status:currentStatus});
+ try{
+  const {data,error}=await apiClient.functions.invoke('nexus-admin-crm-live-pix-pilot',{body:{action,...payload}});
+  if(error){let message='';
+   try{const res=error.context;if(typeof res?.json==='function'){const parsed=await res.json();message=String(parsed?.error||'');}}catch{}
+   throw new Error(message||'Piloto de produção ainda não habilitado.');
+  }
+  if(data?.error)throw new Error(String(data.error));
+  update(data);
+  return data;
+ }catch(err){showError(err?.message||'Falha. Não tente criar outra cobrança automaticamente.');return null;
+ }finally{busy=false;update({status:currentStatus});}
+}
+$('prepare').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const payload={companyName:$('company').value,responsibleName:$('responsible').value,
+ email:$('email').value,cpf:$('cpf').value,acceptedOneTimeTerms:$('terms').checked};
+ const result=await call('prepare',payload);
+ $('cpf').value='';
+ if(result){$('prepare').reset();$('prepareButton').disabled=true;}
+});
+$('chargeConsent').addEventListener('change',()=>update({status:currentStatus}));
+$('charge').addEventListener('click',async()=>{
+ if(!$('chargeConsent').checked||currentStatus!=='prepared')return;
+ if(!confirm('Confirma a CRIAÇÃO DE UMA COBRANÇA REAL e única de R$ 10 via Pix, sem renovação?'))return;
+ $('charge').disabled=true;
+ await call('charge',{confirmation:'AUTORIZO COBRANCA REAL PIX DE R$ 10'});
+});
+$('verify').addEventListener('click',()=>call('verify'));
+$('activate').addEventListener('click',async()=>{
+ if(!confirm('O Pix já foi recebido e conferido. Confirma a liberação de um novo CRM pago de homologação?'))return;
+ const data=await call('activate');
+ if(data?.firstAccessUrl) {
+   try{const url=new URL(data.firstAccessUrl);
+    if(url.origin==='https://crm.nexuscore.app.br'&&url.pathname==='/auth/primeiro-acesso'){
+      $('accessLink').value=url.toString();$('access').hidden=false;
+    }
+   }catch{}
+ }
+});
+$('copy').addEventListener('click',async()=>{if($('accessLink').value)await navigator.clipboard.writeText($('accessLink').value);});
+(async()=>{
+ try{
+  const session=await window.NexusAuth.restoreSession();
+  if(!session){location.replace('login.html');return}
+  if(session.role!=='nexus_admin')throw new Error('Apenas a administração Nexus pode operar este piloto.');
+  apiClient=window.NexusAuth.getClient();
+  await call('status');
+ }catch(e){showError(e?.message||'Acesso administrativo indisponível.');}
+})();
+</script>
+</body>
+</html>
