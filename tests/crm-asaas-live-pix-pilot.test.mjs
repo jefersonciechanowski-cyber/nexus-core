@@ -11,6 +11,7 @@ import {
 const functionSource = readFileSync(new URL('../supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts', import.meta.url),'utf8');
 const migrationSource = readFileSync(new URL('../supabase/migrations/20261107110000_crm_live_pix_ten_real_pilot.sql', import.meta.url),'utf8');
 const uiSource = readFileSync(new URL('../apps/nexus-admin/crm-live-pix-pilot.html', import.meta.url),'utf8');
+const uiControls = readFileSync(new URL('../apps/nexus-admin/crm-live-pix-pilot.js', import.meta.url),'utf8');
 const id = '00000000-0000-4000-8000-000000000001';
 const pilot = {
  provider_payment_id:'pay_test987654321',provider_customer_id:'cus_test987654321',
@@ -92,5 +93,7 @@ test('singleton server-only ledger and UI require user action before real charge
  assert.match(uiSource,/confirm\('Confirma a CRIAÇÃO DE UMA COBRANÇA REAL/);
  assert.match(uiSource,/id="chargeConsent"/);
  assert.match(uiSource,/rel="noopener noreferrer"/);
- assert.doesNotMatch(uiSource,/localStorage|sessionStorage/);
+ assert.doesNotMatch(uiControls,/localStorage|sessionStorage/);
+ assert.match(uiControls,/chargeAttempted=true/);
+ assert.doesNotMatch(uiSource,/<script>\\s*[\\S\\s]*<\\/script>/);
 });
