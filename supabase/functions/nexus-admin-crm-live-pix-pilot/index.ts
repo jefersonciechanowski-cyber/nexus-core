@@ -66,7 +66,8 @@ function safeView(p: any) {
     providerPaymentCreated: Boolean(p.provider_payment_id),
     received: Boolean(p.received_at),
     crmReady: Boolean(p.access_id && p.organization_id && p.status === 'provisioned'),
-    expiresAt: p.status === 'provisioned' ? p.pilot_ends_at ?? null : null,
+    expiresAt: p.status === 'provisioned' ? p.access_ends_at ?? null : null,
+    onboardingEmailSent: Boolean(p.access_email_sent_at),
   } : { status: 'not_prepared', amount: 'R$ 10,00', billingType: 'PIX' };
 }
 
@@ -94,6 +95,45 @@ function inOneMonth() {
   const last = new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+1,0)).getUTCDate();
   start.setUTCDate(Math.min(day,last));
   return start.toISOString().slice(0,10);
+}
+
+async function sendPilotFirstAccessEmail(
+  email: string, responsible: string, company: string, firstAccessUrl: string | null,
+): Promise<boolean> {
+  const key = Deno.env.get('BREVO_API_KEY') || '';
+  const sender = Deno.env.get('BREVO_FROM_EMAIL') || '';
+  if (!key || !sender || !firstAccessUrl) return false;
+  let safeUrl: string;
+  try {
+    const u = new URL(firstAccessUrl);
+    if (u.origin !== 'https://crm.nexuscore.app.br'
+      || u.pathname !== '/auth/primeiro-acesso') return false;
+    safeUrl = u.toString();
+  } catch { return false; }
+  const esc = (input: string) => small(input,160)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const content = '<div style="font-family:Arial,sans-serif;line-height:1.6">'
+    +'<h2>Seu acesso ao Nexus CRM está pronto</h2>'
+    +'<p>Olá, '+esc(responsible)+'. A empresa '+esc(company)
+    +' concluiu o pagamento <strong>Pix avulso de homologação de R$ 10</strong>.</p>'
+    +'<p>Este teste não cria assinatura automática ou cobranças recorrentes.</p>'
+    +'<p><a href="'+safeUrl+'">Definir minha senha e entrar no CRM</a></p>'
+    +'<p>Não encaminhe este link de primeiro acesso para outra pessoa.</p></div>';
+  try {
+    const result = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method:'POST',headers:{'api-key':key,'accept':'application/json',
+        'content-type':'application/json'},
+      body:JSON.stringify({
+        sender:{name:'Nexus Core',email:sender},
+        to:[{email,name:responsible}],
+        subject:'Nexus CRM — primeiro acesso do piloto Pix',
+        htmlContent:content,
+      }),
+      signal:AbortSignal.timeout(12000),
+    });
+    return result.ok;
+  } catch { return false; }
 }
 
 Deno.serve(async request => {
@@ -329,12 +369,18 @@ Deno.serve(async request => {
     },{id:accessId},'administrative');
     if (delivery.error || !delivery.crmOrganizationId) throw new Error('crm_delivery_pending');
     const completed = await updatePilot(admin,pilot.id,{
-      status:'provisioned',activated_at:new Date().toISOString(),
+      status:'provisioned',activated_at:new Date().toISOString(),access_ends_at:inOneMonth(),
+    });
+    const emailSent = await sendPilotFirstAccessEmail(
+      pilot.email,pilot.responsible_name,pilot.company_name,delivery.firstAccessUrl,
+    );
+    if (emailSent) await updatePilot(admin,pilot.id,{
+      access_email_sent_at:new Date().toISOString(),
     });
     await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PROVISIONED',user.id,pilot.id,{
       organization_id:organizationId,access_id:accessId,crm_organization_id:delivery.crmOrganizationId,
     });
-    return reply({...safeView(completed),firstAccessUrl:delivery.firstAccessUrl},200,cors);
+    return reply({...safeView(completed),onboardingEmailSent:emailSent,firstAccessUrl:delivery.firstAccessUrl},200,cors);
   } catch {
     await updatePilot(admin,pilot.id,{status:'provision_pending',error_code:'crm_activation_needs_review'});
     return reply({error:'Pagamento confirmado, mas ativação requer revisão. Não crie outra cobrança.'},502,cors);
