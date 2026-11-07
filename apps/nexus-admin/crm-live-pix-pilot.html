@@ -63,14 +63,14 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <script src="../sst-controle/supabase-auth.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let apiClient=null,busy=false,currentStatus='not_prepared';
+let apiClient=null,busy=false,currentStatus='not_prepared',chargeAttempted=false;
 const stages=new Set(['payment_pending','paid','provision_pending','provisioned']);
 function showError(msg){$('error').textContent=String(msg||'Falha privada de validação.');}
 function update(state){
  currentStatus=state?.status||'not_prepared';
  $('progress').textContent='Status do piloto: '+currentStatus+' · Pix avulso R$ 10,00';
  $('prepareButton').disabled=busy||currentStatus!=='not_prepared';
- $('charge').disabled=busy||currentStatus!=='prepared'||!$('chargeConsent').checked;
+ $('charge').disabled=busy||chargeAttempted||currentStatus!=='prepared'||!$('chargeConsent').checked;
  $('verify').disabled=busy||!stages.has(currentStatus);
  $('activate').disabled=busy||!['paid','provision_pending'].includes(currentStatus);
  if(state?.invoiceUrl) {
@@ -106,6 +106,7 @@ $('chargeConsent').addEventListener('change',()=>update({status:currentStatus}))
 $('charge').addEventListener('click',async()=>{
  if(!$('chargeConsent').checked||currentStatus!=='prepared')return;
  if(!confirm('Confirma a CRIAÇÃO DE UMA COBRANÇA REAL e única de R$ 10 via Pix, sem renovação?'))return;
+ chargeAttempted=true;
  $('charge').disabled=true;
  await call('charge',{confirmation:'AUTORIZO COBRANCA REAL PIX DE R$ 10'});
 });
