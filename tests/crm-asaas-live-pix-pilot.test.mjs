@@ -74,7 +74,7 @@ test('verification is receipt-bound, production-only, and rejects refunds',()=>{
 });
 test('admin-only MFA2, one-winner charge, no retry after uncertain outcome',()=>{
  assert.match(functionSource,/aal\?\.currentLevel !== 'aal2'/);
- assert.match(functionSource,/profile\.role !== 'nexus_admin'/);
+ assert.match(functionSource,/profile\?\.role !== 'nexus_admin'/);
  assert.match(functionSource,/eq\('status','prepared'\)\.select\('id'\)/);
  assert.match(functionSource,/live_charge_unknown_check_asaas_before_retry/);
  assert.match(functionSource,/payment_not_received|assertLivePixPayment/);
