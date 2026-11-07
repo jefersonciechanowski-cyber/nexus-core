@@ -17,7 +17,7 @@ function sameMoney(cents, amount) {
 /**
  * @returns {{decision:string,reason?:string,action?:string,subscriptionStatus?:string,accessStatus?:string,eventId?:string}}
  */
-export function decideCrmAsaasLifecycle({ event, sale, access, payment, subscription, now, verifiedDeletion = false }) {
+export function decideCrmAsaasLifecycle({ event, sale, access, payment, subscription, now, verifiedDeletion = false, environment = 'sandbox' }) {
   if (!event || event.provider !== 'asaas' || !event.provider_event_id?.startsWith('asaas:evt_')
     || event.payload?.event !== event.event_type) return forbidden('unauthenticated_or_malformed_event');
   const occurred = eventTime(event.occurredAt);
@@ -27,7 +27,8 @@ export function decideCrmAsaasLifecycle({ event, sale, access, payment, subscrip
   if (last !== null && occurred <= last) return held('stale_or_duplicate');
   if (event.provider_event_id === access?.provider_state_event_id) return held('duplicate');
 
-  if (!sale || sale.provider !== 'asaas' || sale.environment !== 'sandbox'
+  if (!['sandbox','production'].includes(environment)
+    || !sale || sale.provider !== 'asaas' || sale.environment !== environment
     || sale.billing_mode !== 'recurring' || sale.billing_cycle_months !== 1
     || !access || access.billing_provider !== 'asaas' || access.billing_mode !== 'recurring'
     || access.commercial_condition !== 'standard' || access.product_code !== 'crm'
