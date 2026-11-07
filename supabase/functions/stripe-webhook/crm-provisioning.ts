@@ -1,3 +1,4 @@
+import { sendCrmSmtpMail } from './crm-brevo-smtp.ts';
 const clean = (value: unknown, size = 500) => String(value ?? '').trim().slice(0, size);
 
 function bytesToHex(bytes: Uint8Array) {
@@ -391,10 +392,8 @@ async function auditCrmEmailFailure(admin: any, sale: any, reason: string) {
 }
 
 export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, firstAccessUrl: string | null, billingProvider: 'stripe' | 'asaas' = 'stripe') {
-  const brevoKey = Deno.env.get('BREVO_CRM_API_KEY');
-  const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
-  if (!brevoKey || !fromEmail || !sale?.email || !firstAccessUrl) {
-    await auditCrmEmailFailure(admin, sale, !firstAccessUrl ? 'Link de primeiro acesso do CRM ausente.' : 'brevo_crm_configuration_missing');
+  if (!sale?.email || !firstAccessUrl) {
+    await auditCrmEmailFailure(admin, sale, !firstAccessUrl ? 'Link de primeiro acesso do CRM ausente.' : 'recipient_missing');
     return false;
   }
 
@@ -442,35 +441,18 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
       <p style="font-size:12px;color:#7b858a">Nexus Core · ambiente criado após a confirmação do pagamento.</p>
     </div>`;
 
-  let response: Response;
-  try {
-    response = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'api-key': brevoKey,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'Nexus Core', email: fromEmail },
-      to: [{ email: sale.email, name: clean(sale.responsible_name, 140) || undefined }],
-      subject: 'Seu acesso ao Nexus CRM está pronto',
-      htmlContent: html,
-    }),
-      signal: AbortSignal.timeout(12000),
-    });
-  } catch {
-    await auditCrmEmailFailure(admin, sale, 'brevo_request_failed');
+  const sent = await sendCrmSmtpMail({
+    toEmail: sale.email,
+    toName: clean(sale.responsible_name, 140),
+    subject: 'Seu acesso ao Nexus CRM está pronto',
+    htmlContent: html,
+  });
+  if (!sent.sent) {
+    await auditCrmEmailFailure(admin, sale, sent.reason);
     return false;
   }
 
-  if (!response.ok) {
-    await auditCrmEmailFailure(admin, sale, 'brevo_http_' + String(response.status));
-    return false;
-  }
-
-  let messageId: string | null = null;
-  try { messageId = clean((await response.json())?.messageId, 255) || null; } catch { /* resposta sem JSON */ }
+  const messageId = sent.messageId;
 
   await admin.from('audit_logs').insert({
     organization_id: sale.organization_id || null,

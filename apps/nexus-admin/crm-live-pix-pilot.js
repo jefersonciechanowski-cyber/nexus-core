@@ -78,7 +78,7 @@ $('asaasCheck').addEventListener('click',checkAsaasProduction);
 async function checkEmailReadiness(){
  if(!apiClient)return;
  $('emailCheck').disabled=true;
- $('emailCheckResult').textContent='Conferindo remetente Brevo, sem enviar mensagem...';
+ $('emailCheckResult').textContent='Conferindo autenticação SMTP com TLS, sem enviar mensagem...';
  try{
   const {data,error}=await apiClient.functions.invoke('nexus-admin-crm-email-health',{
    body:{action:'check'}
@@ -94,15 +94,11 @@ async function checkEmailReadiness(){
   if(data?.emailSent!==false || typeof data?.status!=='string')
    throw new Error('Diagnóstico de e-mail retornou uma resposta inválida.');
   const mapping={
-   sender_active:'Remetente Brevo ativo e verificado. Conexão de leitura aprovada. Nenhum e-mail enviado.',
-   sender_inactive:'O remetente configurado existe no Brevo, mas está inativo. É necessário ativá-lo.',
-   sender_not_found:'A chave Brevo é válida, mas o e-mail remetente configurado não foi encontrado entre os remetentes.',
-   missing_configuration:'Falta BREVO_API_KEY ou BREVO_FROM_EMAIL no Supabase da Nexus Central. Confira sem compartilhar valores.',
-   invalid_brevo_key:'O Brevo recusou a chave API. Confira a credencial no servidor.',
-   brevo_permission_denied:'O Brevo recusou acesso à consulta de remetentes. Verifique a permissão da API.',
-   brevo_rate_limited:'O Brevo limitou as consultas. Não repita automaticamente.',
-   invalid_provider_response:'O Brevo respondeu com dados inesperados. Nenhum envio ocorreu.',
-   brevo_unavailable:'O serviço Brevo não respondeu corretamente. Nenhum envio ocorreu.',
+   smtp_authenticated:'SMTP do CRM autenticado com segurança. Nenhuma mensagem foi enviada. O remetente ainda precisa de homologação por envio controlado.',
+   smtp_invalid_credentials:'O Brevo recusou o login ou a chave SMTP exclusiva do CRM. Confira as credenciais no Supabase.',
+   smtp_connection_failed:'Não foi possível estabelecer a conexão SMTP com o Brevo na porta 2525. Confira a rede e a porta, sem alterar outras chaves.',
+   smtp_unavailable:'O Brevo SMTP não concluiu a autenticação. Nenhuma mensagem foi enviada.',
+   missing_configuration:'Falta a configuração exclusiva do CRM: BREVO_CRM_SMTP_USER, BREVO_CRM_SMTP_KEY, BREVO_CRM_SMTP_HOST, BREVO_CRM_SMTP_PORT ou BREVO_FROM_EMAIL.',
   };
   $('emailCheckResult').textContent=mapping[data.status] ||
     'Não foi possível confirmar a configuração de e-mail. Nenhum envio ocorreu.';
