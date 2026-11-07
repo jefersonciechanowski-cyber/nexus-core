@@ -377,21 +377,24 @@ export async function provisionCrmTenant(admin: any, sale: any, access: any): Pr
 }
 
 async function auditCrmEmailFailure(admin: any, sale: any, reason: string) {
-  await admin.from('audit_logs').insert({
+  // An email transport failure must never undo the paid CRM tenant.
+  try {
+    await admin.from('audit_logs').insert({
     organization_id: sale.organization_id || null,
     user_id: sale.user_id || null,
     action: 'NEXUS_CRM_ONBOARDING_EMAIL_FAILED',
     entity: 'nexus_sales',
     entity_id: sale.id,
-    metadata: { email: sale.email, provider: 'brevo', reason: clean(reason, 700) },
-  });
+    metadata: { provider: 'brevo', reason: clean(reason, 100) },
+    });
+  } catch { /* Leave paid provisioned access intact on audit downtime. */ }
 }
 
-export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, firstAccessUrl: string | null) {
-  const brevoKey = Deno.env.get('BREVO_API_KEY');
+export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, firstAccessUrl: string | null, billingProvider: 'stripe' | 'asaas' = 'stripe') {
+  const brevoKey = Deno.env.get('BREVO_CRM_API_KEY');
   const fromEmail = Deno.env.get('BREVO_FROM_EMAIL');
   if (!brevoKey || !fromEmail || !sale?.email || !firstAccessUrl) {
-    await auditCrmEmailFailure(admin, sale, !firstAccessUrl ? 'Link de primeiro acesso do CRM ausente.' : 'BREVO_API_KEY, BREVO_FROM_EMAIL ou e-mail do cliente ausente.');
+    await auditCrmEmailFailure(admin, sale, !firstAccessUrl ? 'Link de primeiro acesso do CRM ausente.' : 'brevo_crm_configuration_missing');
     return false;
   }
 
@@ -403,6 +406,22 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
     .limit(1)
     .maybeSingle();
   if (previous?.id) return true;
+
+  // The CRM issues this one-time URL; never accept external or injected links.
+  let safeAccessUrl: string;
+  try {
+    const accessUrl = new URL(firstAccessUrl);
+    if (accessUrl.origin !== 'https://crm.nexuscore.app.br'
+      || accessUrl.pathname !== '/auth/primeiro-acesso'
+      || accessUrl.username || accessUrl.password) {
+      await auditCrmEmailFailure(admin, sale, 'crm_first_access_url_unrecognized');
+      return false;
+    }
+    safeAccessUrl = accessUrl.toString();
+  } catch {
+    await auditCrmEmailFailure(admin, sale, 'crm_first_access_url_invalid');
+    return false;
+  }
 
   const escapeHtml = (value: unknown) => clean(value, 500)
     .replace(/&/g, '&amp;')
@@ -417,13 +436,15 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
       <p>Olá, ${escapeHtml(sale.responsible_name)}.</p>
       <p>O pagamento da <strong>${escapeHtml(sale.company_name)}</strong> foi confirmado e o plano <strong>${escapeHtml(plan?.name || 'Nexus CRM')}</strong> já está ativo.</p>
       <p>Seu ambiente comercial foi criado automaticamente. Defina sua senha para entrar como administrador inicial.</p>
-      <p style="margin:28px 0"><a href="${firstAccessUrl}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir senha e acessar o Nexus CRM</a></p>
+      <p style="margin:28px 0"><a href="${safeAccessUrl}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir senha e acessar o Nexus CRM</a></p>
       <p style="font-size:13px;color:#68757b">Depois do primeiro acesso, sua equipe pode ser convidada em Equipe e Acessos, respeitando o limite do plano contratado.</p>
       <hr style="border:0;border-top:1px solid #d9dee1;margin:26px 0">
-      <p style="font-size:12px;color:#7b858a">Nexus Core · ambiente criado automaticamente após confirmação financeira da Stripe.</p>
+      <p style="font-size:12px;color:#7b858a">Nexus Core · ambiente criado após a confirmação do pagamento.</p>
     </div>`;
 
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+  let response: Response;
+  try {
+    response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
       accept: 'application/json',
@@ -436,10 +457,15 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
       subject: 'Seu acesso ao Nexus CRM está pronto',
       htmlContent: html,
     }),
-  });
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch {
+    await auditCrmEmailFailure(admin, sale, 'brevo_request_failed');
+    return false;
+  }
 
   if (!response.ok) {
-    await auditCrmEmailFailure(admin, sale, `Brevo ${response.status}: ${clean(await response.text(), 500)}`);
+    await auditCrmEmailFailure(admin, sale, 'brevo_http_' + String(response.status));
     return false;
   }
 
@@ -452,7 +478,7 @@ export async function sendCrmAccessEmail(admin: any, sale: any, plan: any, first
     action: 'NEXUS_CRM_ONBOARDING_EMAIL_SENT',
     entity: 'nexus_sales',
     entity_id: sale.id,
-    metadata: { email: sale.email, plan_id: sale.plan_id, provider: 'brevo', billing_provider: 'stripe', message_id: messageId },
+    metadata: { plan_id: sale.plan_id, provider: 'brevo', billing_provider: billingProvider, message_id: messageId },
   });
   return true;
 }
