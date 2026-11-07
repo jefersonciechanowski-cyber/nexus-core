@@ -104,7 +104,7 @@ type PilotEmailResult = { sent:boolean; reason:string };
 async function sendPilotFirstAccessEmail(
   email: string, responsible: string, company: string, firstAccessUrl: string | null,
 ): Promise<PilotEmailResult> {
-  const key = Deno.env.get('BREVO_API_KEY') || '';
+  const key = Deno.env.get('BREVO_CRM_API_KEY') || '';
   const sender = Deno.env.get('BREVO_FROM_EMAIL') || '';
   if (!firstAccessUrl) return {sent:false,reason:'access_link_missing'};
   if (!key || !sender) return {sent:false,reason:'brevo_configuration_missing'};
