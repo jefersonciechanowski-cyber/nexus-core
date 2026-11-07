@@ -20,6 +20,7 @@ CREATE TABLE public.organization_product_access(
   id uuid primary key,
   organization_id uuid not null references public.organizations(id),
   product_id uuid not null references public.nexus_products(id),
+  plan_id uuid references public.nexus_plans(id),
   subscription_status text not null,access_status text not null,
   renews_at date,billing_provider text,commercial_condition text,
   contracted_price_cents bigint,last_payment_status text,
