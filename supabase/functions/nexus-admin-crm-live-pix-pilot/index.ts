@@ -11,7 +11,7 @@ import {
 // Real production Asaas charging stays blocked even if every environment
 // variable is set. A separate reviewed deployment is required to charge.
 const STAGED_LIVE_PIX_DISABLED = false;
-const STAGED_LIVE_PIX_CHARGE_DISABLED = true;
+const STAGED_LIVE_PIX_CHARGE_DISABLED = false;
 const MAX_BODY_BYTES = 8192;
 const ORIGINS = new Set([
   'https://nexuscore.app.br',
@@ -59,7 +59,7 @@ async function asaasRequest(key: string, method: 'GET' | 'POST', path: string, p
   catch { throw new Error('provider_unreadable'); }
 }
 
-function safeView(p: any) {
+function safeView(p: any, chargeEnabled = false) {
   return p ? {
     status: p.status,
     amount: 'R$ 10,00',
@@ -70,8 +70,8 @@ function safeView(p: any) {
     crmReady: Boolean(p.access_id && p.organization_id && p.status === 'provisioned'),
     expiresAt: p.status === 'provisioned' ? p.access_ends_at ?? null : null,
     onboardingEmailSent: Boolean(p.access_email_sent_at),
-    chargeEnabled: false,
-  } : { status: 'not_prepared', amount: 'R$ 10,00', billingType: 'PIX', chargeEnabled: false };
+    chargeEnabled,
+  } : { status: 'not_prepared', amount: 'R$ 10,00', billingType: 'PIX', chargeEnabled };
 }
 
 async function audit(admin: any, action: string, userId: string, pilotId: string, data: Record<string, unknown> = {}) {
@@ -172,10 +172,12 @@ Deno.serve(async request => {
   if (profileError || profile?.role !== 'nexus_admin' || profile.active !== true)
     return reply({error:'Administração Nexus necessária.'},403,cors);
 
+  const chargeEnabled = !STAGED_LIVE_PIX_CHARGE_DISABLED
+    && canRunLivePixPilot(Deno.env.toObject(),'charge');
   const {data:pilot,error:pilotError} = await admin.from('nexus_crm_live_pix_pilot')
     .select('*').eq('slot',LIVE_PIX_SLOT).maybeSingle();
   if (pilotError) return reply({error:'Tabela do piloto não disponível.'},503,cors);
-  if (action === 'status') return reply(safeView(pilot),200,cors);
+  if (action === 'status') return reply(safeView(pilot,chargeEnabled),200,cors);
 
   if (action === 'prepare') {
     if (pilot) return reply({error:'Já existe uma única operação piloto reservada.',...safeView(pilot)},409,cors);
@@ -204,7 +206,7 @@ Deno.serve(async request => {
     if (insertError || !created) return reply({error:'Reserva única já existente ou bloqueada.'},409,cors);
     try { await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PREPARED',user.id,id); }
     catch { /* Reservation persists; avoid misleading the operator or retrying. */ }
-    return reply(safeView(created),200,cors);
+    return reply(safeView(created,chargeEnabled),200,cors);
   }
 
   if (!pilot) return reply({error:'Prepare a contratação antes de prosseguir.'},409,cors);
@@ -212,8 +214,8 @@ Deno.serve(async request => {
   if (asaasKey.length < 20) return reply({error:'Chave Asaas de produção não configurada no servidor.'},503,cors);
 
   if (action === 'charge') {
-    if (STAGED_LIVE_PIX_CHARGE_DISABLED)
-      return reply({error:'Geração de Pix real ainda bloqueada; a reserva não cria cobrança.'},503,cors);
+    if (!chargeEnabled)
+      return reply({error:'Geração de Pix real não habilitada nas duas autorizações privadas.'},503,cors);
     if (body.confirmation !== LIVE_PIX_CHARGE_CONFIRMATION)
       return reply({error:'Confirmação explícita de Pix real R$ 10 obrigatória.'},400,cors);
     // This UPDATE is a single-winner lock. Never retry charge after an unclear result.
@@ -248,7 +250,7 @@ Deno.serve(async request => {
         payment_due:tomorrow,
       });
       await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_CHARGE_CREATED',user.id,pilot.id);
-      return reply(safeView(saved),200,cors);
+      return reply(safeView(saved,chargeEnabled),200,cors);
     } catch {
       await failReview(admin,pilot.id,'live_charge_unknown_check_asaas_before_retry');
       return reply({error:'Resultado do Asaas inconclusivo. Não tente criar outra cobrança; concilie no painel de produção.'},502,cors);
@@ -281,11 +283,11 @@ Deno.serve(async request => {
       ? await updatePilot(admin,pilot.id,{status:'paid',received_at:new Date().toISOString()})
       : pilot;
     await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_RECEIPT_VERIFIED',user.id,pilot.id);
-    return reply({...safeView(verified),verified:true},200,cors);
+    return reply({...safeView(verified,chargeEnabled),verified:true},200,cors);
   }
 
   if (action !== 'activate') return reply({error:'Ação inválida.'},400,cors);
-  if (pilot.status === 'provisioned') return reply({...safeView(pilot),firstAccessUrl:null},200,cors);
+  if (pilot.status === 'provisioned') return reply({...safeView(pilot,chargeEnabled),firstAccessUrl:null},200,cors);
   if (!['paid','provision_pending'].includes(pilot.status))
     return reply({error:'Verifique o recebimento antes da ativação.'},409,cors);
 
@@ -390,7 +392,7 @@ Deno.serve(async request => {
     await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PROVISIONED',user.id,pilot.id,{
       organization_id:organizationId,access_id:accessId,crm_organization_id:delivery.crmOrganizationId,
     });
-    return reply({...safeView(completed),onboardingEmailSent:emailSent,firstAccessUrl:delivery.firstAccessUrl},200,cors);
+    return reply({...safeView(completed,chargeEnabled),onboardingEmailSent:emailSent,firstAccessUrl:delivery.firstAccessUrl},200,cors);
   } catch {
     await updatePilot(admin,pilot.id,{status:'provision_pending',error_code:'crm_activation_needs_review'});
     return reply({error:'Pagamento confirmado, mas ativação requer revisão. Não crie outra cobrança.'},502,cors);
