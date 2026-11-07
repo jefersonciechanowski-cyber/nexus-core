@@ -79,6 +79,7 @@ async function checkEmailReadiness(){
  if(!apiClient)return;
  $('emailCheck').disabled=true;
  $('emailCheckResult').textContent='Conferindo autenticação SMTP com TLS, sem enviar mensagem...';
+ $('emailSendTest').disabled=true;
  try{
   const {data,error}=await apiClient.functions.invoke('nexus-admin-crm-email-health',{
    body:{action:'check'}
@@ -102,11 +103,48 @@ async function checkEmailReadiness(){
   };
   $('emailCheckResult').textContent=mapping[data.status] ||
     'Não foi possível confirmar a configuração de e-mail. Nenhum envio ocorreu.';
+  if(data.status==='smtp_authenticated' && $('emailSendTestResult').dataset.attempted!=='true')$('emailSendTest').disabled=false;
  }catch(e){
   $('emailCheckResult').textContent=String(e?.message || 'Falha de diagnóstico, sem envio.');
  }finally{$('emailCheck').disabled=false;}
 }
 $('emailCheck').addEventListener('click',checkEmailReadiness);
+$('emailSendTest').addEventListener('click',async()=>{
+ if(!apiClient||$('emailSendTest').disabled)return;
+ if(!confirm('Confirma enviar UM e-mail de teste para o endereço da sua sessão Nexus Admin? Não haverá cobrança, criação de cliente ou link de acesso.'))return;
+ $('emailSendTest').disabled=true;
+ $('emailSendTestResult').dataset.attempted='true';
+ $('emailSendTestResult').textContent='Solicitando envio SMTP para o e-mail da sua sessão...';
+ try{
+  const {data,error}=await apiClient.functions.invoke('nexus-admin-crm-email-send-test',{
+   body:{action:'send_self_test'}
+  });
+  if(error){
+   let message='Não foi possível completar o envio do teste.';
+   try{if(typeof error.context?.json==='function'){
+    const parsed=await error.context.json();
+    if(parsed?.error)message=String(parsed.error);
+   }}catch{}
+   throw new Error(message);
+  }
+  const messages={
+   smtp_accepted:'Brevo aceitou o e-mail de teste. Verifique sua caixa de entrada e spam. Isso não confirma entrega até você recebê-lo.',
+   already_attempted:'Uma tentativa já foi registrada nas últimas 24 horas. Não será feito outro envio automático.',
+   audit_unavailable:'Não foi possível registrar o teste com segurança. Nenhum e-mail foi enviado.',
+   admin_email_missing:'A sessão não possui um e-mail válido. Nenhum e-mail foi enviado.',
+   smtp_invalid_credentials:'O Brevo recusou o login SMTP para envio.',
+   smtp_configuration_missing:'Configuração SMTP incompleta. Nenhum e-mail foi enviado.',
+   smtp_connection_failed:'Falha na conexão SMTP durante o envio. Não repita imediatamente.',
+   smtp_recipient_not_accepted:'O servidor SMTP não aceitou o destinatário.',
+   smtp_unavailable:'O Brevo SMTP não concluiu o envio. Não repita automaticamente.',
+  };
+  $('emailSendTestResult').textContent=messages[data?.status]||
+   'Não foi possível confirmar a aceitação do envio. Não repita automaticamente.';
+ }catch(e){
+  $('emailSendTestResult').textContent=String(e?.message||'Falha de envio. Não repita automaticamente.');
+ }
+});
+
 
 $('prepare').addEventListener('submit',async event=>{
  event.preventDefault();
