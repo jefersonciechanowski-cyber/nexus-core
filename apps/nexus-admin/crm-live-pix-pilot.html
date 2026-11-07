@@ -36,6 +36,12 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <div class="status" id="asaasCheckResult" aria-live="polite"></div>
 </section>
 <section class="panel">
+<h2>E-mail automático de primeiro acesso</h2>
+<p>Diagnóstico privado do envio Brevo: confere a configuração e o remetente ativo. <strong>Esta consulta não envia mensagens e não gera links de acesso.</strong></p>
+<button id="emailCheck" type="button" class="secondary" disabled>Verificar envio de e-mail (sem enviar)</button>
+<div class="status" id="emailCheckResult" aria-live="polite"></div>
+</section>
+<section class="panel">
 <h2>1. Preparar novo cadastro</h2>
 <p>Reserve os dados do novo cliente de teste. <strong>Essa etapa não gera cobrança nem libera o CRM.</strong> Use um e-mail diferente do que já utiliza na Nexus.</p>
 <form id="prepare" autocomplete="off">
@@ -63,6 +69,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <div class="row"><button id="verify" type="button" class="secondary" disabled>Verificar pagamento recebido</button><button id="activate" type="button" disabled>Ativar CRM após confirmação</button></div>
 <div id="access" hidden style="margin-top:20px"><label>Primeiro acesso privado — não encaminhe a terceiros<input id="accessLink" readonly type="password"></label><button id="copy" type="button" class="secondary">Copiar primeiro acesso</button></div>
 </section>
+<div class="notice" id="pilotExpiryNotice" hidden>O teste avulso não é renovado automaticamente. A expiração deve ser controlada pela administração Nexus.</div>
 <div class="status" id="progress" aria-live="polite">Verificando autorização administrativa...</div>
 <div class="status error" id="error" role="alert"></div>
 </main>

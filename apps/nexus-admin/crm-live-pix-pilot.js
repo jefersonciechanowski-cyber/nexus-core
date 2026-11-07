@@ -5,6 +5,11 @@ function showError(msg){$('error').textContent=String(msg||'Falha privada de val
 function update(state){
  currentStatus=state?.status||'not_prepared';
  $('progress').textContent='Status do piloto: '+currentStatus+' · Pix avulso R$ 10,00';
+ if(state?.expiresAt && currentStatus==='provisioned'){
+  $('pilotExpiryNotice').hidden=false;
+  $('pilotExpiryNotice').textContent='Contrato avulso com vigência até '+String(state.expiresAt)+
+   '. Não há cobrança recorrente. Conferir encerramento/suspensão administrativa na data de vencimento.';
+ }
  $('prepareButton').disabled=busy||!financeEnabled||currentStatus!=='not_prepared';
  $('charge').disabled=busy||!chargeEnabled||!financeEnabled||chargeAttempted||currentStatus!=='prepared'||!$('chargeConsent').checked;
  $('verify').disabled=busy||!stages.has(currentStatus);
@@ -54,7 +59,7 @@ async function checkAsaasProduction(){
    const approval=data.accountApproval==='APPROVED'?'Conta aprovada':data.accountApproval==='UNKNOWN'?'Situação cadastral não identificada':'Situação cadastral: '+String(data.accountApproval||'não identificada');
    message='Asaas Produção autenticado. '+approval+'. Consultas de clientes: '
      +(data.customersRead===true?'OK':'não confirmadas')+'. Consultas de cobranças: '
-     +(data.paymentsRead===true?'OK':'não confirmadas')+'. Nenhuma cobrança criada.';
+     +(data.paymentsRead===true?'OK':'não confirmadas')+'. Esta verificação não criou nova cobrança.';
   }else if(connection==='missing_or_wrong_environment'){
    message='A chave Asaas de produção não foi reconhecida pelo servidor. Confira o Secret, sem enviá-lo.';
   }else if(connection==='unauthorized'){
@@ -70,6 +75,43 @@ async function checkAsaasProduction(){
  }finally{$('asaasCheck').disabled=false;}
 }
 $('asaasCheck').addEventListener('click',checkAsaasProduction);
+async function checkEmailReadiness(){
+ if(!apiClient)return;
+ $('emailCheck').disabled=true;
+ $('emailCheckResult').textContent='Conferindo remetente Brevo, sem enviar mensagem...';
+ try{
+  const {data,error}=await apiClient.functions.invoke('nexus-admin-crm-email-health',{
+   body:{action:'check'}
+  });
+  if(error){
+   let message='Não foi possível consultar o serviço de e-mail.';
+   try{if(typeof error.context?.json==='function'){
+    const parsed=await error.context.json();
+    if(parsed?.error)message=String(parsed.error);
+   }}catch{}
+   throw new Error(message);
+  }
+  if(data?.emailSent!==false || typeof data?.status!=='string')
+   throw new Error('Diagnóstico de e-mail retornou uma resposta inválida.');
+  const mapping={
+   sender_active:'Remetente Brevo ativo e verificado. Conexão de leitura aprovada. Nenhum e-mail enviado.',
+   sender_inactive:'O remetente configurado existe no Brevo, mas está inativo. É necessário ativá-lo.',
+   sender_not_found:'A chave Brevo é válida, mas o e-mail remetente configurado não foi encontrado entre os remetentes.',
+   missing_configuration:'Falta BREVO_API_KEY ou BREVO_FROM_EMAIL no Supabase da Nexus Central. Confira sem compartilhar valores.',
+   invalid_brevo_key:'O Brevo recusou a chave API. Confira a credencial no servidor.',
+   brevo_permission_denied:'O Brevo recusou acesso à consulta de remetentes. Verifique a permissão da API.',
+   brevo_rate_limited:'O Brevo limitou as consultas. Não repita automaticamente.',
+   invalid_provider_response:'O Brevo respondeu com dados inesperados. Nenhum envio ocorreu.',
+   brevo_unavailable:'O serviço Brevo não respondeu corretamente. Nenhum envio ocorreu.',
+  };
+  $('emailCheckResult').textContent=mapping[data.status] ||
+    'Não foi possível confirmar a configuração de e-mail. Nenhum envio ocorreu.';
+ }catch(e){
+  $('emailCheckResult').textContent=String(e?.message || 'Falha de diagnóstico, sem envio.');
+ }finally{$('emailCheck').disabled=false;}
+}
+$('emailCheck').addEventListener('click',checkEmailReadiness);
+
 $('prepare').addEventListener('submit',async event=>{
  event.preventDefault();
  if(!confirm('Confirma que o CPF, o e-mail novo e o nome da empresa estão corretos? Esta reserva é única e não cria cobrança agora.'))return;
@@ -108,5 +150,6 @@ $('copy').addEventListener('click',async()=>{if($('accessLink').value)await navi
   apiClient=window.NexusAuth.getClient();
   await checkAsaasProduction();
   await call('status');
+  await checkEmailReadiness();
  }catch(e){showError(e?.message||'Acesso administrativo indisponível.');}
 })();
