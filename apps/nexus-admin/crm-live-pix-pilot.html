@@ -40,6 +40,11 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <p>Diagnóstico privado do Brevo: verifica conexão e autenticação SMTP com TLS. Isso não comprova a aprovação do remetente. <strong>Esta consulta não envia mensagens e não gera links de acesso.</strong></p>
 <button id="emailCheck" type="button" class="secondary" disabled>Verificar envio de e-mail (sem enviar)</button>
 <div class="status" id="emailCheckResult" aria-live="polite"></div>
+<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px">
+<p><strong>Homologação de entrega.</strong> Envia uma única mensagem de teste ao e-mail da sua sessão administrativa (máximo 1 tentativa a cada 24h). Não contém links de acesso nem cria cobrança.</p>
+<button id="emailSendTest" class="secondary" type="button" disabled>Enviar e-mail de teste para mim</button>
+<div class="status" id="emailSendTestResult" aria-live="polite"></div>
+</div>
 </section>
 <section class="panel">
 <h2>1. Preparar novo cadastro</h2>
