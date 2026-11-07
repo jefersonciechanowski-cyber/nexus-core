@@ -28,6 +28,7 @@ create index if not exists nexus_crm_asaas_production_verified_payments_sale_idx
   on public.nexus_crm_asaas_production_verified_payments (sale_id, verified_at desc);
 
 alter table public.nexus_crm_asaas_production_verified_payments enable row level security;
+alter table public.nexus_crm_asaas_production_verified_payments force row level security;
 revoke all on public.nexus_crm_asaas_production_verified_payments from public, anon, authenticated;
 -- No anon/authenticated RLS policies. Only a restricted RPC may reserve.
 
