@@ -1,11 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { trustedAsaasToken, sanitizeCrmAsaasEvent } from '../_shared/crm-asaas-events.mjs';
 
-// Dedicated CRM Asaas PRODUCTION webhook inbox.
-// HARD OFF until the isolated production settlement / provisioning worker is
-// independently approved. Does not create charges, subscriptions or tenants.
-// DO NOT point a live Asaas webhook here while hard-off (returns HTTP 503).
-const STAGED_PRODUCTION_EVENTS_DISABLED = true;
+// Dedicated CRM Asaas PRODUCTION webhook inbox, receive-only.
+// Storage has independent explicit opt-in and stays OFF by default.
+// Worker, checkout, renewals and entitlements remain HARD OFF separately.
+// This endpoint ONLY authenticates, minimizes and persists events; it never
+// settles funds or grants CRM access.
+const RECEIVE_ONLY_MODE = true;
 const MAX_BODY_BYTES = 32768;
 
 const respond = (body: unknown, status=200) => new Response(JSON.stringify(body), {
@@ -35,20 +36,32 @@ async function readBoundedBody(req: Request): Promise<string|null> {
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
-  // Provider settlement is not approved. Independent operator authorization
-  // and reviewed migration are required before even receiving live events.
-  if (STAGED_PRODUCTION_EVENTS_DISABLED) {
-    return respond({ error:'Webhook mensal CRM Asaas de produção desativado.' },503);
-  }
-  if (Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED') !== 'true'
-    || Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_HOMOLOGATED') !== 'true') {
-    return respond({ error:'Webhook mensal CRM Asaas não homologado.' },503);
+  // Explicit configuration is required BEFORE accepting any provider event.
+  // Setting these flags enables ONLY authenticated event storage.
+  // Neither flag authorizes payment settlement, onboarding or renewal.
+  if (!RECEIVE_ONLY_MODE
+    || Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED') !== 'true'
+    || Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED') !== 'true') {
+    return respond({ error:'Recebimento de webhook CRM produção desativado.' },503);
   }
 
   if (request.method !== 'POST') return respond({error:'Método não permitido.'},405);
   const secret = Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN') || '';
-  // Never use the API payment key as the webhook token.
-  if (secret === (Deno.env.get('ASAAS_API_KEY') || '')
+  // A provider webhook token must be 32-255 chars, random, and distinct
+  // from BOTH API environments and all Nexus finance worker credentials.
+  const unsafeToken = secret.length < 32 || secret.length > 255
+    || /\s/.test(secret)
+    || [
+      'ASAAS_API_KEY', 'ASAAS_PRODUCTION_API_KEY', 'ASAAS_SANDBOX_API_KEY',
+      'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET',
+      'NEXUS_CRM_ASAAS_PROD_VERIFY_SECRET',
+      'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET',
+      'NEXUS_CRM_ASAAS_PROD_CHECKOUT_BRIDGE_SECRET',
+    ].some(name => {
+      const other = Deno.env.get(name);
+      return !!other && other === secret;
+    });
+  if (unsafeToken
     || !trustedAsaasToken(request.headers.get('asaas-access-token'),secret)) {
     return respond({error:'Webhook não autorizado.'},401);
   }
