@@ -50,7 +50,7 @@ test('no claim without independent proof, production environment or two staged a
   {verified:{...proof,decision:'manual_review'}},
   {verified:{...proof,canActivateCrm:true}},
   {verified:{...proof,amountCents:11900.5}},
-  {verified:{...proof,subscriptionId:'sub_wrong'}},
+  {verified:{...proof,subscriptionId:'sub_wrong/slash'}},
  ]){
   const {outcome,calls}=await pipeline(scenario);
   assert.notEqual(outcome.decision,'ready_for_provisioning');
