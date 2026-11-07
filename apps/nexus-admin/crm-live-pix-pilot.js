@@ -101,7 +101,7 @@ $('copy').addEventListener('click',async()=>{if($('accessLink').value)await navi
 (async()=>{
  try{
   const session=await window.NexusAuth.restoreSession();
-  if(!session){location.replace('login.html');return}
+  if(!session){location.replace('login.html?next=crm-live-pix-pilot.html');return}
   if(session.role!=='nexus_admin')throw new Error('Apenas a administração Nexus pode operar este piloto.');
   apiClient=window.NexusAuth.getClient();
   await checkAsaasProduction();
