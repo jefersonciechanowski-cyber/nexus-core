@@ -94,7 +94,8 @@ test('admin-only webhook audit is restricted, GET-only and never leaks provider 
  assert.match(src,/profile\?\.role !== 'nexus_admin'/);
  assert.match(src,/action==='webhooks'/);
  assert.match(src,/fetch\(ASAAS_BASE \+ '\/webhooks\?limit=100'/);
- assert.match(src,/assessCrmAsaasProductionWebhook\(entries,expected,secretOk\)/);
+ assert.match(src,/assessCrmAsaasProductionWebhook\(/);
+ assert.match(src,/entries,expected,secretOk,receiveOnlyEnabled\)/);
  assert.match(src,/receiverBlocked:true/);
  assert.match(src,/tokenVerifiedByDelivery:false/);
  assert.match(js,/body:\{action:'webhooks'\}/);
