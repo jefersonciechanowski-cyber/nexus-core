@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
+import { sendCrmSmtpMail } from '../stripe-webhook/crm-brevo-smtp.ts';
 import { provisionCrmTenant } from '../_shared/crm-provisioning.ts';
 import {
   LIVE_PIX_AMOUNT_CENTS, LIVE_PIX_AMOUNT_BRL, LIVE_PIX_SLOT,
@@ -104,10 +105,7 @@ type PilotEmailResult = { sent:boolean; reason:string };
 async function sendPilotFirstAccessEmail(
   email: string, responsible: string, company: string, firstAccessUrl: string | null,
 ): Promise<PilotEmailResult> {
-  const key = Deno.env.get('BREVO_CRM_API_KEY') || '';
-  const sender = Deno.env.get('BREVO_FROM_EMAIL') || '';
   if (!firstAccessUrl) return {sent:false,reason:'access_link_missing'};
-  if (!key || !sender) return {sent:false,reason:'brevo_configuration_missing'};
   let safeUrl: string;
   try {
     const u = new URL(firstAccessUrl);
@@ -126,22 +124,12 @@ async function sendPilotFirstAccessEmail(
     +'<p>Este teste não cria assinatura automática ou cobranças recorrentes.</p>'
     +'<p><a href="'+safeUrl+'">Definir minha senha e entrar no CRM</a></p>'
     +'<p>Não encaminhe este link de primeiro acesso para outra pessoa.</p></div>';
-  try {
-    const result = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method:'POST',headers:{'api-key':key,'accept':'application/json',
-        'content-type':'application/json'},
-      body:JSON.stringify({
-        sender:{name:'Nexus Core',email:sender},
-        to:[{email,name:responsible}],
-        subject:'Nexus CRM — primeiro acesso do piloto Pix',
-        htmlContent:content,
-      }),
-      signal:AbortSignal.timeout(12000),
-    });
-    return result.ok
-      ? {sent:true,reason:'brevo_accepted'}
-      : {sent:false,reason:'brevo_http_'+String(result.status)};
-  } catch { return {sent:false,reason:'brevo_request_failed'}; }
+  const result = await sendCrmSmtpMail({
+    toEmail: email, toName: responsible,
+    subject: 'Nexus CRM — primeiro acesso do piloto Pix',
+    htmlContent: content,
+  });
+  return {sent:result.sent,reason:result.reason};
 }
 
 Deno.serve(async request => {

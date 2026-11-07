@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
+import { verifyCrmSmtp } from '../stripe-webhook/crm-brevo-smtp.ts';
 
-// Authentication-only, read-only Brevo sender check.
+// Authentication-only, no-send Brevo CRM SMTP connection check.
 // Never sends messages, stores tokens, exposes customer addresses, creates
 // billing records, or returns a first-access/recovery URL.
 const ORIGINS = new Set([
@@ -23,17 +24,6 @@ function reply(body: unknown, status: number, origin: string) {
       'access-control-allow-methods':'POST, OPTIONS',
     },
   });
-}
-
-function validEmail(value: string) {
-  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function classifyBrevoStatus(status: number) {
-  if (status === 401) return 'invalid_brevo_key';
-  if (status === 403) return 'brevo_permission_denied';
-  if (status === 429) return 'brevo_rate_limited';
-  return 'brevo_unavailable';
 }
 
 Deno.serve(async request => {
@@ -90,48 +80,14 @@ Deno.serve(async request => {
     return reply({error:'Somente administrador Nexus autorizado.'},403,cors);
   }
 
-  const key = Deno.env.get('BREVO_CRM_API_KEY') || '';
-  const sender = (Deno.env.get('BREVO_FROM_EMAIL') || '').trim().toLowerCase();
-  if (key.length < 16 || !validEmail(sender)) {
-    return reply({
-      status:'missing_configuration',
-      apiKeyPresent:key.length >= 16,
-      senderConfigured:validEmail(sender),
-      senderActive:false,
-      emailSent:false,
-    },200,cors);
-  }
-
-  try {
-    const response = await fetch('https://api.brevo.com/v3/senders', {
-      method:'GET',
-      headers:{'api-key':key,accept:'application/json'},
-      signal:AbortSignal.timeout(7000),
-    });
-    if (!response.ok) return reply({
-      status:classifyBrevoStatus(response.status),
-      apiKeyPresent:true,senderConfigured:true,senderActive:false,emailSent:false,
-    },200,cors);
-    const raw=await response.text();
-    if (raw.length>60000) return reply({
-      status:'invalid_provider_response',
-      apiKeyPresent:true,senderConfigured:true,senderActive:false,emailSent:false,
-    },200,cors);
-    const data=JSON.parse(raw) as {senders?: Array<{email?:string;active?:boolean}>};
-    const senders=Array.isArray(data?.senders) ? data.senders : [];
-    const match=senders.find(s=>typeof s?.email==='string'
-      && s.email.trim().toLowerCase()===sender);
-    return reply({
-      status:match?.active===true ? 'sender_active' : match ? 'sender_inactive' : 'sender_not_found',
-      apiKeyPresent:true,
-      senderConfigured:true,
-      senderActive:match?.active===true,
-      emailSent:false,
-    },200,cors);
-  } catch {
-    return reply({
-      status:'brevo_unavailable',
-      apiKeyPresent:true,senderConfigured:true,senderActive:false,emailSent:false,
-    },200,cors);
-  }
+  // SMTP VERIFY authenticates without sending any message or reading secrets
+  // back to the caller. SMTP authentication does not prove sender approval.
+  const smtp = await verifyCrmSmtp();
+  return reply({
+    status: smtp.status,
+    smtpConfigured: smtp.credentialsConfigured,
+    senderConfigured: smtp.senderConfigured,
+    senderActive: false,
+    emailSent: false,
+  }, 200, cors);
 });
