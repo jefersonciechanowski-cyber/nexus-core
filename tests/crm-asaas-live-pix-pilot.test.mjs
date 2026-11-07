@@ -90,7 +90,7 @@ test('singleton server-only ledger and UI require user action before real charge
  assert.match(migrationSource,/revoke all on table public\.nexus_crm_live_pix_pilot from public, anon, authenticated/);
  assert.match(migrationSource,/grant select, insert, update on table public\.nexus_crm_live_pix_pilot to service_role/);
  assert.match(uiSource,/type="password" inputmode="numeric"/);
- assert.match(uiSource,/confirm\('Confirma a CRIAÇÃO DE UMA COBRANÇA REAL/);
+ assert.match(uiControls,/confirm\('Confirma a CRIAÇÃO DE UMA COBRANÇA REAL/);
  assert.match(uiSource,/id="chargeConsent"/);
  assert.match(uiSource,/rel="noopener noreferrer"/);
  assert.doesNotMatch(uiControls,/localStorage|sessionStorage/);
