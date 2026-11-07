@@ -15,6 +15,27 @@ export function trustedAsaasToken(actual, expected) {
   return difference === 0;
 }
 
+// Asaas webhook examples use `YYYY-MM-DD HH:mm:ss`, not exclusively ISO-8601.
+// Interpret the provider's wall-clock time in America/Sao_Paulo (-03:00
+// under current Brazilian civil-time rules). Never guess an unknown format;
+// unparseable dates are held by the lifecycle engine, not applied.
+export function normalizeCrmAsaasEventDate(value) {
+  if (typeof value !== 'string') return null;
+  const raw=value.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    return Number.isFinite(Date.parse(raw)) ? raw : null;
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)) {
+    const fixed=raw.replace(' ','T')+'-03:00';
+    if (!Number.isFinite(Date.parse(fixed))) return null;
+    // Date.parse can normalize an invalid calendar day, so validate roundtrip.
+    const local=new Date(Date.parse(fixed));
+    const reconstructed=new Date(local.getTime()-3*60*60*1000).toISOString().slice(0,19);
+    return reconstructed===raw.replace(' ','T')?fixed:null;
+  }
+  return null;
+}
+
 export function sanitizeCrmAsaasEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
   const id = event.id, type = event.event;
@@ -30,7 +51,7 @@ export function sanitizeCrmAsaasEvent(event) {
   // Store only the identifiers and financial fields necessary for controlled
   // reconciliation; do not persist the payer's complete contact payload.
   const safe = {
-    id, event: type, dateCreated: typeof event.dateCreated === 'string' ? event.dateCreated.slice(0, 50) : null,
+    id, event: type, dateCreated: normalizeCrmAsaasEventDate(event.dateCreated),
     resource: {
       id: data.id,
       paymentLink: typeof data.paymentLink === 'string' ? data.paymentLink.slice(0, 150) : null,
