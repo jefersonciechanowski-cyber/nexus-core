@@ -51,10 +51,11 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-asaas-production-health/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-health/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-send-test/index.ts
           deno check --node-modules-dir=auto supabase/functions/stripe-webhook/crm-provisioning.ts
 
       - name: Verify Brevo first-access sender configuration read-only (no emails)
-        run: node --test tests/crm-onboarding-email-readiness.test.mjs tests/crm-brevo-smtp-transport.test.mjs
+        run: node --test tests/crm-onboarding-email-readiness.test.mjs tests/crm-brevo-smtp-transport.test.mjs tests/crm-admin-smtp-selftest.test.mjs
 
       - name: Verify normal paid CRM first-access email (no emails actually sent)
         run: node --test tests/crm-crm-first-access-mail.test.mjs
