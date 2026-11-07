@@ -37,6 +37,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 </section>
 <section class="panel">
 <h2>1. Preparar novo cadastro</h2>
+<p>Reserve os dados do novo cliente de teste. <strong>Essa etapa não gera cobrança nem libera o CRM.</strong> Use um e-mail diferente do que já utiliza na Nexus.</p>
 <form id="prepare" autocomplete="off">
 <div class="grid">
 <label>Empresa de teste<input id="company" maxlength="160" required autocomplete="off"></label>
@@ -50,6 +51,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 </section>
 <section class="panel">
 <h2>2. Criar cobrança Pix real</h2>
+<div class="notice">Cobrança real ainda bloqueada. Primeiro conferiremos os dados da reserva.</div>
 <p>Somente depois da reserva será possível criar a cobrança. Esta ação pode gerar uma cobrança real no Asaas; não repita em caso de timeout.</p>
 <label style="display:flex;gap:10px;align-items:start"><input id="chargeConsent" type="checkbox"><span>Autorizo expressamente criar uma única cobrança Pix real de R$ 10 na minha conta Asaas de produção.</span></label>
 <button id="charge" type="button" disabled>Gerar cobrança real R$ 10</button>
