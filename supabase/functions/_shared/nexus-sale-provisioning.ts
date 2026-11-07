@@ -11,6 +11,7 @@ export async function provisionSaleForProvider(
   context: { customerId?: string | null; subscriptionId?: string | null; renewsAt?: string | null; eventType?: string | null; paymentId?: string | null; paymentBillingType?: string | null; paymentStatus?: string | null } = {},
   deps: {
     provider: 'stripe' | 'asaas',
+    asaasEnvironment?: 'sandbox' | 'production',
     clean: (value: unknown, size?: number) => string,
     slugify: (value: unknown) => string,
     addMonthsDate: (months: number) => string,
@@ -18,12 +19,14 @@ export async function provisionSaleForProvider(
     sendPilotConversionEmail: (admin: any, sale: any, plan: any) => Promise<unknown>,
   },
 ) {
-  const { provider, clean, slugify, addMonthsDate, sendFirstAccessEmail, sendPilotConversionEmail } = deps;
+  const { provider, clean, slugify, addMonthsDate, sendFirstAccessEmail, sendPilotConversionEmail,
+    asaasEnvironment='sandbox' } = deps;
   if (provider !== 'stripe' && provider !== 'asaas') return { access: null, error: 'Provedor inválido.' };
   if (provider !== 'stripe') {
     // Asaas can only use the new sandbox path, and must not change an existing
     // courtesy or company merely because a payment has been generated.
-    if (saleInput?.provider !== 'asaas' || saleInput?.environment !== 'sandbox'
+    if (!['sandbox','production'].includes(asaasEnvironment)
+      || saleInput?.provider !== 'asaas' || saleInput?.environment !== asaasEnvironment
       || saleInput?.source !== 'site-captacao' || saleInput?.billing_mode !== 'recurring'
       || saleInput?.billing_cycle_months !== 1 || saleInput?.sale_status !== 'paid'
       || !saleInput?.paid_at || !saleInput?.id || !context.subscriptionId
@@ -35,8 +38,11 @@ export async function provisionSaleForProvider(
     // Provisioning is forbidden until an independent atomic settlement step
     // advances an authenticated, provider-verified reservation to
     // "provisioning" through a non-retryable one-worker lease (not done by the public checkout or webhook inbox).
+    const verifiedTable=asaasEnvironment==='production'
+      ? 'nexus_crm_asaas_production_verified_payments'
+      : 'nexus_crm_asaas_verified_payments';
     const { data: reserved, error: reservedError } = await admin
-      .from('nexus_crm_asaas_verified_payments')
+      .from(verifiedTable)
       .select('sale_id,provider_subscription_id,decision')
       .eq('sale_id', saleInput.id)
       .eq('provider_subscription_id', context.subscriptionId)
@@ -285,7 +291,7 @@ export async function provisionSaleForProvider(
     // If ledger insertion fails, leave a reviewable partial Central record;
     // never create a tenant or silently adopt an existing customer's access.
     const receipt = await recordVerifiedCrmAsaasPayment({
-      admin,sale,
+      admin,sale,environment:asaasEnvironment,
       access:{...access,...accessPayload},
       payment:{
         paymentId:context.paymentId,
