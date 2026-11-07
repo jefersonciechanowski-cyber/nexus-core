@@ -30,7 +30,7 @@ begin
    or p_provider_status not in ('RECEIVED','CONFIRMED')
    or p_due_date is null or p_next_due_date is null
    or p_next_due_date<=p_due_date
-   or p_due_date>pg_catalog.current_date+62
+   or p_due_date>current_date+62
    or p_next_due_date>p_due_date+90 then
    return pg_catalog.jsonb_build_object('decision','manual_review','reason','invalid_renewal_input');
  end if;
