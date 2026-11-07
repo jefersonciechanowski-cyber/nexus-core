@@ -51,6 +51,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-asaas-production-health/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-health/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-events/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-send-test/index.ts
           deno check --node-modules-dir=auto supabase/functions/stripe-webhook/crm-provisioning.ts
 
