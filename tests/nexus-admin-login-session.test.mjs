@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const js = readFileSync(new URL('../apps/nexus-admin/login.js', import.meta.url),'utf8');
 const html = readFileSync(new URL('../apps/nexus-admin/login.html', import.meta.url),'utf8');
+const dashboard = readFileSync(new URL('../apps/nexus-admin/index.html', import.meta.url),'utf8');
 const pix = readFileSync(new URL('../apps/nexus-admin/crm-live-pix-pilot.js', import.meta.url),'utf8');
 const crmAccess = readFileSync(new URL('../apps/nexus-admin/crm-access.html', import.meta.url),'utf8');
 
@@ -105,4 +106,10 @@ test('CSP-safe external script and local login redirect, financial pilot remains
  assert.match(pix,/login\.html\?next=crm-live-pix-pilot\.html/);
  assert.match(crmAccess,/location\.replace\('login\.html'\)/);
  assert.match(pix,/financeEnabled=false/);
+});
+
+test('Central sidebar links directly to private Pix diagnostic after login, with no payment change',()=>{
+ assert.match(dashboard, /href="crm-live-pix-pilot\.html"/);
+ assert.match(dashboard, /Teste Pix R\$ 10/);
+ assert.match(pix, /financeEnabled=false/);
 });
