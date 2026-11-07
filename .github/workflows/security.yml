@@ -38,6 +38,14 @@ jobs:
       - name: Test HMAC diagnostic without payments
         run: node --test tests/crm-bridge-diagnostic.test.mjs
 
+      - name: Set up Deno for isolated real Pix admin pilot typecheck
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck hard-off live Pix pilot without credentials or charges
+        run: deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
+
       - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
         run: node --test tests/crm-asaas-*.test.mjs
 
@@ -89,6 +97,8 @@ jobs:
         run: |
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107110000_crm_live_pix_ten_real_pilot.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_live_pix_pilot_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_PUBLIC_MONTHLY_CROSS_PROVIDER_UNIQUE_SQL.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_cross_provider_monthly_identity_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_SETTLEMENT_RESERVATION_SQL_DRAFT.sql
