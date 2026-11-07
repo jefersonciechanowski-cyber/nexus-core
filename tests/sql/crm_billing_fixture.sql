@@ -20,10 +20,16 @@ CREATE TABLE public.organization_product_access(
   id uuid primary key,
   organization_id uuid not null references public.organizations(id),
   product_id uuid not null references public.nexus_products(id),
+  plan_id uuid references public.nexus_plans(id),
   subscription_status text not null,access_status text not null,
   renews_at date,billing_provider text,commercial_condition text,
   contracted_price_cents bigint,last_payment_status text,
-  billing_mode text,provider_subscription_id text,external_tenant_id text,
+  contracted_currency text not null default 'BRL',
+  last_payment_due_date date,last_payment_at timestamptz,
+  billing_mode text,billing_cycle_months integer not null default 1,
+  provider_customer_id text,provider_subscription_id text,external_tenant_id text,
+  crm_sync_revision bigint not null default 0,
+  crm_sync_confirmed_revision bigint not null default 0,
   provider_state_event_id text,provider_state_event_created_at timestamptz,
   provider_state_event_type text,
   updated_at timestamptz not null default now()
@@ -36,7 +42,7 @@ CREATE TABLE public.nexus_sales(
   provider text not null,environment text not null,
   source text,billing_mode text,billing_cycle_months integer,
   checkout_amount_cents bigint,asaas_checkout_id text,asaas_subscription_id text,
-  provider_subscription_id text,registration_number text,email text,
+  provider_subscription_id text,provider_customer_id text,registration_number text,email text,
   external_reference text,
   paid_at timestamptz,organization_id uuid,user_id uuid,
   provisioned_at timestamptz,
@@ -50,7 +56,10 @@ CREATE TABLE public.nexus_payment_webhook_events(
 );
 CREATE TABLE public.nexus_payments(provider_payment_id text primary key,
   provider text not null,access_id uuid not null,organization_id uuid not null,
-  provider_subscription_id text,amount_cents bigint not null
+  provider_subscription_id text,provider_customer_id text,billing_type text,
+  provider_status text,amount_cents bigint not null,currency text default 'BRL',
+  due_date date,confirmed_at timestamptz,received_at timestamptz,
+  external_reference text
 );
 INSERT INTO public.nexus_products(id,code,status) VALUES
 ('10000000-0000-4000-8000-000000000001','crm','active'),

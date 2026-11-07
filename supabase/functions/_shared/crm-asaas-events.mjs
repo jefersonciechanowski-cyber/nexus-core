@@ -59,6 +59,8 @@ export function sanitizeCrmAsaasEvent(event) {
       externalReference: typeof data.externalReference === 'string' ? data.externalReference.slice(0, 200) : null,
       status: typeof data.status === 'string' ? data.status.slice(0, 50) : null,
       billingType: typeof data.billingType === 'string' ? data.billingType.slice(0, 35) : null,
+      dueDate: typeof data.dueDate==='string' && /^\d{4}-\d{2}-\d{2}$/.test(data.dueDate)
+        ? data.dueDate : null,
       value: Number.isFinite(data.value) && data.value >= 0 ? data.value : null,
     },
   };
