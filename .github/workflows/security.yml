@@ -58,6 +58,9 @@ jobs:
       - name: Verify normal paid CRM first-access email (no emails actually sent)
         run: node --test tests/crm-crm-first-access-mail.test.mjs
 
+      - name: Verify Asaas prepaid expiry guard and monthly contract isolation (no charges)
+        run: node --test tests/crm-asaas-prepaid-expiry.test.mjs
+
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
@@ -126,3 +129,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_lifecycle_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f docs/CRM_ASAAS_PROVISION_LEASE_SQL_DRAFT.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_provision_lease_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107170000_crm_asaas_prepaid_expiry.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_prepaid_expiry_assertions.sql
