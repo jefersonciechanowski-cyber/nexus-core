@@ -3,21 +3,24 @@ import { classifyCrmAsaasSettlement } from './crm-asaas-reconciliation.mjs';
 // One-shot, read-only verification of a queued Asaas event against three/four
 // independent provider records; no HTTP requests are issued by this module.
 // fetchResource(relativePath) must be a server-side authenticated, bounded,
-// sandbox-only Asaas GET. Customer details are never included in the output.
+// environment-pinned Asaas GET. Customer details are never included in the output.
+// Default sandbox: production must be explicitly requested by a separate,
+// read-only caller that independently selects the production Asaas host/key.
 const safeId = (v, prefix) => typeof v === 'string' && new RegExp('^' + prefix + '_[A-Za-z0-9_-]{4,120}$').test(v);
 const numericCents = v => typeof v === 'number' && Number.isFinite(v) && v > 0
   ? Math.round(v * 100) : null;
 /** @param {string} reason @param {'manual_review'|'retry'|'hold'} [status] */
 const reject = (reason, status = 'manual_review') => Object.freeze({ decision: status, reason });
 
-export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource }) {
+export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource, environment = 'sandbox' }) {
   if (!eventRow || eventRow.provider !== 'asaas' || !eventRow.event_type?.startsWith('PAYMENT_')) {
     return reject('not_asaas_payment','hold');
   }
   if (!['PAYMENT_RECEIVED','PAYMENT_CONFIRMED'].includes(eventRow.event_type)) {
     return reject('not_settlement_event','hold');
   }
-  if (!sale || sale.provider !== 'asaas' || sale.environment !== 'sandbox'
+  if (!['sandbox','production'].includes(environment)
+    || !sale || sale.provider !== 'asaas' || sale.environment !== environment
     || typeof sale.id !== 'string' || !/^[0-9a-f-]{36}$/.test(sale.id)
     || typeof sale.asaas_checkout_id !== 'string'
     || !/^[A-Za-z0-9_-]{4,120}$/.test(sale.asaas_checkout_id)) {
@@ -80,7 +83,7 @@ export async function verifyCrmAsaasPayment({ eventRow, sale, fetchResource }) {
       },
     },
   };
-  const classification = classifyCrmAsaasSettlement(augmentedEvent, sale, link);
+  const classification = classifyCrmAsaasSettlement(augmentedEvent, sale, link, environment);
   if (classification.decision !== 'candidate_for_manual_verified_reconciliation') return classification;
   return Object.freeze({
     decision: 'verified_for_review',
