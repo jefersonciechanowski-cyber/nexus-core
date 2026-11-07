@@ -7,9 +7,11 @@ import {
   assertLivePixCustomer, assertLivePixPayment,
 } from '../_shared/crm-live-pix-pilot.mjs';
 
-// HARD OFF until migration, security review, production API key, private admin
-// acceptance and explicit release. Merely deploying this endpoint cannot bill.
-const STAGED_LIVE_PIX_DISABLED = true;
+// Admin-only read/status and applicant reservation are enabled.
+// Real production Asaas charging stays blocked even if every environment
+// variable is set. A separate reviewed deployment is required to charge.
+const STAGED_LIVE_PIX_DISABLED = false;
+const STAGED_LIVE_PIX_CHARGE_DISABLED = true;
 const MAX_BODY_BYTES = 8192;
 const ORIGINS = new Set([
   'https://nexuscore.app.br',
@@ -68,7 +70,8 @@ function safeView(p: any) {
     crmReady: Boolean(p.access_id && p.organization_id && p.status === 'provisioned'),
     expiresAt: p.status === 'provisioned' ? p.access_ends_at ?? null : null,
     onboardingEmailSent: Boolean(p.access_email_sent_at),
-  } : { status: 'not_prepared', amount: 'R$ 10,00', billingType: 'PIX' };
+    chargeEnabled: false,
+  } : { status: 'not_prepared', amount: 'R$ 10,00', billingType: 'PIX', chargeEnabled: false };
 }
 
 async function audit(admin: any, action: string, userId: string, pilotId: string, data: Record<string, unknown> = {}) {
@@ -146,7 +149,11 @@ Deno.serve(async request => {
   const body = await readJson(request);
   if (!body) return reply({error:'Solicitação inválida.'},400,cors);
   const action = small(body.action,30);
-  if (!canRunLivePixPilot(Deno.env.toObject(),action)) return reply({error:'Piloto privado desativado.'},503,cors);
+  // Non-financial preparation is allowed only after active Nexus admin and
+  // fresh AAL2 below. Charge/verification/activation remain feature-gated.
+  if (!['status','prepare'].includes(action) &&
+      !canRunLivePixPilot(Deno.env.toObject(),action))
+    return reply({error:'Operação financeira privada desativada.'},503,cors);
 
   const url = Deno.env.get('SUPABASE_URL') || '';
   const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -195,7 +202,8 @@ Deno.serve(async request => {
       amount_cents:LIVE_PIX_AMOUNT_CENTS,currency:'BRL',billing_type:'PIX',status:'prepared',
     }).select('*').single();
     if (insertError || !created) return reply({error:'Reserva única já existente ou bloqueada.'},409,cors);
-    await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PREPARED',user.id,id);
+    try { await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PREPARED',user.id,id); }
+    catch { /* Reservation persists; avoid misleading the operator or retrying. */ }
     return reply(safeView(created),200,cors);
   }
 
@@ -204,6 +212,8 @@ Deno.serve(async request => {
   if (asaasKey.length < 20) return reply({error:'Chave Asaas de produção não configurada no servidor.'},503,cors);
 
   if (action === 'charge') {
+    if (STAGED_LIVE_PIX_CHARGE_DISABLED)
+      return reply({error:'Geração de Pix real ainda bloqueada; a reserva não cria cobrança.'},503,cors);
     if (body.confirmation !== LIVE_PIX_CHARGE_CONFIRMATION)
       return reply({error:'Confirmação explícita de Pix real R$ 10 obrigatória.'},400,cors);
     // This UPDATE is a single-winner lock. Never retry charge after an unclear result.

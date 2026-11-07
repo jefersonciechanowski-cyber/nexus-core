@@ -1,12 +1,12 @@
 const $=id=>document.getElementById(id);
-let apiClient=null,busy=false,currentStatus='not_prepared',chargeAttempted=false,financeEnabled=false;
+let apiClient=null,busy=false,currentStatus='not_prepared',chargeAttempted=false,financeEnabled=false,chargeEnabled=false;
 const stages=new Set(['payment_pending','paid','provision_pending','provisioned']);
 function showError(msg){$('error').textContent=String(msg||'Falha privada de validação.');}
 function update(state){
  currentStatus=state?.status||'not_prepared';
  $('progress').textContent='Status do piloto: '+currentStatus+' · Pix avulso R$ 10,00';
  $('prepareButton').disabled=busy||!financeEnabled||currentStatus!=='not_prepared';
- $('charge').disabled=busy||!financeEnabled||chargeAttempted||currentStatus!=='prepared'||!$('chargeConsent').checked;
+ $('charge').disabled=busy||!chargeEnabled||!financeEnabled||chargeAttempted||currentStatus!=='prepared'||!$('chargeConsent').checked;
  $('verify').disabled=busy||!stages.has(currentStatus);
  $('activate').disabled=busy||!['paid','provision_pending'].includes(currentStatus);
  if(state?.invoiceUrl) {
@@ -26,6 +26,7 @@ async function call(action,payload={}){
   }
   if(data?.error)throw new Error(String(data.error));
   if(action==='status')financeEnabled=true;
+  chargeEnabled=data?.chargeEnabled===true;
   update(data);
   return data;
  }catch(err){showError(err?.message||'Falha. Não tente criar outra cobrança automaticamente.');return null;
@@ -71,6 +72,7 @@ async function checkAsaasProduction(){
 $('asaasCheck').addEventListener('click',checkAsaasProduction);
 $('prepare').addEventListener('submit',async event=>{
  event.preventDefault();
+ if(!confirm('Confirma que o CPF, o e-mail novo e o nome da empresa estão corretos? Esta reserva é única e não cria cobrança agora.'))return;
  const payload={companyName:$('company').value,responsibleName:$('responsible').value,
  email:$('email').value,cpf:$('cpf').value,acceptedOneTimeTerms:$('terms').checked};
  const result=await call('prepare',payload);
