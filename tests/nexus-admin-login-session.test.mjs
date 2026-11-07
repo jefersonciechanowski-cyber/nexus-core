@@ -103,6 +103,6 @@ test('CSP-safe external script and local login redirect, financial pilot remains
  assert.match(js,/markAdminSession\(\);\s*location\.replace\(loginTarget\(\)\);/);
  assert.doesNotMatch(js,/await window\.NexusAuth\.logout\(\);sessionStorage\.removeItem/);
  assert.match(pix,/login\.html\?next=crm-live-pix-pilot\.html/);
- assert.match(crmAccess,/login\.html\?next=crm-access\.html/);
+ assert.match(crmAccess,/location\.replace\('login\.html'\)/);
  assert.match(pix,/financeEnabled=false/);
 });
