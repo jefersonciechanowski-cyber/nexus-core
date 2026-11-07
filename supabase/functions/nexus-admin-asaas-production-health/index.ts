@@ -68,7 +68,9 @@ async function readWebhooks(key: string, centralUrl: string) {
   const expected=new URL('/functions/v1/nexus-crm-asaas-production-events',centralUrl).toString();
   const configuredToken=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
   const secretOk=configuredToken.length>=32 && configuredToken.length<=255
-    && configuredToken!==(Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'');
+    && configuredToken!==(Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'')
+    && configuredToken!==(Deno.env.get('NEXUS_CRM_ASAAS_PROD_WORKER_SECRET')||'')
+    && configuredToken!==(Deno.env.get('NEXUS_CRM_ASAAS_PROD_VERIFY_SECRET')||'');
   const assessment=assessCrmAsaasProductionWebhook(entries,expected,secretOk);
   return {...assessment,receiverBlocked:true,createdCharge:false,production:true,
     // The endpoint URL is not a secret; it is necessary for the provider setup.
@@ -162,10 +164,11 @@ Deno.serve(async (request: Request) => {
 
   const key = Deno.env.get('ASAAS_PRODUCTION_API_KEY') || '';
   if (!key.startsWith('$aact_prod_') || key.length < 32 || key.length > 2000) {
-    return response({
-      connection: 'missing_or_wrong_environment',
-      production: true, createdCharge: false,
-    }, 200, cors);
+    return response(action==='webhooks'
+      ? {status:'missing_or_wrong_environment',receiverBlocked:true,
+        production:true,createdCharge:false}
+      : {connection:'missing_or_wrong_environment',
+        production:true,createdCharge:false}, 200, cors);
   }
   if(action==='webhooks') {
     try { return response(await readWebhooks(key,url),200,cors); }
