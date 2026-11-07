@@ -1,6 +1,6 @@
 // Pure classification: never modifies accounts, settlements or subscriptions.
 // trustedLinkConfig must come from an authenticated Asaas API read, not from the webhook.
-export function classifyCrmAsaasSettlement(eventRow, sale, trustedLinkConfig) {
+export function classifyCrmAsaasSettlement(eventRow, sale, trustedLinkConfig, expectedEnvironment = 'sandbox') {
   const skip = (reason) => Object.freeze({ decision: 'hold', reason });
   const review = (reason) => Object.freeze({ decision: 'manual_review', reason });
   if (!eventRow || eventRow.provider !== 'asaas'
@@ -11,7 +11,8 @@ export function classifyCrmAsaasSettlement(eventRow, sale, trustedLinkConfig) {
   if (!['PAYMENT_CONFIRMED','PAYMENT_RECEIVED'].includes(eventRow.event_type)) {
     return skip('payment_not_settled');
   }
-  if (!sale || sale.provider !== 'asaas' || sale.environment !== 'sandbox'
+  if (!['sandbox','production'].includes(expectedEnvironment)
+    || !sale || sale.provider !== 'asaas' || sale.environment !== expectedEnvironment
     || !['checkout_created','paid','provisioned'].includes(sale.sale_status)
     || sale.billing_mode !== 'recurring' || sale.billing_cycle_months !== 1) {
     return review('sale_not_safe_to_settle');

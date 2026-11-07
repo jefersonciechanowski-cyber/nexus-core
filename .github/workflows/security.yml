@@ -66,6 +66,9 @@ jobs:
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
+      - name: Verify production Asaas monthly decisions without payments or network
+        run: node --test tests/crm-asaas-production-preview.test.mjs
+
       - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
         run: node --test tests/crm-asaas-*.test.mjs
 
