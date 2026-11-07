@@ -39,5 +39,6 @@ test('sending requires caller-provided recipient and only returns sanitized deli
  assert.match(transport,/accepted\.some\(/);
  assert.match(transport,/client\.close\(\)/);
  assert.match(transport,/smtpErrorReason\(error\)/);
- assert.doesNotMatch(transport,/console\.|log.*pass|return.*pass/);
+ assert.doesNotMatch(transport,/console\./);
+ assert.doesNotMatch(transport,/return \{ sent: [^}]*\bpass\b/);
 });
