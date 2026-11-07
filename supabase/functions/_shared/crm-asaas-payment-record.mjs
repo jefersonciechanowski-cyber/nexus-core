@@ -4,9 +4,10 @@
 // No network access, no implicit activation, no overwrite of existing payments.
 const reject=reason=>Object.freeze({ok:false,reason});
 
-export async function recordVerifiedCrmAsaasPayment({admin,sale,access,payment}) {
+export async function recordVerifiedCrmAsaasPayment({admin,sale,access,payment,environment='sandbox'}) {
   if(!admin || !sale || !access || !payment
-    || sale.provider!=='asaas' || sale.environment!=='sandbox'
+    || !['sandbox','production'].includes(environment)
+    || sale.provider!=='asaas' || sale.environment!==environment
     || sale.sale_status!=='paid' || sale.billing_mode!=='recurring'
     || sale.billing_cycle_months!==1
     || !sale.id || !sale.organization_id || !access.id
@@ -24,7 +25,11 @@ export async function recordVerifiedCrmAsaasPayment({admin,sale,access,payment})
     || typeof payment.customerId!=='string' || !/^cus_[a-zA-Z0-9_-]{5,120}$/.test(payment.customerId)) {
       return reject('unverified_or_unlinked_payment');
   }
-  const {data:claim,error:claimError}=await admin.from('nexus_crm_asaas_verified_payments')
+  // Explicit production enablement never falls back to the Sandbox claim.
+  const claimTable=environment==='production'
+    ? 'nexus_crm_asaas_production_verified_payments'
+    : 'nexus_crm_asaas_verified_payments';
+  const {data:claim,error:claimError}=await admin.from(claimTable)
     .select('sale_id,provider_payment_id,provider_subscription_id,amount_cents,billing_type,decision')
     .eq('provider_payment_id',payment.paymentId).maybeSingle();
   if(claimError) return reject('claim_lookup_failed');
