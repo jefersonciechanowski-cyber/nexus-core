@@ -62,7 +62,7 @@
     document.getElementById('courtesyForm').addEventListener('submit',createCourtesy);
     document.getElementById('copyCourtesyLink').addEventListener('click',async()=>{const value=document.getElementById('courtesyLink').value;if(!value)return;try{await navigator.clipboard.writeText(value);document.getElementById('copyCourtesyLink').textContent='Copiado';setTimeout(()=>document.getElementById('copyCourtesyLink').textContent='Copiar',1500);}catch{document.getElementById('courtesyLink').select();}});
     document.getElementById('search').addEventListener('input',render);
-    (async()=>{try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html');return;}if(session.role!=='nexus_admin')throw new Error('Acesso restrito à administração Nexus.');document.getElementById('profile').textContent=session.name||session.email;await Promise.all([loadPlans(),load()]);}catch(error){document.getElementById('message').hidden=false;document.getElementById('message').textContent=error.message||'Não foi possível carregar os acessos do CRM.';}})();
+    (async()=>{try{const session=await window.NexusAuth.restoreSession();if(!session){location.replace('login.html?next=crm-access.html');return;}if(session.role!=='nexus_admin')throw new Error('Acesso restrito à administração Nexus.');document.getElementById('profile').textContent=session.name||session.email;await Promise.all([loadPlans(),load()]);}catch(error){document.getElementById('message').hidden=false;document.getElementById('message').textContent=error.message||'Não foi possível carregar os acessos do CRM.';}})();
   </script>
 </body>
 </html>
