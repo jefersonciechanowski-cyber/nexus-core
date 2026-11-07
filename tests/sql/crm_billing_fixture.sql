@@ -42,7 +42,7 @@ CREATE TABLE public.nexus_sales(
   provider text not null,environment text not null,
   source text,billing_mode text,billing_cycle_months integer,
   checkout_amount_cents bigint,asaas_checkout_id text,asaas_subscription_id text,
-  provider_subscription_id text,registration_number text,email text,
+  provider_subscription_id text,provider_customer_id text,registration_number text,email text,
   external_reference text,
   paid_at timestamptz,organization_id uuid,user_id uuid,
   provisioned_at timestamptz,
