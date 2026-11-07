@@ -11,7 +11,7 @@ CREATE TABLE public.nexus_products(
 CREATE TABLE public.nexus_plans(
   id uuid primary key,product_id uuid not null references public.nexus_products(id),
   code text not null,name text,price_cents bigint,currency text,
-  billing_interval_months integer,status text not null
+  billing_interval_months integer,status text not null,public_visible boolean not null default true
 );
 CREATE TABLE public.organizations(
   id uuid primary key,registration_number text,email text,status text not null default 'active'
