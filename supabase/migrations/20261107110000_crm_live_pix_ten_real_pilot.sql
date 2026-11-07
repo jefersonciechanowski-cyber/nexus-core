@@ -26,6 +26,8 @@ create table if not exists public.nexus_crm_live_pix_pilot (
   payment_due date,
   received_at timestamptz,
   activated_at timestamptz,
+  access_ends_at date,
+  access_email_sent_at timestamptz,
   error_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
