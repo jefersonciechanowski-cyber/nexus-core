@@ -10,6 +10,7 @@ type MailInput = {
   toName?: string;
   subject: string;
   htmlContent: string;
+  textContent?: string;
 };
 type MailResult = { sent: boolean; reason: string; messageId: string | null };
 type SMTPStatus = 'missing_configuration' | 'smtp_authenticated'
@@ -102,7 +103,7 @@ export async function sendCrmSmtpMail(mail: MailInput): Promise<MailResult> {
       to: { name: (mail.toName || '').slice(0, 140), address: mail.toEmail },
       subject: mail.subject.slice(0, 180),
       html: mail.htmlContent,
-      text: 'Seu acesso ao Nexus CRM foi criado. Abra esta mensagem em um cliente de e-mail compatível com HTML.',
+      text: (mail.textContent || 'Seu acesso ao Nexus CRM foi criado. Abra esta mensagem em um cliente de e-mail compatível com HTML.').slice(0, 1000),
     });
     const accepted = Array.isArray(result.accepted) ? result.accepted : [];
     const sent = accepted.some(value => typeof value === 'string'
