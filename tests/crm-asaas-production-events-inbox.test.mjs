@@ -16,7 +16,10 @@ test('production inbox is OFF by default; receive-only needs two independent opt
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED/);
  assert.match(src,/!== 'true'/);
  assert.doesNotMatch(src,/STAGED_PRODUCTION_EVENTS_DISABLED|NEXUS_CRM_ASAAS_PROD_EVENTS_HOMOLOGATED/);
- assert.doesNotMatch(src,/NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED|ASAAS_SANDBOX_API_KEY/);
+ assert.doesNotMatch(src,/NEXUS_CRM_ASAAS_SANDBOX_E2E_ENABLED|api-sandbox\.asaas\.com/);
+ // It may compare against the Sandbox key to reject token REUSE, but may not
+ // perform Sandbox requests or select the Sandbox financial environment.
+ assert.match(src,/'ASAAS_SANDBOX_API_KEY'/);
  assert.doesNotMatch(src,/https:\/\/api\.asaas\.com|https:\/\/api-sandbox\.asaas\.com|fetch\(/);
 });
 
