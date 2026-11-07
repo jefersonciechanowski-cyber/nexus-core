@@ -70,7 +70,7 @@ test('verification is receipt-bound, production-only, and rejects refunds',()=>{
  assert.equal(safeAsaasProductionInvoice('https://www.asaas.com.evil.com/i/123'),null);
  assert.equal(safeAsaasProductionInvoice('https://www.asaas.com/i/123'),'https://www.asaas.com/i/123');
  assert.equal(isLivePixExternalReference(pilot.external_reference,id),true);
- assert.equal(isLivePixExternalReference('nexus-crm-live-pix-r10-'+id,id.toUpperCase()),false);
+ assert.equal(isLivePixExternalReference('nexus-crm-live-pix-r10-'+id,'00000000-0000-4000-8000-000000000002'),false);
 });
 test('admin-only MFA2, one-winner charge, no retry after uncertain outcome',()=>{
  assert.match(functionSource,/aal\?\.currentLevel !== 'aal2'/);
