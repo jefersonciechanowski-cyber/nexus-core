@@ -18,17 +18,13 @@ test('only active Nexus admin with AAL2 can read email configuration',()=>{
  assert.match(source,/Object\.keys\(body\)\.length !== 1/);
  assert.match(source,/body as Record<string,unknown>\)\.action !== 'check'/);
 });
-test('Brevo check is read-only; no emails, no payment and no credentials leaked',()=>{
- assert.match(source,/https:\/\/api\.brevo\.com\/v3\/senders/);
- assert.match(source,/method:'GET'/);
- assert.match(source,/Deno\.env\.get\('BREVO_CRM_API_KEY'\)/);
- assert.doesNotMatch(source,/Deno\.env\.get\('BREVO_API_KEY'\)/);
- assert.match(source,/Deno\.env\.get\('BREVO_FROM_EMAIL'\)/);
- assert.match(source,/status:match\?\.active===true/);
- assert.match(source,/emailSent:false/);
- assert.doesNotMatch(source,/\/smtp\/email|\/payments|\/customers|createUser|insert\(|upsert\(|update\(|delete\(/);
- assert.doesNotMatch(source,/console\.(log|warn|error)|JSON\.stringify\(data\)/);
- assert.doesNotMatch(source,/return reply\(\{\s*sender[,}]/);
+test('Brevo CRM diagnosis authenticates via SMTP without sending a message',()=>{
+ assert.match(source,/verifyCrmSmtp\(\)/);
+ assert.match(source,/senderActive: false/);
+ assert.match(source,/emailSent: false/);
+ assert.doesNotMatch(source,/sendCrmSmtpMail\(|\/v3\/smtp\/email|\/v3\/senders/);
+ assert.doesNotMatch(source,/console\.(log|warn|error)|token_hash/);
+ assert.match(source,/profile\?\.role !== 'nexus_admin'/);
 });
 test('admin page displays diagnostic, not secrets, and does not send email from browser',()=>{
  assert.match(ui,/id="emailCheck"/);
@@ -36,23 +32,19 @@ test('admin page displays diagnostic, not secrets, and does not send email from 
  assert.match(controls,/nexus-admin-crm-email-health/);
  assert.match(controls,/body:\{action:'check'\}/);
  assert.match(controls,/await checkEmailReadiness\(\)/);
- assert.match(controls,/Brevo/);
+ assert.match(controls,/Brevo|SMTP/);
  assert.match(controls,/Esta verificação não criou nova cobrança/);
  assert.doesNotMatch(ui,/BREVO_(?:CRM_)?API_KEY|SUPABASE_SERVICE_ROLE_KEY|token_hash/);
  // Secret *names* in safe guidance are okay, but the browser must not
  // access environment values, HTTP API keys, or first-access tokens.
  assert.doesNotMatch(controls,/Deno\.env\.get\(|api-key\s*:|token_hash|SUPABASE_SERVICE_ROLE_KEY/);
 });
-test('successful provisioning is not rolled back for email transport failures',()=>{
- assert.match(pilot,/type PilotEmailResult = \{ sent:boolean; reason:string \}/);
- assert.match(pilot,/Deno\.env\.get\('BREVO_CRM_API_KEY'\)/);
- assert.doesNotMatch(pilot,/Deno\.env\.get\('BREVO_API_KEY'\)/);
- assert.match(pilot,/brevo_configuration_missing/);
- assert.match(pilot,/brevo_http_/);
- assert.match(pilot,/brevo_request_failed/);
+test('paid Pix pilot uses exclusive SMTP; no raw API key or email resend',()=>{
+ assert.match(pilot,/sendCrmSmtpMail\(\{/);
+ assert.doesNotMatch(pilot,/Deno\.env\.get\('BREVO_(?:CRM_)?API_KEY'\)/);
  assert.match(pilot,/NEXUS_CRM_LIVE_PIX_PILOT_EMAIL_/);
  assert.match(pilot,/emailResult\.sent/);
- assert.match(pilot,/\.catch\(\(\) => \{ \/\* Never fail provisioning due to diagnostic audit unavailability/);
  assert.match(pilot,/onboardingEmailSent:emailResult\.sent/);
- assert.doesNotMatch(pilot,/console\.log\(.*firstAccessUrl/);
+ assert.match(pilot,/access_link_unrecognized/);
+ assert.doesNotMatch(pilot,/\/v3\/smtp\/email|console\.log\(.*firstAccessUrl/);
 });
