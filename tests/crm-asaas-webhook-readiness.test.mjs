@@ -25,6 +25,10 @@ test('Asaas diagnostic demands exact required events and a dedicated server-only
  assert.equal(view([row],false).status,'receiver_token_not_configured');
  const present=view([row],true);
  assert.equal(present.status,'configuration_detected_receiver_still_blocked');
+ const ingest=assessCrmAsaasProductionWebhook([row],url,true,true);
+ assert.equal(ingest.status,'receiver_ready_for_delivery_test');
+ assert.equal(ingest.registered,true);
+ assert.ok(!JSON.stringify(ingest).includes('NEVER_RETURN_ME'));
  assert.equal(present.registered,true);
  assert.equal(present.eventsCovered,true);
  assert.deepEqual(present.missingEvents,[]);
