@@ -30,6 +30,12 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <p>Homologação interna de uma única cobrança avulsa. Não é assinatura mensal, não altera os planos oficiais e não habilita o checkout público.</p>
 <div class="notice"><strong>Acesso restrito.</strong> Somente administrador Nexus com MFA2. O CPF será enviado apenas ao backend privado, nunca salvo no navegador. O pagamento exige uma confirmação adicional.</div>
 <section class="panel">
+<h2>0. Conferir conexão Asaas de produção</h2>
+<p>Verificação somente de leitura da conta, clientes e cobranças. Não cria Pix, assinatura ou cadastro e não mostra a chave API.</p>
+<button class="secondary" id="asaasCheck" type="button" disabled>Verificar conexão (sem cobrança)</button>
+<div class="status" id="asaasCheckResult" aria-live="polite"></div>
+</section>
+<section class="panel">
 <h2>1. Preparar novo cadastro</h2>
 <form id="prepare" autocomplete="off">
 <div class="grid">
