@@ -44,7 +44,12 @@ jobs:
           deno-version: v2.x
 
       - name: Typecheck hard-off live Pix pilot without credentials or charges
-        run: deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
+        run: |
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-asaas-production-health/index.ts
+
+      - name: Verify read-only Asaas production credentials diagnostic (no charges)
+        run: node --test tests/crm-asaas-production-health.test.mjs
 
       - name: Test Asaas Pix and boleto monthly pipeline (offline, no charges)
         run: node --test tests/crm-asaas-*.test.mjs
