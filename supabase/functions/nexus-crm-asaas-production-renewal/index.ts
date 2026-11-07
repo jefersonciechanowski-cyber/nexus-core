@@ -96,7 +96,7 @@ Deno.serve(async(req:Request)=>{
   eventRow:{...evt,provider:'asaas'},sale,access,productCode:product.code,fetchResource,
  });
  if(verified.decision!=='verified_renewal_for_review' || !('accessId' in verified))
-  return reply({decision:verified.decision,reason:verified.reason||'not_verified'},
+  return reply({decision:verified.decision,reason:('reason' in verified ? verified.reason : 'not_verified')},
    verified.decision==='retry'?503:409);
  // Atomic, one-invoice-per-cycle ledger. SQL checks event, exact company,
  // amount, previous cycles and terminal cancellation under row lock.
