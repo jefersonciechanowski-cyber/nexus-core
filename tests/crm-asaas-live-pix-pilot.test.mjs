@@ -28,7 +28,10 @@ test('only exactly R$10 Pix production can be created, never a subscription',()=
  assert.equal(LIVE_PIX_PROVIDER_HOST,'https://api.asaas.com/v3');
  assert.match(functionSource,/billingType:'PIX',value:LIVE_PIX_AMOUNT_BRL/);
  assert.match(functionSource,/description:'Nexus CRM \| teste real Pix avulso R\$10, sem assinatura'/);
- assert.match(functionSource,/STAGED_LIVE_PIX_DISABLED = true/);
+ assert.match(functionSource,/STAGED_LIVE_PIX_DISABLED = false/);
+ assert.match(functionSource,/STAGED_LIVE_PIX_CHARGE_DISABLED = true/);
+ assert.match(functionSource,/if \(STAGED_LIVE_PIX_CHARGE_DISABLED\)/);
+ assert.match(functionSource,/\['status','prepare'\]\.includes\(action\)/);
  assert.match(functionSource,/if \(STAGED_LIVE_PIX_DISABLED\) return reply/);
  assert.doesNotMatch(functionSource,/api-sandbox\.asaas\.com/);
  assert.doesNotMatch(uiSource,/ASAAS_PRODUCTION_API_KEY|SUPABASE_SERVICE_ROLE_KEY/);
@@ -95,5 +98,7 @@ test('singleton server-only ledger and UI require user action before real charge
  assert.match(uiSource,/rel="noopener noreferrer"/);
  assert.doesNotMatch(uiControls,/localStorage|sessionStorage/);
  assert.match(uiControls,/chargeAttempted=true/);
+ assert.match(uiControls,/!chargeEnabled/);
+ assert.match(uiControls,/chargeEnabled=data\?\.chargeEnabled===true/);
  assert.ok(!uiSource.includes('<script>\n'), 'new admin page should not contain inline JavaScript');
 });
