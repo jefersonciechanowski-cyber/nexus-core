@@ -75,6 +75,9 @@ Deno.serve(async request => {
 
   const summary = {
     prepaid_expired: 0,
+    asaas_prepaid_expired: 0,
+    asaas_prepaid_review: 0,
+    asaas_prepaid_gate: Deno.env.get('NEXUS_CRM_ASAAS_PREPAID_EXPIRY_ENABLED') === 'true' ? 'enabled' : 'disabled',
     subscriptions_checked: 0,
     subscriptions_skipped_sandbox: 0,
     subscription_states_changed: 0,
@@ -119,6 +122,46 @@ Deno.serve(async request => {
         if (crm.isCrm && !crm.synced) throw new Error(crm.error || 'CRM não confirmou expiração pré-paga.');
       } catch (error) {
         summary.errors.push({ access_id: access.id, error: clean((error as any)?.message, 700) });
+      }
+    }
+  }
+
+  // Isolated Asaas PREPAID expiry. Default OFF until the existing R$10
+  // contract and CRM entitlement delivery have been reviewed in production.
+  // This never creates a charge, subscribes a customer or edits other providers.
+  if (summary.asaas_prepaid_gate === 'enabled') {
+    const { data: asaasPrepaid, error: asaasError } = await admin
+      .from('organization_product_access')
+      .select('id,renews_at')
+      .eq('billing_provider', 'asaas')
+      .eq('billing_mode', 'prepaid')
+      .eq('commercial_condition', 'standard')
+      .eq('subscription_status', 'active')
+      .eq('access_status', 'active')
+      .lt('renews_at', today)
+      .limit(200);
+    if (asaasError) {
+      summary.errors.push({ error: 'Falha ao verificar vencimentos Asaas pré-pagos.' });
+    } else {
+      for (const access of asaasPrepaid || []) {
+        try {
+          const { data: state, error } = await admin.rpc('expire_nexus_crm_asaas_prepaid_access', {
+            p_access_id: access.id,
+          });
+          if (error) throw error;
+          const result = state && typeof state === 'object' ? state as Record<string, unknown> : {};
+          if (result.applied !== true) {
+            if (result.reason !== 'already_suspended' && result.reason !== 'not_expired')
+              summary.asaas_prepaid_review += 1;
+            continue;
+          }
+          summary.asaas_prepaid_expired += 1;
+          const crm = await syncCrmEntitlement(admin, access.id, undefined, nowIso, true);
+          if (!crm.isCrm || !crm.synced)
+            throw new Error(crm.error || 'CRM não confirmou suspensão pré-paga Asaas.');
+        } catch (error) {
+          summary.errors.push({ access_id: access.id, error: clean((error as any)?.message, 700) });
+        }
       }
     }
   }
