@@ -50,6 +50,10 @@ jobs:
         run: |
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-live-pix-pilot/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-asaas-production-health/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-health/index.ts
+
+      - name: Verify Brevo first-access sender configuration read-only (no emails)
+        run: node --test tests/crm-onboarding-email-readiness.test.mjs
 
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
