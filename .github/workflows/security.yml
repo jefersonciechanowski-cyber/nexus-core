@@ -52,6 +52,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-asaas-production-health/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-health/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-events/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-monthly-asaas-production/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-admin-crm-email-send-test/index.ts
           deno check --node-modules-dir=auto supabase/functions/stripe-webhook/crm-provisioning.ts
 
@@ -66,6 +67,9 @@ jobs:
 
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
+
+      - name: Verify isolated production Asaas checkout is hard OFF (no charges)
+        run: node --test tests/crm-asaas-production-checkout.test.mjs
 
       - name: Verify production Asaas monthly decisions without payments or network
         run: node --test tests/crm-asaas-production-preview.test.mjs
