@@ -100,19 +100,22 @@ function inOneMonth() {
   return start.toISOString().slice(0,10);
 }
 
+type PilotEmailResult = { sent:boolean; reason:string };
 async function sendPilotFirstAccessEmail(
   email: string, responsible: string, company: string, firstAccessUrl: string | null,
-): Promise<boolean> {
+): Promise<PilotEmailResult> {
   const key = Deno.env.get('BREVO_API_KEY') || '';
   const sender = Deno.env.get('BREVO_FROM_EMAIL') || '';
-  if (!key || !sender || !firstAccessUrl) return false;
+  if (!firstAccessUrl) return {sent:false,reason:'access_link_missing'};
+  if (!key || !sender) return {sent:false,reason:'brevo_configuration_missing'};
   let safeUrl: string;
   try {
     const u = new URL(firstAccessUrl);
     if (u.origin !== 'https://crm.nexuscore.app.br'
-      || u.pathname !== '/auth/primeiro-acesso') return false;
+      || u.pathname !== '/auth/primeiro-acesso')
+      return {sent:false,reason:'access_link_unrecognized'};
     safeUrl = u.toString();
-  } catch { return false; }
+  } catch { return {sent:false,reason:'access_link_invalid'}; }
   const esc = (input: string) => small(input,160)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
@@ -135,8 +138,10 @@ async function sendPilotFirstAccessEmail(
       }),
       signal:AbortSignal.timeout(12000),
     });
-    return result.ok;
-  } catch { return false; }
+    return result.ok
+      ? {sent:true,reason:'brevo_accepted'}
+      : {sent:false,reason:'brevo_http_'+String(result.status)};
+  } catch { return {sent:false,reason:'brevo_request_failed'}; }
 }
 
 Deno.serve(async request => {
@@ -383,16 +388,22 @@ Deno.serve(async request => {
     const completed = await updatePilot(admin,pilot.id,{
       status:'provisioned',activated_at:new Date().toISOString(),access_ends_at:inOneMonth(),
     });
-    const emailSent = await sendPilotFirstAccessEmail(
+    const emailResult = await sendPilotFirstAccessEmail(
       pilot.email,pilot.responsible_name,pilot.company_name,delivery.firstAccessUrl,
     );
-    if (emailSent) await updatePilot(admin,pilot.id,{
-      access_email_sent_at:new Date().toISOString(),
-    });
+    if (emailResult.sent) {
+      await updatePilot(admin,pilot.id,{
+        access_email_sent_at:new Date().toISOString(),
+      }).catch(() => { /* Do not roll back an activated contract for an audit-only update. */ });
+    }
+    await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_EMAIL_'+
+      (emailResult.sent?'ACCEPTED':'NOT_SENT'),user.id,pilot.id,{
+      reason:emailResult.reason,
+    }).catch(() => { /* Never fail provisioning due to diagnostic audit unavailability. */ });
     await audit(admin,'NEXUS_CRM_LIVE_PIX_PILOT_PROVISIONED',user.id,pilot.id,{
       organization_id:organizationId,access_id:accessId,crm_organization_id:delivery.crmOrganizationId,
-    });
-    return reply({...safeView(completed,chargeEnabled),onboardingEmailSent:emailSent,firstAccessUrl:delivery.firstAccessUrl},200,cors);
+    }).catch(() => { /* Provisioning is already confirmed. */ });
+    return reply({...safeView(completed,chargeEnabled),onboardingEmailSent:emailResult.sent,firstAccessUrl:delivery.firstAccessUrl},200,cors);
   } catch {
     await updatePilot(admin,pilot.id,{status:'provision_pending',error_code:'crm_activation_needs_review'});
     return reply({error:'Pagamento confirmado, mas ativação requer revisão. Não crie outra cobrança.'},502,cors);
