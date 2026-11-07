@@ -141,3 +141,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_provision_lease_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107170000_crm_asaas_prepaid_expiry.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_prepaid_expiry_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107220000_crm_asaas_production_webhook_inbox.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_production_events_assertions.sql
