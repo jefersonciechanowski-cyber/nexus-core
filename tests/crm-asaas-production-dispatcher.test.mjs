@@ -99,7 +99,9 @@ test('dispatcher requires the exact GitHub OIDC workflow and release switches',(
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED/);
   assert.match(source,/if\(action==='dispatch'\)\{/);
   assert.match(source,/if\(PRODUCTION_FINANCIAL_DISPATCH_DISABLED/);
-  assert.match(source,/await authorizedGithubJob\(request\)/);
+  assert.match(source,/const sourceEvent=await authorizedGithubJob\(request\)/);
+  assert.match(source,/sourceEvent==='push' && action!=='inspect'/);
+  assert.match(source,/\['schedule','workflow_dispatch','push'\]/);
   assert.match(source,/eq\('processing_status','pending'\)/);
   assert.match(source,/MAX_EVENTS=3/);
 });
@@ -120,6 +122,8 @@ test('scheduler may only inspect, never ask for financial processing',()=>{
   assert.match(workflow,/audience=nexus-crm-asaas-production-dispatch/);
   assert.match(workflow,/id-token: write/);
   assert.match(workflow,/cancel-in-progress: false/);
+  assert.ok(workflow.includes('push:\n    branches: [main]'));
+  assert.ok(workflow.includes("paths:\n      - '.github/workflows/crm-asaas-production-dispatch.yml'"));
   assert.match(workflow,/\{"action":"inspect"\}/);
   assert.doesNotMatch(workflow,/\{"action":"dispatch"\}/);
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
