@@ -44,7 +44,7 @@ test('client calls only the private diagnostic; no credentials or charge workflo
  assert.match(html,/id="webhookProbeResult"/);
  assert.match(html,/sem cobrança/);
  assert.match(js,/body:\{action:'internal_probe'\}/);
- assert.match(js,/id="webhookProbe"|'\('webhookProbe'\)/);
+ assert.match(js,/\$\('webhookProbe'\)/);
  assert.match(js,/internal_token_and_db_verified/);
  assert.match(js,/A entrega REAL pelo Asaas ainda não foi comprovada/);
  assert.doesNotMatch(js,/NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN|ASAAS_PRODUCTION_API_KEY|SUPABASE_SERVICE_ROLE_KEY/);
