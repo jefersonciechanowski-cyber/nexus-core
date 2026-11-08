@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const inbox=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-production-events/index.ts',import.meta.url),'utf8');
+const admin=readFileSync(new URL('../supabase/functions/nexus-admin-asaas-production-health/index.ts',import.meta.url),'utf8');
+const html=readFileSync(new URL('../apps/nexus-admin/crm-live-pix-pilot.html',import.meta.url),'utf8');
+const js=readFileSync(new URL('../apps/nexus-admin/crm-live-pix-pilot.js',import.meta.url),'utf8');
+
+test('internal probe is an authenticated GET, separate from real Asaas POST events',()=>{
+ const gate=inbox.indexOf("Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')");
+ const method=inbox.indexOf("const probe=request.method==='GET'");
+ const auth=inbox.indexOf('trustedAsaasToken(request.headers.get');
+ const select=inbox.indexOf(".select('provider_event_id').limit(1)");
+ const insert=inbox.indexOf("await admin.from('nexus_crm_asaas_production_events').insert");
+ assert.ok(gate>=0&&method>gate&&auth>method&&select>auth&&insert>select);
+ assert.match(inbox,/request\.headers\.get\('x-nexus-crm-webhook-check'\)==='internal-read-only'/);
+ assert.match(inbox,/if\(probe\) \{/);
+ assert.match(inbox,/status:'internal_token_and_inbox_ok'/);
+ assert.match(inbox,/providerDeliveryVerified:false/);
+ assert.match(inbox,/accessGranted:false/);
+ assert.match(inbox,/createdCharge:false/);
+ assert.match(inbox,/if\(!RECEIVE_ONLY_MODE/);
+ assert.doesNotMatch(inbox,/\bfetch\(|\.rpc\(|\.update\(|\.delete\(/);
+});
+test('probe comes only from an active Nexus admin session with MFA2',()=>{
+ assert.match(admin,/getAuthenticatorAssuranceLevel\(accessToken\)/);
+ assert.match(admin,/level\?\.currentLevel !== 'aal2'/);
+ assert.match(admin,/profile\?\.role !== 'nexus_admin'/);
+ assert.match(admin,/profile\.active !== true/);
+ assert.match(admin,/\['check','webhooks','internal_probe'\]/);
+ assert.match(admin,/if\(action==='internal_probe'\)/);
+ assert.match(admin,/fetch\(url,\{/);
+ assert.match(admin,/method:'GET'/);
+ assert.match(admin,/'asaas-access-token':token/);
+ assert.match(admin,/'x-nexus-crm-webhook-check':'internal-read-only'/);
+ assert.match(admin,/internal_token_and_db_verified/);
+ assert.match(admin,/providerDeliveryVerified:false/);
+ assert.match(admin,/createdCharge:false/);
+ assert.doesNotMatch(admin,/console\.(log|warn|error)\(/);
+ assert.doesNotMatch(admin,/http:\/\/api\.asaas\.com/);
+});
+test('client calls only the private diagnostic; no credentials or charge workflow',()=>{
+ assert.match(html,/id="webhookProbe"/);
+ assert.match(html,/id="webhookProbeResult"/);
+ assert.match(html,/sem cobrança/);
+ assert.match(js,/body:\{action:'internal_probe'\}/);
+ assert.match(js,/id="webhookProbe"|'\('webhookProbe'\)/);
+ assert.match(js,/internal_token_and_db_verified/);
+ assert.match(js,/A entrega REAL pelo Asaas ainda não foi comprovada/);
+ assert.doesNotMatch(js,/NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN|ASAAS_PRODUCTION_API_KEY|SUPABASE_SERVICE_ROLE_KEY/);
+ assert.doesNotMatch(inbox,/createUser\(|provisionSaleForProvider|sendCrmAccessEmail/);
+});
