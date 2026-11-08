@@ -21,7 +21,8 @@ test("Annual checkout is prepaid 12 months, price computed server side",()=>{
  assert.match(annual,/buildCrmAsaasBlackFridayAnnualLink/);
  assert.match(annual,/verifyCheckoutBridgeSignature/);
  assert.match(annual,/preflight_nexus_crm_public_identity/);
- assert.match(annual,/chargeType/);
+ const annualLink = readFileSync(new URL("../supabase/functions/_shared/crm-asaas-black-friday-annual-contract.mjs",import.meta.url),"utf8");
+ assert.match(annualLink,/chargeType: 'DETACHED'/);
  assert.match(annual,/return reply\(\{ link, checkoutId: linkId, annualPrepaid: true, months: 12/);
  assert.match(annual,/if \(recent\?\.id\)/);
  assert.match(annual,/sale_status: 'checkout_created'/);
