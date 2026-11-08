@@ -1,6 +1,6 @@
 // Pure, offline-testable Nexus CRM admin-trial contract.
 // This does not change the agency's months-long courtesy grants.
-export const CRM_TRIAL_DAYS = Object.freeze([15, 30]);
+export const CRM_TRIAL_DAYS = Object.freeze([15]);
 export const TRIAL_ALLOWED_PLANS = Object.freeze(['start','pro','gestao']);
 export function normalizeTrialRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { error:'Dados inválidos.' };
@@ -17,7 +17,7 @@ export function normalizeTrialRequest(input) {
     || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(planId)
     || !validDoc || /^0+$/.test(doc) || !CRM_TRIAL_DAYS.includes(trialDays)) {
-    return { error:'Confira os dados, documento e prazo de 15 ou 30 dias.' };
+    return { error:'Confira os dados, documento e prazo de 15 dias.' };
   }
   return { payload:{ companyName,responsibleName,email,planId,registrationNumber:doc,registrationType,trialDays } };
 }
