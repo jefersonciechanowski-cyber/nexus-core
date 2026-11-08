@@ -1,6 +1,12 @@
 name: CRM Asaas production inbox monitor
 
 on:
+  # Execute a single real connectivity probe when this file is updated on main.
+  # This path filter does not apply to checkout, sales or finance code.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-asaas-production-dispatch.yml'
   schedule:
     - cron: '37 */6 * * *'
   workflow_dispatch:
