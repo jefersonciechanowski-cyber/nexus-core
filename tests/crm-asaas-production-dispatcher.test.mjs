@@ -184,3 +184,18 @@ test('production bridge parity never creates a charge and keeps unavailable/mism
   assert.match(workflow,/bridge=%s/);
   assert.doesNotMatch(workflow,/PROOF_INPUT|bridgeSecret|\.proof/);
 });
+
+test('authenticated webhook receiver health check is read-only and does not forge an Asaas delivery',()=>{
+ assert.match(source,/async function checkInternalWebhookReceiver\(\):Promise<string>/);
+ assert.match(source,/x-nexus-crm-webhook-check/);
+ assert.match(source,/asaas-access-token/);
+ assert.match(source,/method:'GET',redirect:'error'/);
+ assert.match(source,/parsed\?\.status==='internal_token_and_inbox_ok'/);
+ assert.match(source,/parsed\?\.providerDeliveryVerified===false/);
+ assert.match(source,/receiverProbeStatus==='internal_token_and_inbox_ok'/);
+ const probe=source.slice(source.indexOf('async function checkInternalWebhookReceiver'),
+   source.indexOf('async function preClientReadiness'));
+ assert.doesNotMatch(probe,/method:\s*'POST'|\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
+ assert.doesNotMatch(probe,/return.*\btoken\b|console\.log|console\.error/);
+ assert.match(workflow,/receiver=%s/);
+});
