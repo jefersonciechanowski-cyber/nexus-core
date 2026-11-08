@@ -58,8 +58,8 @@ test("Existing monthly production checkout remains hard-bound to one-month subsc
  const verifier=readFileSync(new URL("../supabase/functions/_shared/crm-asaas-production-review.mjs",import.meta.url),"utf8");
  assert.match(month,/billing_mode: 'recurring'/);
  assert.match(month,/billing_cycle_months: 1/);
- assert.match(verifier,/sale?.billing_mode !== 'recurring'/);
- assert.match(verifier,/sale?.billing_cycle_months !== 1/);
+ assert.match(verifier,/sale\?\.billing_mode !== 'recurring'/);
+ assert.match(verifier,/sale\?\.billing_cycle_months !== 1/);
  const annual=readFileSync(new URL("../supabase/functions/_shared/crm-asaas-black-friday-annual-contract.mjs",import.meta.url),"utf8");
  assert.doesNotMatch(annual,/fetch\(|Deno\.serve|admin\.rpc|\.from\('/);
 });
