@@ -22,6 +22,15 @@ const eventAt=value=>typeof value==='string'
   && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
   && Number.isFinite(Date.parse(value))?Date.parse(value):null;
 
+/**
+ * This module is an isolated decision engine; inputs come only from vetted
+ * Central records and independently fetched Asaas API snapshots.
+ * @param {{
+ *   eventRow?: any, sale?: any, access?: any, invoice?: any,
+ *   subscription?: any, customer?: any, productCode?: string,
+ *   now?: string, graceDays?: number, policyApproved?: boolean
+ * }} [options]
+ */
 export function previewProductionCrmAsaasDelinquency({
   eventRow,sale,access,invoice,subscription,customer,productCode,
   now,graceDays=CRM_ASAAS_RECOMMENDED_GRACE_DAYS,
