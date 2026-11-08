@@ -13,11 +13,12 @@ test('all three CRM plans offer assisted contact without a payment request',()=>
  assert.match(sales,/Contratação assistida/);
  assert.match(sales,/nenhum pagamento, assinatura ou acesso é criado/);
  assert.match(sales,/checkout automático está em homologação/);
- assert.doesNotMatch(sales,/fetch\(|functions\.invoke\(|checkout\.sessions\.create|ASAAS_PRODUCTION_API_KEY/);
+ assert.doesNotMatch(sales,/checkout\.sessions\.create|ASAAS_PRODUCTION_API_KEY/);
+ assert.match(sales,/fetch\('https:\/\/svphwbccqeoakpmcpvhy\.supabase\.co\/functions\/v1\/nexus-public-crm-interest'/);
+ assert.match(sales,/Nenhuma cobrança foi gerada/);
  assert.doesNotMatch(sales,/checkout\.stripe\.com|api\.asaas\.com\/v3/);
- for(const name of ['Start','Pro','Gestão']){
-  const subject=encodeURIComponent('Solicitação de contratação assistida - Nexus CRM '+name);
-  assert.ok(sales.includes('subject='+subject),name);
+ for(const [name,slug] of [['Start','start'],['Pro','pro'],['Gestão','gestao']]){
+  assert.match(sales,new RegExp('href="#contato" data-plan="'+slug+'" aria-label="Solicitar contratação assistida do Nexus CRM '+name+'"'));
  }
 });
 test('CRM consumer terms match operator-approved seven calendar days',()=>{
