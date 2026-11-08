@@ -7,6 +7,7 @@ import {
 const asaas=readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-asaas-production/index.ts',import.meta.url),'utf8');
 const stripe=readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-checkout/index.ts',import.meta.url),'utf8');
 const site=readFileSync(new URL('../crm/index.html',import.meta.url),'utf8');
+const attributionSql=readFileSync(new URL('../supabase/migrations/20261108190000_crm_asaas_monthly_attribution.sql',import.meta.url),'utf8');
 
 test('Asaas monthly checkout uses published sales origin and never Stripe CRM origin',()=>{
  assert.equal(CRM_ASAAS_PUBLIC_ORIGIN,'https://nexuscore.app.br');
@@ -28,4 +29,23 @@ test('changing Asaas marketing origin leaves every live-charge safeguard disable
  assert.match(asaas,/consume_nexus_public_request_limit/);
  assert.match(asaas,/plan\.price_cents/);
  assert.doesNotMatch(asaas,/TRIAL_ENABLED|NEXUS_CRM_ASAAS_PROD_CHECKOUT_ENABLED = true/);
+});
+
+test('signed Asaas CRM checkout preserves campaign source and media without changing organization scope',()=>{
+  assert.match(attributionSql,/ALTER TABLE public\.nexus_sales/);
+  for(const field of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','referrer_host']){
+    assert.ok(attributionSql.includes('ADD COLUMN IF NOT EXISTS '+field+' text'));
+  }
+  assert.doesNotMatch(attributionSql,/DROP |TRUNCATE |DELETE |DISABLE ROW LEVEL SECURITY|GRANT /i);
+  assert.match(asaas,/utm_source: input\.utmSource \|\| null/);
+  assert.match(asaas,/utm_medium: input\.utmMedium \|\| null/);
+  assert.match(asaas,/utm_campaign: input\.utmCampaign \|\| null/);
+  assert.match(asaas,/utm_content: input\.utmContent \|\| null/);
+  assert.match(asaas,/utm_term: input\.utmTerm \|\| null/);
+  assert.match(asaas,/referrer_host: safeReferrerHost\(input\.referrer\)/);
+  assert.match(asaas,/source: 'site-captacao'/);
+  assert.match(asaas,/campaign_name: input\.utmCampaign \|\| null/);
+  const referrerHelper=asaas.slice(asaas.indexOf('function safeReferrerHost'),asaas.indexOf('async function readJsonLimited'));
+  assert.match(referrerHelper,/return url\.hostname\.toLowerCase\(\)/);
+  assert.doesNotMatch(referrerHelper,/url\.search|url\.href|url\.pathname/);
 });
