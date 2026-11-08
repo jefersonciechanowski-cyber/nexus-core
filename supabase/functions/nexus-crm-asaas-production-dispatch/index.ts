@@ -1,0 +1,226 @@
+import {createClient} from 'npm:@supabase/supabase-js@2.112.3';
+import {createRemoteJWKSet,jwtVerify} from 'npm:jose@6.1.0';
+import {planCrmAsaasProductionDispatch} from '../_shared/crm-asaas-production-dispatch-plan.mjs';
+
+// The authenticated Asaas webhook only persists events; this separate
+// scheduled workflow can inspect them without access to billing credentials.
+// FINANCIAL EXECUTION IS HARD-OFF until a genuine provider delivery and a
+// complete settlement/provisioning E2E are independently approved.
+const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true;
+const REPO='jefersonciechanowski-cyber/nexus-core';
+const WORKFLOW=REPO+'/.github/workflows/crm-asaas-production-dispatch.yml@refs/heads/main';
+const AUDIENCE='nexus-crm-asaas-production-dispatch';
+const MAX_EVENTS=3;
+const ALLOWED_SUCCESS={
+  provision:'provisioned',
+  renewal:'renewal_confirmed',
+} as const;
+const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{
+  status,headers:{'content-type':'application/json; charset=utf-8',
+    'cache-control':'no-store','x-content-type-options':'nosniff'},
+});
+const providerId=(value:unknown,prefix:string)=>
+  typeof value==='string' &&
+  new RegExp('^'+prefix+'_[A-Za-z0-9_-]{5,120}$').test(value);
+const paymentLink=(value:unknown)=>
+  typeof value==='string' && /^[A-Za-z0-9_-]{4,120}$/.test(value);
+type EventRow={
+  provider_event_id:string;event_type:string;resource_id:string;
+  payload:Record<string,any>;environment:string;processing_status:string;
+};
+
+async function authorizedGithubJob(request:Request) {
+  const token=(request.headers.get('authorization')||'')
+    .replace(/^Bearer\s+/i,'').trim();
+  if(!token || token.length>10000 || token.split('.').length!==3)return false;
+  try{
+    const jwks=createRemoteJWKSet(new URL(
+      'https://token.actions.githubusercontent.com/.well-known/jwks'));
+    const {payload}=await jwtVerify(token,jwks,{
+      issuer:'https://token.actions.githubusercontent.com',audience:AUDIENCE,
+    });
+    return payload.repository===REPO
+      &&payload.ref==='refs/heads/main'
+      &&payload.workflow_ref===WORKFLOW
+      &&['schedule','workflow_dispatch'].includes(String(payload.event_name||''))
+      &&payload.ref_type==='branch';
+  }catch{return false;}
+}
+async function readAction(request:Request) {
+  if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
+    ||Number(request.headers.get('content-length')||0)>128||!request.body)return null;
+  let raw='';
+  try{
+    raw=await request.text();
+    if(new TextEncoder().encode(raw).length>128)return null;
+    const body:unknown=JSON.parse(raw);
+    if(!body||typeof body!=='object'||Array.isArray(body)
+      ||Object.keys(body).length!==1)return null;
+    const action=(body as Record<string,unknown>).action;
+    return action==='inspect'||action==='dispatch'?action:null;
+  }catch{return null;}
+}
+async function backlog(admin:any) {
+  const {count:pending,error:p}=await admin.from('nexus_crm_asaas_production_events')
+    .select('provider_event_id',{count:'exact',head:true})
+    .eq('environment','production').eq('processing_status','pending');
+  const {count:manual,error:m}=await admin.from('nexus_crm_asaas_production_events')
+    .select('provider_event_id',{count:'exact',head:true})
+    .eq('environment','production').eq('processing_status','manual_review');
+  if(p||m)return null;
+  return {pending:Number(pending??0),manualReview:Number(manual??0)};
+}
+async function findSales(admin:any,event:EventRow){
+  const resource=event.payload?.resource;
+  const link=resource?.paymentLink;
+  const sub=resource?.subscription;
+  if(!paymentLink(link)&&!providerId(sub,'sub'))return [];
+  const selected='id,product_id,provider,environment,billing_mode,billing_cycle_months,sale_status,asaas_checkout_id,asaas_subscription_id,paid_at';
+  const found=new Map<string,any>();
+  if(paymentLink(link)){
+    const {data,error}=await admin.from('nexus_sales').select(selected)
+      .eq('provider','asaas').eq('environment','production')
+      .eq('asaas_checkout_id',link).limit(2);
+    if(error)throw Error('sale_lookup_failed');
+    for(const item of data||[])found.set(item.id,item);
+  }
+  if(providerId(sub,'sub')){
+    const {data,error}=await admin.from('nexus_sales').select(selected)
+      .eq('provider','asaas').eq('environment','production')
+      .eq('asaas_subscription_id',sub).limit(2);
+    if(error)throw Error('sale_lookup_failed');
+    for(const item of data||[])found.set(item.id,item);
+  }
+  return Array.from(found.values()).slice(0,3);
+}
+async function markEvent(admin:any,eventId:string,status:'processed'|'manual_review',reason:string|null){
+  const {data,error}=await admin.from('nexus_crm_asaas_production_events')
+    .update({processing_status:status,reason_code:reason,
+      processed_at:status==='processed'?new Date().toISOString():null})
+    .eq('provider_event_id',eventId).eq('environment','production')
+    .eq('processing_status','pending').select('provider_event_id');
+  if(error)throw Error('event_state_update_failed');
+  return (data||[]).length===1;
+}
+async function callIndependentWorker(base:string,worker:'provision'|'renewal',eventId:string){
+  const envName=worker==='provision'
+    ?'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET'
+    :'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET';
+  const key=Deno.env.get(envName)||'';
+  const asaasKey=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
+  const webhookKey=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
+  if(key.length<32||key===asaasKey||key===webhookKey){
+    return {status:'worker_not_configured',decision:'retry'};
+  }
+  const slug=worker==='provision'
+    ?'nexus-crm-asaas-production-provision'
+    :'nexus-crm-asaas-production-renewal';
+  const name=worker==='provision'
+    ?'x-nexus-central-internal-key':'x-nexus-crm-renewal-key';
+  try{
+    const response=await fetch(new URL('/functions/v1/'+slug,base),{
+      method:'POST',headers:{
+        'content-type':'application/json',
+        [name]:key,
+      },
+      body:JSON.stringify({eventId}),
+      signal:AbortSignal.timeout(45000),
+    });
+    if(Number(response.headers.get('content-length')||0)>4096)
+      return {status:'worker_response_too_large',decision:'retry'};
+    const text=await response.text();
+    if(text.length>4096)return {status:'worker_response_too_large',decision:'retry'};
+    let body:any;
+    try{body=JSON.parse(text);}catch{return {status:'worker_bad_response',decision:'retry'};}
+    if(response.status===200 && body?.decision===ALLOWED_SUCCESS[worker]
+      &&(worker!=='renewal'||body.crmSynced===true)) {
+      return {status:'accepted',decision:'processed'};
+    }
+    if(response.status===409)return {status:'operator_review',decision:'manual_review'};
+    return {status:'worker_unavailable',decision:'retry'};
+  }catch{return {status:'worker_network_failure',decision:'retry'};}
+}
+
+Deno.serve(async(request:Request)=>{
+  if(request.method!=='POST')return reply({error:'Método não permitido.'},405);
+  // Authenticate BEFORE accepting even a read-only request. Never log JWTs.
+  if(!(await authorizedGithubJob(request)))return reply({error:'Não autorizado.'},401);
+  const action=await readAction(request);
+  if(!action)return reply({error:'Solicitação inválida.'},400);
+  if(action==='dispatch'){
+    if(PRODUCTION_FINANCIAL_DISPATCH_DISABLED
+      ||Deno.env.get('NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED')!=='true'
+      ||Deno.env.get('NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY')!=='true'
+      ||Deno.env.get('NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED')!=='true') {
+      return reply({status:'financial_dispatch_hard_off',
+        readOnly:true,createdCharge:false,accessGranted:false},503);
+    }
+  }
+  const url=Deno.env.get('SUPABASE_URL')||'';
+  const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
+  if(!url||service.length<30)return reply({error:'Serviço indisponível.'},503);
+  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  if(action==='inspect'){
+    const counts=await backlog(admin);
+    if(!counts)return reply({error:'Fila indisponível.'},503);
+    return reply({status:'inspected',...counts,readOnly:true,
+      financialDispatchEnabled:false,createdCharge:false,
+      accessGranted:false,providerDeliveryVerified:false},200);
+  }
+  // This section cannot execute while PRODUCTION_FINANCIAL_DISPATCH_DISABLED
+  // remains true. Even after release, each downstream worker has *its own*
+  // code-level hard-off, opt-in secrets, live verification and DB leases.
+  const {data:events,error}=await admin.from('nexus_crm_asaas_production_events')
+    .select('provider_event_id,event_type,resource_id,payload,environment,processing_status')
+    .eq('environment','production').eq('processing_status','pending')
+    .order('received_at',{ascending:true}).limit(MAX_EVENTS);
+  if(error)return reply({error:'Fila indisponível.'},503);
+  const summary={status:'dispatch_attempt',inspected:0,completed:0,
+    manualReview:0,retry:0,createdCharge:false};
+  for(const event of (events||[]) as EventRow[]){
+    summary.inspected++;
+    let candidates:any[]=[];
+    try{
+      if(['PAYMENT_RECEIVED','PAYMENT_CONFIRMED'].includes(event.event_type))
+        candidates=await findSales(admin,event);
+    }catch{summary.retry++;continue;}
+    let productCode:string|null=null;
+    if(candidates.length===1){
+      const {data:product,error:pError}=await admin.from('nexus_products')
+        .select('code').eq('id',candidates[0].product_id).maybeSingle();
+      if(pError){summary.retry++;continue;}
+      productCode=product?.code||null;
+    }
+    const plan=planCrmAsaasProductionDispatch({
+      eventRow:event,sales:candidates,productCode:productCode||undefined,
+    });
+    if(plan.decision==='hold'){summary.retry++;continue;}
+    if(plan.decision==='manual_review'){
+      try{
+        if(await markEvent(admin,event.provider_event_id,'manual_review',plan.reason))
+          summary.manualReview++;
+      }catch{summary.retry++;}
+      continue;
+    }
+    if(plan.decision!=='route_for_independent_verification'
+      ||!['provision','renewal'].includes(plan.worker||'')){
+      summary.retry++;continue;
+    }
+    const worked=await callIndependentWorker(url,plan.worker as 'provision'|'renewal',
+      event.provider_event_id);
+    if(worked.decision==='processed'){
+      try{
+        // The renewal worker may already have atomically marked it processed.
+        // On repeat runs the worker's receipt/RPC is independently idempotent.
+        await markEvent(admin,event.provider_event_id,'processed',null);
+        summary.completed++;
+      }catch{summary.retry++;}
+    } else if(worked.decision==='manual_review'){
+      try{
+        if(await markEvent(admin,event.provider_event_id,'manual_review','worker_requires_manual_review'))
+          summary.manualReview++;
+      }catch{summary.retry++;}
+    }else summary.retry++;
+  }
+  return reply(summary,200);
+});
