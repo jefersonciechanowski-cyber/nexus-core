@@ -46,7 +46,7 @@ async function readEventId(req:Request){
 }
 Deno.serve(async(req:Request):Promise<Response>=>{
   // HARD-OFF: never call provider, DB or provisioner until separately approved.
-  const STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED = true;
+  const STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true';
   if (STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED) return reply({ error: 'Provisionamento Asaas desativado.' }, 503);
 
   if(req.method!=='POST')return reply({error:'Método não permitido.'},405);
