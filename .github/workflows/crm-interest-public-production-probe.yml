@@ -1,0 +1,43 @@
+name: CRM public interest production no-charge probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-interest-public-production-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check_no_charge_contact_api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test CORS preflight, without sending any lead
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-public-crm-interest'
+          HTTP=$(curl --silent --show-error --max-time 12 \
+            -X OPTIONS \
+            -H 'Origin: https://nexuscore.app.br' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            -o /tmp/interest-options.json -w '%{http_code}' "$API")
+          test "$HTTP" = '204'
+          echo 'CRM interest CORS preflight approved (HTTP 204), no user data sent.'
+
+      - name: Reject invalid empty payload before creating lead or payment
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-public-crm-interest'
+          HTTP=$(curl --silent --show-error --max-time 12 \
+            -X POST -H 'Origin: https://nexuscore.app.br' \
+            -H 'Content-Type: application/json' \
+            -d '{}' -o /tmp/interest-invalid.json -w '%{http_code}' "$API")
+          test "$HTTP" = '400'
+          python3 -c 'import json; d=json.load(open("/tmp/interest-invalid.json")); assert d.get("error") and "received" not in d'
+          echo 'CRM interest invalid submission rejected (HTTP 400), no lead or payment created.'
