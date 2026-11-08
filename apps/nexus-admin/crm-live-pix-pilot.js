@@ -124,6 +124,39 @@ async function checkCrmAsaasWebhook(){
  }finally{$('webhookCheck').disabled=false;}
 }
 $('webhookCheck').addEventListener('click',checkCrmAsaasWebhook);
+async function probeCrmAsaasWebhook(){
+ if(!apiClient)return;
+ $('webhookProbe').disabled=true;
+ $('webhookProbeResult').textContent='Verificando autenticação e fila do receptor, sem gerar eventos financeiros...';
+ try{
+  const {data,error}=await apiClient.functions.invoke('nexus-admin-asaas-production-health',{
+   body:{action:'internal_probe'}
+  });
+  if(error)throw new Error('Não foi possível executar o teste interno.');
+  if(data?.readOnly!==true||data?.createdCharge!==false
+    ||data?.providerDeliveryVerified!==false)
+   throw new Error('O diagnóstico interno retornou dados inválidos.');
+  const states={
+   internal_token_and_db_verified:'Teste interno aprovado: token autenticado e fila do Supabase acessível. Nenhum evento foi criado. A entrega REAL pelo Asaas ainda não foi comprovada.',
+   receiver_disabled:'O receptor ainda não está habilitado para receber eventos autenticados.',
+   receiver_token_invalid:'O token exclusivo do webhook está ausente, incorreto ou reutiliza outra credencial.',
+   receiver_http_401:'O receptor recusou o token do webhook (401). Confira o secret sem expô-lo.',
+   receiver_http_405:'O receptor ainda não reconhece o diagnóstico interno (405). Atualize a função.',
+   receiver_http_503:'O receptor respondeu 503. Confira as permissões e a tabela de eventos.',
+   receiver_http_500:'O receptor respondeu 500. Necessária revisão do backend.',
+   receiver_unexpected_response:'O receptor respondeu com um formato inesperado; teste inconclusivo.',
+   receiver_network_unavailable:'Não foi possível conectar o diagnóstico ao receptor do Supabase.',
+   missing_or_wrong_environment:'Chave de produção Asaas não encontrada. Verifique as credenciais no servidor.',
+  };
+  $('webhookProbeResult').textContent=states[data?.status]||
+    'Não foi possível comprovar a conexão interna. Nenhuma cobrança ocorreu.';
+ }catch(e){
+  $('webhookProbeResult').textContent=String(e?.message||'Falha de diagnóstico interno.');
+ }finally{
+  $('webhookProbe').disabled=false;
+ }
+}
+$('webhookProbe').addEventListener('click',probeCrmAsaasWebhook);
 async function checkEmailReadiness(){
  if(!apiClient)return;
  $('emailCheck').disabled=true;
@@ -232,6 +265,7 @@ $('copy').addEventListener('click',async()=>{if($('accessLink').value)await navi
   if(session.role!=='nexus_admin')throw new Error('Apenas a administração Nexus pode operar este piloto.');
   apiClient=window.NexusAuth.getClient();
   $('webhookCheck').disabled=false;
+  $('webhookProbe').disabled=false;
   await checkAsaasProduction();
   await call('status');
   await checkEmailReadiness();
