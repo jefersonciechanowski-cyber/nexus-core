@@ -68,6 +68,19 @@ jobs:
             --data '{"action":"readiness"}')"
           printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="preflight" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and isinstance(d.get("flagsPending"),list) and isinstance(d.get("secretsPending"),list); print("CRM Asaas first-customer ready=%s; plans public=%s; webhook=%s; pending flags=%s; missing keys=%s; bridge=%s; receiver=%s" % (d.get("readyToReceiveFirstCustomer"),d.get("plansReady"),d.get("webhookStatus"),",".join(d.get("flagsPending",[])),",".join(d.get("secretsPending",[])),d.get("bridgeStatus"),d.get("receiverProbeStatus")) if ok else "Readiness response rejected"); sys.exit(0 if ok else 1)'
 
+      - name: Report financial scheduler authorization without processing charges
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        env:
+          SCHEDULE_APPROVED: ${{ vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${SCHEDULE_APPROVED}" == "true" ]]; then
+            echo "CRM Asaas five-minute financial scheduler opt-in=true"
+          else
+            echo "CRM Asaas five-minute financial scheduler opt-in=false"
+          fi
+
       - name: Dispatch verified CRM Asaas events only after independent release approval
         if: ${{ vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' && github.event_name != 'push' }}
         env:
