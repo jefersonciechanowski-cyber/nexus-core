@@ -1,0 +1,45 @@
+name: CRM Asaas production inbox monitor
+
+on:
+  schedule:
+    - cron: '37 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: crm-asaas-production-inbox-monitor
+  cancel-in-progress: false
+
+jobs:
+  inspect_inbox_only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Request single-use GitHub OIDC token for the CRM inbox monitor
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-crm-asaas-production-dispatch")"
+          TOKEN="$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          printf 'token=%s\n' "${TOKEN}" >> "${GITHUB_OUTPUT}"
+
+      - name: Inspect Asaas CRM production inbox without financial mutations
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-dispatch" \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"action":"inspect"}')"
+          printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and d.get("financialDispatchEnabled") is False; print("CRM Asaas inbox: pending=%s manual_review=%s, zero financial side effects" % (d.get("pending"),d.get("manualReview")) if ok else "CRM Asaas inbox monitor returned unsafe or unexpected state"); sys.exit(0 if ok else 1)'
