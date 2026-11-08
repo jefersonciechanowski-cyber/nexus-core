@@ -72,6 +72,9 @@ jobs:
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
+      - name: Verify production Asaas past-due grace is advisory and never cuts customers
+        run: node --test tests/crm-asaas-production-delinquency.test.mjs
+
       - name: Verify production Asaas cancellation, refund and renewal preview is read-only
         run: node --test tests/crm-asaas-production-lifecycle-readonly.test.mjs
 
