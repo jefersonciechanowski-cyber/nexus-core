@@ -8,7 +8,8 @@ on:
     paths:
       - '.github/workflows/crm-asaas-production-dispatch.yml'
   schedule:
-    - cron: '37 */6 * * *'
+    - cron: '37 */6 * * *' # diagnóstico barato, independente da liberação
+    - cron: '*/5 * * * *' # processamento apenas após habilitação explícita
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,8 @@ concurrency:
 
 jobs:
   inspect_inbox_only:
+    # O gatilho de 5 minutos não usa runner quando a função financeira está fechada.
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '37 */6 * * *' || vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -49,3 +52,18 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{"action":"inspect"}')"
           printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and d.get("financialDispatchEnabled") is False; print("CRM Asaas inbox: pending=%s manual_review=%s, zero financial side effects" % (d.get("pending"),d.get("manualReview")) if ok else "CRM Asaas inbox monitor returned unsafe or unexpected state"); sys.exit(0 if ok else 1)'
+
+      - name: Dispatch verified CRM Asaas events only after independent release approval
+        if: ${{ vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' && github.event_name != 'push' }}
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 120 \
+            --request POST \
+            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-dispatch" \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"action":"dispatch"}')"
+          printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="dispatch_attempt" and d.get("createdCharge") is False and all(type(d.get(k)) is int and d[k]>=0 for k in ("inspected","completed","manualReview","retry")); print("CRM Asaas: inspected=%s completed=%s review=%s retry=%s; no charges created" % (d.get("inspected"),d.get("completed"),d.get("manualReview"),d.get("retry")) if ok else "CRM Asaas financial dispatcher returned an unexpected or unsafe response"); sys.exit(0 if ok else 1)'
