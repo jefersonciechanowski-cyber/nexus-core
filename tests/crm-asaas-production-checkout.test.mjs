@@ -5,8 +5,8 @@ const live=readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-
 const sandbox=readFileSync(new URL('../supabase/functions/nexus-public-crm-monthly-asaas/index.ts',import.meta.url),'utf8');
 const contract=readFileSync(new URL('../supabase/functions/_shared/crm-asaas-monthly-contract.mjs',import.meta.url),'utf8');
 
-test('production checkout has unconditional HARD OFF before auth, DB and provider call',()=>{
- const define=live.indexOf('const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = true');
+test('production checkout remains fail-closed before any external operation unless released',()=>{
+ const define=live.indexOf('const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true'');
  const guard=live.indexOf('if (STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED)');
  const hmac=live.indexOf('verifyCheckoutBridgeSignature(');
  const db=live.indexOf('createClient(supabaseUrl, serviceKey');
