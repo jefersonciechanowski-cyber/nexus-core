@@ -5,7 +5,7 @@ const id=(value,prefix,min=5,max=120)=>typeof value==='string' &&
   new RegExp('^'+prefix+'_[A-Za-z0-9_-]{'+min+','+max+'}$').test(value);
 
 /** @param {string} decision @param {string} reason
- * @param {'provision'|'renewal'|null} [worker] */
+ * @param {'provision'|'renewal'|'annual'|null} [worker] */
 const result=(decision,reason,worker=null)=>Object.freeze({
   decision,reason,worker,canCharge:false,canProvision:false,
   independentlyVerified:false,
@@ -42,6 +42,16 @@ export function planCrmAsaasProductionDispatch({eventRow,sales=[],productCode}={
   if(!Array.isArray(sales)||sales.length!==1)
     return result('manual_review','sale_match_not_unique');
   const sale=sales[0];
+  if(productCode==='crm' && sale?.provider==='asaas'
+    && sale.environment==='production' && sale.billing_mode==='prepaid'
+    && sale.billing_cycle_months===12 && sale.product_id && sale.id){
+    if(!link || sub || sale.asaas_checkout_id!==resource.paymentLink
+      || sale.asaas_subscription_id != null)
+      return result('manual_review','annual_relationship_invalid');
+    if(sale.sale_status!=='checkout_created')
+      return result('manual_review','annual_sale_not_fresh');
+    return result('route_for_independent_verification','verified_annual_candidate','annual');
+  }
   if(productCode!=='crm' || sale?.provider!=='asaas' || sale.environment!=='production'
     ||sale.billing_mode!=='recurring'||sale.billing_cycle_months!==1
     ||!sale.product_id||!sale.id) {
