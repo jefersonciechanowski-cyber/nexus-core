@@ -120,8 +120,8 @@ test('scheduler may only inspect, never ask for financial processing',()=>{
   assert.match(workflow,/audience=nexus-crm-asaas-production-dispatch/);
   assert.match(workflow,/id-token: write/);
   assert.match(workflow,/cancel-in-progress: false/);
-  assert.match(workflow,/action\\":\\"inspect\\"/);
-  assert.doesNotMatch(workflow,/action\\":\\"dispatch\\"/);
+  assert.match(workflow,/\{"action":"inspect"\}/);
+  assert.doesNotMatch(workflow,/\{"action":"dispatch"\}/);
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
   assert.match(workflow,/financialDispatchEnabled/);
 });
