@@ -83,6 +83,11 @@ jobs:
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
+      - name: Validate CRM ad lead capture with no payments or identity provisioning
+        run: |
+          node --test tests/crm-public-ad-interest.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-interest/index.ts
+
       - name: Verify CRM public plan offers and approved grace terms never charge
         run: node --test tests/crm-assisted-sales-and-grace-terms.test.mjs
 
