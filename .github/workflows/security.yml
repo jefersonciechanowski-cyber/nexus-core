@@ -77,6 +77,9 @@ jobs:
       - name: Verify webhook health probe is read-only and cannot create Asaas payments
         run: node --test tests/crm-asaas-internal-webhook-probe.test.mjs
 
+      - name: Verify Asaas CRM marketing origin and live checkout remain protected
+        run: node --test tests/crm-asaas-production-marketing-origin.test.mjs
+
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
