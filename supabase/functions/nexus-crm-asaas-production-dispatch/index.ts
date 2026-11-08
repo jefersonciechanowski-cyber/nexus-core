@@ -6,7 +6,7 @@ import {planCrmAsaasProductionDispatch} from '../_shared/crm-asaas-production-di
 // scheduled workflow can inspect them without access to billing credentials.
 // FINANCIAL EXECUTION IS HARD-OFF until a genuine provider delivery and a
 // complete settlement/provisioning E2E are independently approved.
-const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true;
+const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true';
 const REPO='jefersonciechanowski-cyber/nexus-core';
 const WORKFLOW=REPO+'/.github/workflows/crm-asaas-production-dispatch.yml@refs/heads/main';
 const AUDIENCE='nexus-crm-asaas-production-dispatch';
