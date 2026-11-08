@@ -25,6 +25,16 @@ function safeAsaasUrl(value: unknown) {
   } catch { return null; }
 }
 
+// Retain the referring hostname only; full URLs can contain personal or OAuth data.
+function safeReferrerHost(value: unknown): string | null {
+  if (typeof value !== 'string' || !value || value.length > 2000) return null;
+  try {
+    const url = new URL(value);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+    return url.hostname.toLowerCase().slice(0, 200) || null;
+  } catch { return null; }
+}
+
 async function readJsonLimited(request: Request) {
   const length = Number(request.headers.get('content-length') || '0');
   if (!Number.isFinite(length) || length > 16384) return null;
@@ -160,7 +170,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
     district: input.district, city: input.city, state: input.state,
     provider: 'asaas', environment: 'production', billing_mode: 'recurring',
     billing_cycle_months: 1, checkout_amount_cents: Number(plan.price_cents),
-    campaign_name: input.utmCampaign || null, external_reference: reference,
+    campaign_name: input.utmCampaign || null,
+    utm_source: input.utmSource || null,
+    utm_medium: input.utmMedium || null,
+    utm_campaign: input.utmCampaign || null,
+    utm_content: input.utmContent || null,
+    utm_term: input.utmTerm || null,
+    referrer_host: safeReferrerHost(input.referrer),
+    external_reference: reference,
     return_origin: CRM_ASAAS_PUBLIC_ORIGIN, lead_notes: 'Pagamento mensal por ' + method + '; sem fidelidade anual',
   }).select('id').single();
   if (saleError) {
