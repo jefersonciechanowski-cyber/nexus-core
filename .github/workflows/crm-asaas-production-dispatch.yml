@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 120 \
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 180 \
             --request POST \
             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-dispatch" \
             --header "Authorization: Bearer ${OIDC_TOKEN}" \
