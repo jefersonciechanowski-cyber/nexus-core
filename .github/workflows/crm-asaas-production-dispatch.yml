@@ -66,7 +66,7 @@ jobs:
             --header "Authorization: Bearer ${OIDC_TOKEN}" \
             --header "Content-Type: application/json" \
             --data '{"action":"readiness"}')"
-          printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="preflight" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and isinstance(d.get("flagsPending"),list) and isinstance(d.get("secretsPending"),list); print("CRM Asaas first-customer ready=%s; plans public=%s; webhook=%s; pending flags=%s; missing keys=%s" % (d.get("readyToReceiveFirstCustomer"),d.get("plansReady"),d.get("webhookStatus"),",".join(d.get("flagsPending",[])),",".join(d.get("secretsPending",[]))) if ok else "Readiness response rejected"); sys.exit(0 if ok else 1)'
+          printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="preflight" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and isinstance(d.get("flagsPending"),list) and isinstance(d.get("secretsPending"),list); print("CRM Asaas first-customer ready=%s; plans public=%s; webhook=%s; pending flags=%s; missing keys=%s; bridge=%s" % (d.get("readyToReceiveFirstCustomer"),d.get("plansReady"),d.get("webhookStatus"),",".join(d.get("flagsPending",[])),",".join(d.get("secretsPending",[])),d.get("bridgeStatus")) if ok else "Readiness response rejected"); sys.exit(0 if ok else 1)'
 
       - name: Dispatch verified CRM Asaas events only after independent release approval
         if: ${{ vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' && github.event_name != 'push' }}
