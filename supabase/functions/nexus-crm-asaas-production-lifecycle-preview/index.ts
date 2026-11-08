@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { trustedAsaasToken } from '../_shared/crm-asaas-events.mjs';
 import { previewProductionCrmAsaasLifecycle } from '../_shared/crm-asaas-production-review.mjs';
-import { previewProductionCrmAsaasDelinquency } from '../_shared/crm-asaas-production-delinquency.mjs';
+import { previewProductionCrmAsaasDelinquency, CRM_ASAAS_POLICY_APPROVED } from '../_shared/crm-asaas-production-delinquency.mjs';
 
 // Private diagnostic endpoint; not an Asaas webhook, billing worker or job.
 // Production only, hard-OFF before database/provider. No financial writes.
@@ -101,7 +101,12 @@ Deno.serve(async(req:Request):Promise<Response>=>{
   }
 
   let receipt=null;
-  if(eventRow.event_type?.startsWith('PAYMENT_')){
+  // An OVERDUE invoice has never been settled, so it must not be required
+  // to exist in the paid-receipts ledger. Other payment events retain the
+  // receipt check (including refunds). Overdue is independently verified
+  // against Asaas and can only return a manual-review recommendation.
+  if(eventRow.event_type?.startsWith('PAYMENT_')
+    && eventRow.event_type!=='PAYMENT_OVERDUE'){
     if(!safeId(resource?.id,'pay')) {
       return json({decision:'manual_review',reason:'payment_id_invalid',readOnly:true,canActivateCrm:false});
     }
@@ -146,12 +151,12 @@ Deno.serve(async(req:Request):Promise<Response>=>{
       return json({decision:'retry',reason:'provider_lookup_failed',
         readOnly:true,canSuspendCrm:false},503);
     }
-    // Suggested seven-day grace is not an authorized suspension policy.
+    // Approved seven-day grace yields a REVIEW only; never suspends customers.
     // This diagnostic NEVER edits Central/CRM and never invokes a billing RPC.
     const delinquency=previewProductionCrmAsaasDelinquency({
       eventRow:{...eventRow,provider:'asaas'},sale:sales[0],access,
       invoice,subscription,customer,productCode:products[0].code,
-      now:new Date().toISOString(),policyApproved:false,
+      now:new Date().toISOString(),policyApproved:CRM_ASAAS_POLICY_APPROVED,
     });
     return json(delinquency,delinquency.decision==='retry'?503:200);
   }
