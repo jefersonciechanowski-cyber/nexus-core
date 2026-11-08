@@ -12,7 +12,10 @@ Data de revisão inicial: 07/11/2026.
    `HTTP 200` após persistir. Não liquida nem provisiona.
 3. O workflow do GitHub
    `.github/workflows/crm-asaas-production-dispatch.yml`
-   executa a cada 6 horas e pode ser disparado manualmente.
+   executa inspeção somente leitura a cada 6 horas; inclui também uma agenda
+   de 5 minutos cujo job é **ignorado** por padrão e só roda quando a
+   variável GitHub \`NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED=true\`
+   for aprovada.
    Ele obtém um **JWT OIDC de curta duração**, audience
    `nexus-crm-asaas-production-dispatch`; não armazena segredos em
    GitHub e **solicita somente `{"action":"inspect"}`**.
@@ -44,6 +47,14 @@ O código possui
   opt-in de tarifas de notificações e controle de revisões;
 - revisão operacional expressa da alteração dos gates dos workers e do
   checkout.
+
+O passo financeiro do workflow é opt-in e NÃO executa em eventos `push`.
+A variável GitHub habilita apenas o agendamento, não altera os bloqueios
+de código ou os segredos da Central; um dispatcher com HARD OFF devolve
+503 e o job falha de forma visível. Por padrão, **nenhum evento é liquidado**.
+Quando aprovado, a agenda de 5 minutos facilita a entrega inicial e o
+reprocessamento idempotente, mas o GitHub Actions não oferece SLA exato
+de minuto; o produto deve monitorar atrasos e falhas do agendamento.
 
 As demais flags `NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED`,
 `NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY` e
