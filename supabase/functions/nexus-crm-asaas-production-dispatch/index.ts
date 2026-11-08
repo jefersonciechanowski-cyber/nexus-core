@@ -146,6 +146,40 @@ async function callIndependentWorker(base:string,worker:'provision'|'renewal',ev
 
 // Read-only first-customer readiness report for authorized GitHub OIDC runs.
 // Returns names of missing switches, never values, identity or provider payloads.
+
+// Separate, read-only HMAC parity test. The CRM signs one fixed, domain-separated
+// message that can NEVER equal the checkout HMAC input timestamp + "." + body.
+// Returns a status only, not keys, proofs, identities or financial records.
+async function crmAsaasBridgeProofStatus():Promise<string>{
+  const secret=Deno.env.get('NEXUS_CRM_ASAAS_PROD_CHECKOUT_BRIDGE_SECRET')||'';
+  if(secret.length<32)return 'not_configured';
+  try{
+    const response=await fetch('https://crm.nexuscore.app.br/api/internal/crm-asaas-bridge-proof',{
+      method:'GET',redirect:'error',
+      headers:{accept:'application/json','x-nexus-readiness-probe':'crm-asaas-bridge-v1'},
+      signal:AbortSignal.timeout(6000),
+    });
+    if(!response.ok || Number(response.headers.get('content-length')||0)>512)
+      return 'unavailable';
+    const body=await response.text();
+    if(body.length>512)return 'invalid_response';
+    const parsed=JSON.parse(body);
+    if(parsed?.status!=='read_only_bridge_proof' 
+      || typeof parsed.proof!=='string' || !/^[a-f0-9]{64}$/.test(parsed.proof))
+      return 'invalid_response';
+    const encoder=new TextEncoder();
+    const key=await crypto.subtle.importKey('raw',encoder.encode(secret),
+      {name:'HMAC',hash:'SHA-256'},false,['sign']);
+    const digest=await crypto.subtle.sign('HMAC',key,
+      encoder.encode('NEXUS_CRM_ASAAS_READONLY_BRIDGE_KEY_PROOF_V1'));
+    const expected=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+    let difference=0;
+    for(let i=0;i<expected.length;i++)
+      difference|=expected.charCodeAt(i)^parsed.proof.charCodeAt(i);
+    return difference===0?'matched':'mismatch';
+  }catch{return 'unavailable';}
+}
+
 async function preClientReadiness(admin:any){
   const requiredFlags=[
     'NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED',
@@ -218,12 +252,14 @@ async function preClientReadiness(admin:any){
       }else webhookStatus='provider_lookup_unavailable';
     }catch{webhookStatus='provider_lookup_unavailable';}
   }else webhookStatus='provider_key_not_configured';
+  const bridgeStatus=await crmAsaasBridgeProofStatus();
   return {
     status:'preflight',readOnly:true,createdCharge:false,accessGranted:false,
     providerDeliveryVerified:false, // only the FIRST genuine payment proves delivery
-    flagsPending,secretsPending,plansReady,webhookStatus,
+    flagsPending,secretsPending,plansReady,webhookStatus,bridgeStatus,
     readyToReceiveFirstCustomer:flagsPending.length===0 && secretsPending.length===0
-      &&plansReady && webhookStatus==='receiver_ready_for_delivery_test',
+      &&plansReady && webhookStatus==='receiver_ready_for_delivery_test'
+      &&bridgeStatus==='matched',
   };
 }
 
