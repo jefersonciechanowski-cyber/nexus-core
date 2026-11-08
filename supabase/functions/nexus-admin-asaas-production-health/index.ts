@@ -84,6 +84,47 @@ async function readWebhooks(key: string, centralUrl: string) {
     tokenVerifiedByDelivery:false};
 }
 
+async function probeCrmAsaasReceiver(centralUrl:string) {
+  const token=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
+  const receiveEnabled=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED')==='true'
+    &&Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')==='true';
+  if(!receiveEnabled) return {status:'receiver_disabled',readOnly:true,
+    createdCharge:false,providerDeliveryVerified:false};
+  const forbidden=[
+    'ASAAS_PRODUCTION_API_KEY','ASAAS_API_KEY','ASAAS_SANDBOX_API_KEY',
+    'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET',
+    'NEXUS_CRM_ASAAS_PROD_VERIFY_SECRET',
+    'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET',
+  ].some(name=>!!Deno.env.get(name)&&Deno.env.get(name)===token);
+  if(token.length<32||token.length>255||/\s/.test(token)||forbidden)
+    return {status:'receiver_token_invalid',readOnly:true,
+      createdCharge:false,providerDeliveryVerified:false};
+  const url=new URL('/functions/v1/nexus-crm-asaas-production-events',centralUrl).toString();
+  try{
+    const reply=await fetch(url,{
+      method:'GET',headers:{
+        'asaas-access-token':token,
+        'x-nexus-crm-webhook-check':'internal-read-only',
+      },signal:AbortSignal.timeout(7500),
+    });
+    // Never expose auth headers, tokens, arbitrary response text or
+    // customer data. The only trusted success is our expected status shape.
+    if(reply.status!==200)return {status:'receiver_http_'+String(reply.status),
+      readOnly:true,createdCharge:false,providerDeliveryVerified:false};
+    const result=await reply.json() as Record<string,unknown>;
+    if(result.status!=='internal_token_and_inbox_ok'
+       ||result.paidEvent!==false
+       ||result.providerDeliveryVerified!==false)
+      return {status:'receiver_unexpected_response',readOnly:true,
+        createdCharge:false,providerDeliveryVerified:false};
+    return {status:'internal_token_and_db_verified',readOnly:true,
+      createdCharge:false,providerDeliveryVerified:false};
+  }catch{
+    return {status:'receiver_network_unavailable',readOnly:true,
+      createdCharge:false,providerDeliveryVerified:false};
+  }
+}
+
 async function checkAsaas(key: string, path: typeof PATHS[number]) {
   const result = await fetch(ASAAS_BASE + path, {
     method: 'GET',
@@ -134,11 +175,11 @@ Deno.serve(async (request: Request) => {
     const data: unknown = await request.json();
     if(data && typeof data==='object' && !Array.isArray(data)
       && Object.keys(data).length === 1
-      && ['check','webhooks'].includes(String((data as Record<string,unknown>).action))) {
+      && ['check','webhooks','internal_probe'].includes(String((data as Record<string,unknown>).action))) {
       action=String((data as Record<string,unknown>).action);
     }
   } catch { /* rejected */ }
-  if (action !== 'check' && action !== 'webhooks') return response({ error: 'Solicitação inválida.' }, 400, cors);
+  if (action !== 'check' && action !== 'webhooks' && action !== 'internal_probe') return response({ error: 'Solicitação inválida.' }, 400, cors);
 
   const url = Deno.env.get('SUPABASE_URL') || '';
   const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -172,13 +213,19 @@ Deno.serve(async (request: Request) => {
     return response(action==='webhooks'
       ? {status:'missing_or_wrong_environment',receiverBlocked:true,
         production:true,createdCharge:false}
-      : {connection:'missing_or_wrong_environment',
-        production:true,createdCharge:false}, 200, cors);
+      : action==='internal_probe'
+        ? {status:'missing_or_wrong_environment',readOnly:true,
+          production:true,createdCharge:false,providerDeliveryVerified:false}
+        : {connection:'missing_or_wrong_environment',
+          production:true,createdCharge:false}, 200, cors);
   }
   if(action==='webhooks') {
     try { return response(await readWebhooks(key,url),200,cors); }
     catch { return response({status:'unavailable',receiverBlocked:true,
       createdCharge:false,production:true},200,cors); }
+  }
+  if(action==='internal_probe') {
+    return response(await probeCrmAsaasReceiver(url),200,cors);
   }
   const results = [] as { status: string; general: string }[];
   for (const path of PATHS) {
