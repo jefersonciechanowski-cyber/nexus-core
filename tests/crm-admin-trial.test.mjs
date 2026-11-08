@@ -10,10 +10,11 @@ const worker=readFileSync(new URL('../supabase/functions/nexus-crm-trial-reconci
 const courtesy=readFileSync(new URL('../supabase/functions/nexus-admin-crm-courtesy/index.ts',import.meta.url),'utf8');
 const page=readFileSync(new URL('../apps/nexus-admin/crm-access.html',import.meta.url),'utf8');
 const sql=readFileSync(new URL('../docs/CRM_TRIAL_CLAIM_SQL_DRAFT.sql',import.meta.url),'utf8');
+const singleTrialSql=readFileSync(new URL('../supabase/migrations/20261108195000_crm_trial_single_15_day_claim.sql',import.meta.url),'utf8');
 
-test('15 days and 30 days supported; rejects periods beyond, annual plan and malformed IDs',()=>{
+test('only one 15-day period is allowed; reject 30-day and non-trial durations',()=>{
   assert.equal(normalizeTrialRequest(sample).payload.trialDays,15);
-  assert.equal(normalizeTrialRequest({...sample,trialDays:30}).payload.trialDays,30);
+  assert.ok(normalizeTrialRequest({...sample,trialDays:30}).error);
   for(const trialDays of [0,1,14,16,29,31,365])assert.ok(normalizeTrialRequest({...sample,trialDays}).error);
   assert.ok(normalizeTrialRequest({...sample,planId:'forged'}).error);
   assert.ok(normalizeTrialRequest({...sample,registrationNumber:'not-a-document'}).error);
@@ -22,9 +23,9 @@ test('15 days and 30 days supported; rejects periods beyond, annual plan and mal
 
 test('date calculation honors leap days and month/year crossing in UTC',()=>{
   assert.equal(addTrialDays('2026-10-26',15),'2026-11-10');
-  assert.equal(addTrialDays('2026-10-26',30),'2026-11-25');
+  assert.throws(()=>addTrialDays('2026-10-26',30));
   assert.equal(addTrialDays('2028-02-15',15),'2028-03-01');
-  assert.equal(addTrialDays('2026-12-20',30),'2027-01-19');
+  assert.throws(()=>addTrialDays('2026-12-20',30));
   assert.throws(()=>addTrialDays('2026-02-31',15));
   assert.throws(()=>addTrialDays('2026-01-01',12));
 });
@@ -76,4 +77,20 @@ test('trial grant and expiry require the explicit pilot gate before side effects
   assert.match(worker,/canOperateCrmTrial\(Deno\.env\.toObject\(\), 'expire'\)/);
   assert.ok(endpoint.indexOf("if (!canOperateCrmTrial(") < endpoint.indexOf('provisionCrmTenant(admin'));
   assert.ok(worker.indexOf("if (!canOperateCrmTrial(") < worker.indexOf("admin.rpc('expire_nexus_crm_trial_access'"));
+});
+
+test('server and database enforce a single 15-day trial even across different emails',()=>{
+  assert.match(singleTrialSql,/p_trial_days <> 15/);
+  assert.match(singleTrialSql,/ON CONFLICT DO NOTHING/);
+  assert.match(singleTrialSql,/RETURN FOUND/);
+  assert.match(singleTrialSql,/REVOKE ALL ON FUNCTION public\.reserve_nexus_crm_trial/);
+  assert.match(singleTrialSql,/GRANT EXECUTE ON FUNCTION public\.reserve_nexus_crm_trial/);
+  assert.match(singleTrialSql,/TO service_role/);
+  assert.match(singleTrialSql,/document_fingerprint/);
+  assert.match(singleTrialSql,/email_fingerprint/);
+  assert.match(sql,/document_fingerprint text not null unique/);
+  assert.match(sql,/email_fingerprint text not null unique/);
+  assert.match(endpoint,/fingerprintTrialIdentity\(claimSecret,'document',registrationNumber\)/);
+  assert.match(endpoint,/fingerprintTrialIdentity\(claimSecret,'email',email\)/);
+  assert.match(endpoint,/reserve_nexus_crm_trial/);
 });
