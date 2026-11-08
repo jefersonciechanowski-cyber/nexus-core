@@ -6,7 +6,7 @@ import {syncCrmEntitlement} from '../stripe-webhook/crm-provisioning.ts';
 // Separate PRODUCTION-only renewal worker. Never creates an Asaas charge or
 // user. HARD OFF until webhook delivery, policy and CRM sync are approved.
 // The internal caller must supply an event ID from the authenticated inbox.
-const STAGED_ASAAS_PRODUCTION_RENEWAL_DISABLED = true;
+const STAGED_ASAAS_PRODUCTION_RENEWAL_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true';
 const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{
  status,headers:{'content-type':'application/json; charset=utf-8',
   'cache-control':'no-store','x-content-type-options':'nosniff'},

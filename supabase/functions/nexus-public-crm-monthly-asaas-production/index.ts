@@ -7,7 +7,7 @@ import { buildCrmAsaasRecurringLink } from '../_shared/crm-asaas-monthly-contrac
 // until a customer voluntarily completes the provider-hosted link. This
 // endpoint is HARD OFF until independent settlement and entitlement delivery
 // have been approved and verified. Sandbox and legacy 410 remain unchanged.
-const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = true;
+const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true';
 function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },

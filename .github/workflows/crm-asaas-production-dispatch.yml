@@ -53,6 +53,21 @@ jobs:
             --data '{"action":"inspect"}')"
           printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and d.get("financialDispatchEnabled") is False; print("CRM Asaas inbox: pending=%s manual_review=%s, zero financial side effects" % (d.get("pending"),d.get("manualReview")) if ok else "CRM Asaas inbox monitor returned unsafe or unexpected state"); sys.exit(0 if ok else 1)'
 
+      - name: Check first-customer release readiness without charges
+        # Safe on push, schedule and manual execution: readonly Asaas GET only.
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 20 \
+            --request POST \
+            --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-dispatch" \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"action":"readiness"}')"
+          printf '%s\n' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("status")=="preflight" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False and isinstance(d.get("flagsPending"),list) and isinstance(d.get("secretsPending"),list); print("CRM Asaas first-customer ready=%s; plans public=%s; webhook=%s; pending flags=%s; missing keys=%s" % (d.get("readyToReceiveFirstCustomer"),d.get("plansReady"),d.get("webhookStatus"),",".join(d.get("flagsPending",[])),",".join(d.get("secretsPending",[]))) if ok else "Readiness response rejected"); sys.exit(0 if ok else 1)'
+
       - name: Dispatch verified CRM Asaas events only after independent release approval
         if: ${{ vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' && github.event_name != 'push' }}
         env:

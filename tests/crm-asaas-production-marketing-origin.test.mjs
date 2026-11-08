@@ -18,7 +18,7 @@ test('Asaas monthly checkout uses published sales origin and never Stripe CRM or
  assert.match(stripe,/CRM_PUBLIC_ORIGIN/);
 });
 test('changing Asaas marketing origin leaves every live-charge safeguard disabled',()=>{
- assert.match(asaas,/const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = true/);
+ assert.match(asaas,/const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
  assert.ok(asaas.indexOf("if (STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED)")<
   asaas.indexOf("if (request.method !== 'POST')"));
  assert.match(asaas,/verifyCheckoutBridgeSignature\(/);

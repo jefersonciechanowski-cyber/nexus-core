@@ -11,7 +11,7 @@ test('live recurring worker is hard-off before input, DB, Asaas and CRM calls',(
  const provider=src.indexOf("fetch('https://api.asaas.com/v3'+path");
  const crm=src.indexOf('syncCrmEntitlement(');
  assert.ok(gate>=0&&db>gate&&provider>db&&crm>provider);
- assert.match(src,/STAGED_ASAAS_PRODUCTION_RENEWAL_DISABLED = true/);
+ assert.match(src,/STAGED_ASAAS_PRODUCTION_RENEWAL_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_RENEWAL_ENABLED/);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY/);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED/);

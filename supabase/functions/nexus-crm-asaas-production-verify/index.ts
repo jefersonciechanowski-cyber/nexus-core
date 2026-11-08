@@ -5,7 +5,7 @@ import { previewProductionCrmAsaasPayment } from '../_shared/crm-asaas-productio
 // Asaas monthly CRM PRODUCTION: independent read-only reconciliation.
 // NEVER claim funds, create clients, invoices, subscriptions, access or email.
 // HARD-OFF until the production webhook token and incoming events are approved.
-const STAGED_PRODUCTION_VERIFY_DISABLED = true;
+const STAGED_PRODUCTION_VERIFY_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true';
 const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{
  status,headers:{'content-type':'application/json; charset=utf-8',
    'cache-control':'no-store','x-content-type-options':'nosniff'},

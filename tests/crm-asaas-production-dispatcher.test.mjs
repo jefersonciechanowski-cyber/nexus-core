@@ -93,14 +93,14 @@ test('dispatcher requires the exact GitHub OIDC workflow and release switches',(
   assert.match(source,/payload\.workflow_ref===WORKFLOW/);
   assert.match(source,/payload\.repository===REPO/);
   assert.match(source,/payload\.ref==='refs\/heads\/main'/);
-  assert.match(source,/const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true/);
+  assert.match(source,/const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED/);
   assert.match(source,/if\(action==='dispatch'\)\{/);
   assert.match(source,/if\(PRODUCTION_FINANCIAL_DISPATCH_DISABLED/);
   assert.match(source,/const sourceEvent=await authorizedGithubJob\(request\)/);
-  assert.match(source,/sourceEvent==='push' && action!=='inspect'/);
+  assert.match(source,/sourceEvent==='push' && action!=='inspect' && action!=='readiness'/);
   assert.match(source,/\['schedule','workflow_dispatch','push'\]/);
   assert.match(source,/eq\('processing_status','pending'\)/);
   assert.match(source,/MAX_EVENTS=3/);
@@ -128,6 +128,7 @@ test('scheduler keeps read-only diagnostics and allows billing dispatch only by 
   assert.ok(workflow.includes("cron: '*/5 * * * *'"));
   assert.ok(workflow.includes("github.event.schedule == '37 */6 * * *'"));
   assert.match(workflow,/\{"action":"inspect"\}/);
+  assert.match(workflow,/\{"action":"readiness"\}/);
   assert.match(workflow,/\{"action":"dispatch"\}/);
   const dispatch=workflow.slice(workflow.indexOf('name: Dispatch verified CRM Asaas events'));
   assert.ok(dispatch.startsWith('name: Dispatch verified CRM Asaas events'));
@@ -137,8 +138,8 @@ test('scheduler keeps read-only diagnostics and allows billing dispatch only by 
   assert.ok(workflow.includes("if: ${{ github.event_name != 'schedule' || github.event.schedule == '37 */6 * * *' || vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' }}"));
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
   assert.match(workflow,/financialDispatchEnabled/);
-  assert.match(source,/PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true/);
-  assert.match(source,/sourceEvent==='push' && action!=='inspect'/);
+  assert.match(source,/PRODUCTION_FINANCIAL_DISPATCH_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
+  assert.match(source,/sourceEvent==='push' && action!=='inspect' && action!=='readiness'/);
 });
 test('read-only queue inspection returns aggregate counts and never edits records',()=>{
   const inspect=source.slice(source.indexOf("if(action==='inspect'){"),
@@ -148,4 +149,23 @@ test('read-only queue inspection returns aggregate counts and never edits record
   assert.match(inspect,/financialDispatchEnabled:false/);
   assert.match(inspect,/providerDeliveryVerified:false/);
   assert.doesNotMatch(inspect,/\.update\(|\.insert\(|\.delete\(|callIndependentWorker\(/);
+});
+
+test('OIDC readiness uses only GET Asaas, reports missing flags by name and cannot grant access',()=>{
+  assert.match(source,/async function preClientReadiness\(admin:any\)/);
+  assert.match(source,/NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED/);
+  assert.match(source,/NEXUS_CRM_ASAAS_PROD_CHECKOUT_BRIDGE_SECRET/);
+  assert.match(source,/NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
+  assert.match(source,/NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET/);
+  assert.match(source,/NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN/);
+  assert.match(source,/readyToReceiveFirstCustomer:/);
+  assert.match(source,/providerDeliveryVerified:false/);
+  assert.match(source,/fetch\('https:\/\/api\.asaas\.com\/v3\/webhooks\?limit=100'/);
+  assert.match(source,/method:'GET'/);
+  const readiness=source.slice(source.indexOf('async function preClientReadiness'),
+    source.indexOf('Deno.serve(async(request:Request)=>'));
+  assert.doesNotMatch(readiness,/method:\s*'POST'|\.update\(|\.insert\(|\.delete\(|admin\.rpc\(/);
+  assert.doesNotMatch(readiness,/return.*(secret|asaasKey|service)/i);
+  assert.match(workflow,/name: Check first-customer release readiness without charges/);
+  assert.match(workflow,/d\.get\("createdCharge"\) is False/);
 });

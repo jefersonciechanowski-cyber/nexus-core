@@ -30,7 +30,7 @@ test('CRM consumer terms match operator-approved seven calendar days',()=>{
  assert.match(terms,/Estornos e cancelamentos exigem avaliação específica/);
 });
 test('editing assisted sales does not lift live checkout gate or silently enable Asaas fees',()=>{
- assert.match(checkout,/STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = true/);
+ assert.match(checkout,/STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
  assert.match(checkout,/NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED/);
  assert.match(provider,/notificationEnabled: true/);
  assert.match(sales,/mailto:suporte@nexuscore\.app\.br\?subject=/);

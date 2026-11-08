@@ -79,7 +79,7 @@ test('API enforces origin, caps payloads and prevents anonymous financial operat
  assert.doesNotMatch(api,/provider_payment_id:|provider_checkout_id:|checkout_amount_cents:/);
 });
 test('commercial protections stay unchanged and cannot create bills from a lead',()=>{
- assert.match(checkout,/const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = true/);
+ assert.match(checkout,/const STAGED_ASAAS_PRODUCTION_CHECKOUT_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
  assert.match(api,/billing_mode:'recurring',billing_cycle_months:1/);
  assert.match(api,/provider:'asaas',environment:'production'/);
  assert.match(api,/sale_status:'lead'/);
