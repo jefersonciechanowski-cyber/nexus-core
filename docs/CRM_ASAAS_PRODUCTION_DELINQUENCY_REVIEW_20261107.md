@@ -48,8 +48,7 @@ comprovação de entrega quando disponível e nenhuma comunicação repetida
 indevidamente. O aviso automático ainda precisa de implementação,
 validação de destinatário e homologação de envio.
 
-Ao completar sete dias corridos, o sistema poderá recomendar **análise
-administrativa**, mas não suspenderá o CRM automaticamente. Antes de uma
+Ao completar sete dias corridos, o sistema poderá recomendar **revisão administrativa**, mas não suspenderá o CRM automaticamente. Antes de uma
 eventual suspensão, o operador deverá reconfirmar em tempo real a ausência
 de pagamento, o titular, a assinatura, as notificações e a situação
 contratual. Pagamentos confirmados reativam o mesmo acesso somente após
