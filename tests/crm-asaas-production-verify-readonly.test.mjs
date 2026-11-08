@@ -8,7 +8,7 @@ const sandbox=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-verify
 
 test('production read-only verifier is hard-off before any database or Asaas GET',()=>{
  const guarded=src.indexOf('if(STAGED_PRODUCTION_VERIFY_DISABLED)');
- const start=src.indexOf('const STAGED_PRODUCTION_VERIFY_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true'');
+ const start=src.indexOf("const STAGED_PRODUCTION_VERIFY_DISABLED = Deno.env.get('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED') !== 'true'");
  const database=src.indexOf("admin.from('nexus_crm_asaas_production_events')");
  const provider=src.indexOf("fetch('https://api.asaas.com/v3'+path");
  assert.ok(start>=0&&guarded>start&&database>guarded&&provider>database);
