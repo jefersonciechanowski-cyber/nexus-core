@@ -122,8 +122,8 @@ test('scheduler may only inspect, never ask for financial processing',()=>{
   assert.match(workflow,/audience=nexus-crm-asaas-production-dispatch/);
   assert.match(workflow,/id-token: write/);
   assert.match(workflow,/cancel-in-progress: false/);
-  assert.match(workflow,/push:\\n    branches: \[main\]/);
-  assert.match(workflow,/paths:\\n      - '\.github\/workflows\/crm-asaas-production-dispatch\.yml'/);
+  assert.ok(workflow.includes('push:\n    branches: [main]'));
+  assert.ok(workflow.includes("paths:\n      - '.github/workflows/crm-asaas-production-dispatch.yml'"));
   assert.match(workflow,/\{"action":"inspect"\}/);
   assert.doesNotMatch(workflow,/\{"action":"dispatch"\}/);
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
