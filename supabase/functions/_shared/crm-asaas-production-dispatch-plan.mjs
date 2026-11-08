@@ -4,6 +4,8 @@
 const id=(value,prefix,min=5,max=120)=>typeof value==='string' &&
   new RegExp('^'+prefix+'_[A-Za-z0-9_-]{'+min+','+max+'}$').test(value);
 
+/** @param {string} decision @param {string} reason
+ * @param {'provision'|'renewal'|null} [worker] */
 const result=(decision,reason,worker=null)=>Object.freeze({
   decision,reason,worker,canCharge:false,canProvision:false,
   independentlyVerified:false,
