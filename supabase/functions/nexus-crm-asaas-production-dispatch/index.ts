@@ -39,12 +39,13 @@ async function authorizedGithubJob(request:Request) {
     const {payload}=await jwtVerify(token,jwks,{
       issuer:'https://token.actions.githubusercontent.com',audience:AUDIENCE,
     });
-    return payload.repository===REPO
+    const scoped=payload.repository===REPO
       &&payload.ref==='refs/heads/main'
       &&payload.workflow_ref===WORKFLOW
-      &&['schedule','workflow_dispatch'].includes(String(payload.event_name||''))
+      &&['schedule','workflow_dispatch','push'].includes(String(payload.event_name||''))
       &&payload.ref_type==='branch';
-  }catch{return false;}
+    return scoped ? String(payload.event_name) : null;
+  }catch{return null;}
 }
 async function readAction(request:Request) {
   if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
@@ -144,9 +145,14 @@ async function callIndependentWorker(base:string,worker:'provision'|'renewal',ev
 Deno.serve(async(request:Request)=>{
   if(request.method!=='POST')return reply({error:'Método não permitido.'},405);
   // Authenticate BEFORE accepting even a read-only request. Never log JWTs.
-  if(!(await authorizedGithubJob(request)))return reply({error:'Não autorizado.'},401);
+  const sourceEvent=await authorizedGithubJob(request);
+  if(!sourceEvent)return reply({error:'Não autorizado.'},401);
   const action=await readAction(request);
   if(!action)return reply({error:'Solicitação inválida.'},400);
+  // Push exists only to prove production connectivity when deploying the
+  // monitor workflow. Push events can NEVER start financial processing.
+  if(sourceEvent==='push' && action!=='inspect')
+    return reply({error:'Somente diagnóstico permitido nesta execução.'},403);
   if(action==='dispatch'){
     if(PRODUCTION_FINANCIAL_DISPATCH_DISABLED
       ||Deno.env.get('NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED')!=='true'
