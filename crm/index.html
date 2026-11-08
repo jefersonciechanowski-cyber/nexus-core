@@ -88,5 +88,60 @@
   </main>
 
   <footer class="footer"><div class="shell footerIn"><div><b>Nexus Core Tecnologia LTDA.</b><br>Nexus CRM · plataforma SaaS para gestão comercial.</div><div><a href="/crm/privacidade.html">Política de Privacidade</a> · <a href="/crm/termos.html">Termos de Uso</a> · <a href="mailto:suporte@nexuscore.app.br">suporte@nexuscore.app.br</a></div></div></footer>
+
+  <script>
+    (() => {
+      'use strict';
+      const form=document.getElementById('crmInterestForm');
+      const plan=document.getElementById('interestPlan');
+      const button=document.getElementById('interestSubmit');
+      const feedback=document.getElementById('interestFeedback');
+      for(const link of document.querySelectorAll('[data-plan]')){
+        link.addEventListener('click',()=>{
+          plan.value=link.getAttribute('data-plan')||'';
+        });
+      }
+      form.addEventListener('submit',async(event)=>{
+        event.preventDefault();
+        if(!form.reportValidity())return;
+        button.disabled=true;
+        feedback.textContent='Enviando sua solicitação...';
+        const data=new FormData(form);
+        const params=new URLSearchParams(window.location.search);
+        const payload={
+          companyName:String(data.get('companyName')||''),
+          responsibleName:String(data.get('responsibleName')||''),
+          phone:String(data.get('phone')||''),
+          email:String(data.get('email')||''),
+          planCode:String(data.get('planCode')||''),
+          website:String(data.get('website')||''),
+          acceptedContact:data.get('acceptedContact')==='on',
+          utmSource:params.get('utm_source')||'',
+          utmMedium:params.get('utm_medium')||'',
+          utmCampaign:params.get('utm_campaign')||'',
+          utmContent:params.get('utm_content')||'',
+          utmTerm:params.get('utm_term')||'',
+        };
+        const controller=new AbortController();
+        const timer=setTimeout(()=>controller.abort(),15000);
+        try{
+          const response=await fetch('https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-public-crm-interest',{
+            method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify(payload),signal:controller.signal,
+          });
+          const result=await response.json();
+          if(!response.ok||result?.received!==true||result?.noPayment!==true)
+            throw Error(result?.error||'Não foi possível enviar. Tente novamente.');
+          form.reset();
+          feedback.textContent='Solicitação recebida! Nossa equipe entrará em contato. Nenhuma cobrança foi gerada.';
+        }catch(error){
+          feedback.textContent=error instanceof Error?error.message:'Falha de conexão. Tente novamente ou use o e-mail.';
+        }finally{
+          clearTimeout(timer);
+          button.disabled=false;
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
