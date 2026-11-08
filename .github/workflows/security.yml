@@ -69,6 +69,11 @@ jobs:
       - name: Verify Asaas prepaid expiry guard and monthly contract isolation (no charges)
         run: node --test tests/crm-asaas-prepaid-expiry.test.mjs
 
+      - name: Verify OIDC production Asaas queue routing stays financial hard-off
+        run: |
+          node --test tests/crm-asaas-production-dispatcher.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-dispatch/index.ts
+
       - name: Verify webhook health probe is read-only and cannot create Asaas payments
         run: node --test tests/crm-asaas-internal-webhook-probe.test.mjs
 
