@@ -19,7 +19,7 @@ test('internal probe is an authenticated GET, separate from real Asaas POST even
  assert.match(inbox,/providerDeliveryVerified:false/);
  assert.match(inbox,/accessGranted:false/);
  assert.match(inbox,/createdCharge:false/);
- assert.match(inbox,/if\(!RECEIVE_ONLY_MODE/);
+ assert.match(inbox,/if\s*\(!RECEIVE_ONLY_MODE/);
  assert.doesNotMatch(inbox,/\bfetch\(|\.rpc\(|\.update\(|\.delete\(/);
 });
 test('probe comes only from an active Nexus admin session with MFA2',()=>{
