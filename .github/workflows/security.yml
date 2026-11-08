@@ -75,6 +75,9 @@ jobs:
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 
+      - name: Verify CRM public plan offers and approved grace terms never charge
+        run: node --test tests/crm-assisted-sales-and-grace-terms.test.mjs
+
       - name: Verify operator-approved 7-day CRM grace remains manual review only
         run: node --test tests/crm-asaas-approved-grace-policy.test.mjs
 
