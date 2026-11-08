@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { trustedAsaasToken } from '../_shared/crm-asaas-events.mjs';
 import { previewProductionCrmAsaasLifecycle } from '../_shared/crm-asaas-production-review.mjs';
+import { previewProductionCrmAsaasDelinquency } from '../_shared/crm-asaas-production-delinquency.mjs';
 
 // Private diagnostic endpoint; not an Asaas webhook, billing worker or job.
 // Production only, hard-OFF before database/provider. No financial writes.
@@ -75,7 +76,7 @@ Deno.serve(async(req:Request):Promise<Response>=>{
     return json({decision:'manual_review',reason:'subscription_not_linked',readOnly:true,canActivateCrm:false});
   }
   const {data:accesses,error:accessError}=await admin.from('organization_product_access')
-    .select('id,organization_id,product_id,external_tenant_id,billing_provider,billing_mode,commercial_condition,provider_customer_id,provider_subscription_id,contracted_price_cents,subscription_status,access_status,provider_state_event_id,provider_state_event_created_at')
+    .select('id,organization_id,product_id,external_tenant_id,billing_provider,billing_mode,billing_cycle_months,commercial_condition,provider_customer_id,provider_subscription_id,contracted_price_cents,subscription_status,access_status,provider_state_event_id,provider_state_event_created_at')
     .eq('provider_subscription_id',subscriptionId).eq('billing_provider','asaas').limit(2);
   if(accessError)return json({decision:'retry',reason:'access_read_failed',readOnly:true,canActivateCrm:false},503);
   if(!accesses || accesses.length!==1) {
@@ -90,7 +91,7 @@ Deno.serve(async(req:Request):Promise<Response>=>{
   }
 
   const {data:sales,error:saleError}=await admin.from('nexus_sales')
-    .select('id,product_id,organization_id,provider,environment,sale_status,provisioned_at,billing_mode,billing_cycle_months,asaas_subscription_id,provider_customer_id,registration_number')
+    .select('id,product_id,organization_id,provider,environment,source,sale_status,provisioned_at,billing_mode,billing_cycle_months,asaas_subscription_id,provider_customer_id,registration_number,checkout_amount_cents')
     .eq('organization_id',access.organization_id).eq('product_id',access.product_id)
     .eq('provider','asaas').eq('environment','production')
     .eq('asaas_subscription_id',subscriptionId).eq('sale_status','provisioned').limit(2);
@@ -131,6 +132,29 @@ Deno.serve(async(req:Request):Promise<Response>=>{
     if(body.length>30000)throw Error('provider_too_large');
     return JSON.parse(body);
   };
+  if(['PAYMENT_OVERDUE','PAYMENT_REFUNDED'].includes(eventRow.event_type)) {
+    if(!safeId(resource?.id,'pay')) {
+      return json({decision:'manual_review',reason:'invoice_id_invalid',
+        readOnly:true,canSuspendCrm:false},200);
+    }
+    let invoice,subscription,customer;
+    try {
+      invoice=await fetchResource('/payments/'+resource.id);
+      subscription=await fetchResource('/subscriptions/'+subscriptionId);
+      customer=await fetchResource('/customers/'+invoice.customer);
+    }catch {
+      return json({decision:'retry',reason:'provider_lookup_failed',
+        readOnly:true,canSuspendCrm:false},503);
+    }
+    // Suggested seven-day grace is not an authorized suspension policy.
+    // This diagnostic NEVER edits Central/CRM and never invokes a billing RPC.
+    const delinquency=previewProductionCrmAsaasDelinquency({
+      eventRow:{...eventRow,provider:'asaas'},sale:sales[0],access,
+      invoice,subscription,customer,productCode:products[0].code,
+      now:new Date().toISOString(),policyApproved:false,
+    });
+    return json(delinquency,delinquency.decision==='retry'?503:200);
+  }
   const decision=await previewProductionCrmAsaasLifecycle({
     eventRow:{...eventRow,provider:'asaas'},sale:sales[0],access,receipt,productCode:products[0].code,
     fetchResource,now:new Date().toISOString(),
