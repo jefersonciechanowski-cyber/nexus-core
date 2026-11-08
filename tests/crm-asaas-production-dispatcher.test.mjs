@@ -169,3 +169,18 @@ test('OIDC readiness uses only GET Asaas, reports missing flags by name and cann
   assert.match(workflow,/name: Check first-customer release readiness without charges/);
   assert.match(workflow,/d\.get\("createdCharge"\) is False/);
 });
+
+test('production bridge parity never creates a charge and keeps unavailable/mismatch closed',()=>{
+  assert.match(source,/async function crmAsaasBridgeProofStatus\(\):Promise<string>/);
+  assert.match(source,/https:\/\/crm\.nexuscore\.app\.br\/api\/internal\/crm-asaas-bridge-proof/);
+  assert.match(source,/method:'GET',redirect:'error'/);
+  assert.match(source,/NEXUS_CRM_ASAAS_READONLY_BRIDGE_KEY_PROOF_V1/);
+  assert.match(source,/return difference===0\?'matched':'mismatch'/);
+  assert.match(source,/bridgeStatus==='matched'/);
+  const proof=source.slice(source.indexOf('async function crmAsaasBridgeProofStatus'),
+    source.indexOf('async function preClientReadiness'));
+  assert.doesNotMatch(proof,/\.insert\(|\.update\(|\.delete\(|\.rpc\(|method:'POST'/);
+  assert.doesNotMatch(proof,/return.*\bsecret\b|return.*\bdigest\b|return.*\bexpected\b/);
+  assert.match(workflow,/bridge=%s/);
+  assert.doesNotMatch(workflow,/PROOF_INPUT|bridgeSecret|\.proof/);
+});
