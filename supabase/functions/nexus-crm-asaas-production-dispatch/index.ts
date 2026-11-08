@@ -14,6 +14,7 @@ const AUDIENCE='nexus-crm-asaas-production-dispatch';
 const MAX_EVENTS=3;
 const ALLOWED_SUCCESS={
   provision:'provisioned',
+  annual:'provisioned',
   renewal:'renewal_confirmed',
 } as const;
 const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{
@@ -104,21 +105,22 @@ async function markEvent(admin:any,eventId:string,status:'processed'|'manual_rev
   if(error)throw Error('event_state_update_failed');
   return (data||[]).length===1;
 }
-async function callIndependentWorker(base:string,worker:'provision'|'renewal',eventId:string){
-  const envName=worker==='provision'
-    ?'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET'
-    :'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET';
+async function callIndependentWorker(base:string,worker:'provision'|'renewal'|'annual',eventId:string){
+  const envName=worker==='renewal'
+    ?'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET'
+    :'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET';
   const key=Deno.env.get(envName)||'';
   const asaasKey=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
   const webhookKey=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
   if(key.length<32||key===asaasKey||key===webhookKey){
     return {status:'worker_not_configured',decision:'retry'};
   }
-  const slug=worker==='provision'
-    ?'nexus-crm-asaas-production-provision'
-    :'nexus-crm-asaas-production-renewal';
-  const name=worker==='provision'
-    ?'x-nexus-central-internal-key':'x-nexus-crm-renewal-key';
+  const slug=worker==='renewal' ?'nexus-crm-asaas-production-renewal'
+    :worker==='annual' ?'nexus-crm-asaas-production-annual-provision'
+    :'nexus-crm-asaas-production-provision';
+  const name=worker==='renewal'?'x-nexus-crm-renewal-key'
+    :worker==='annual'?'x-nexus-crm-annual-key'
+    :'x-nexus-central-internal-key';
   try{
     const response=await fetch(new URL('/functions/v1/'+slug,base),{
       method:'POST',headers:{
@@ -368,10 +370,10 @@ Deno.serve(async(request:Request)=>{
       continue;
     }
     if(plan.decision!=='route_for_independent_verification'
-      ||!['provision','renewal'].includes(plan.worker||'')){
+      ||!['provision','renewal','annual'].includes(plan.worker||'')){
       summary.retry++;continue;
     }
-    const worked=await callIndependentWorker(url,plan.worker as 'provision'|'renewal',
+    const worked=await callIndependentWorker(url,plan.worker as 'provision'|'renewal'|'annual',
       event.provider_event_id);
     if(worked.decision==='processed'){
       try{
