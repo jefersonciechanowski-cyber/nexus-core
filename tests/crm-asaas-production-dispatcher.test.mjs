@@ -93,7 +93,7 @@ test('dispatcher requires the exact GitHub OIDC workflow and release switches',(
   assert.match(source,/payload\.workflow_ref===WORKFLOW/);
   assert.match(source,/payload\.repository===REPO/);
   assert.match(source,/payload\.ref==='refs\/heads\/main'/);
-  assert.match(source,/const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true/);
+  assert.match(source,/const PRODUCTION_FINANCIAL_DISPATCH_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY/);
   assert.match(source,/NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED/);
@@ -137,7 +137,7 @@ test('scheduler keeps read-only diagnostics and allows billing dispatch only by 
   assert.ok(workflow.includes("if: ${{ github.event_name != 'schedule' || github.event.schedule == '37 */6 * * *' || vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' }}"));
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
   assert.match(workflow,/financialDispatchEnabled/);
-  assert.match(source,/PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true/);
+  assert.match(source,/PRODUCTION_FINANCIAL_DISPATCH_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
   assert.match(source,/sourceEvent==='push' && action!=='inspect'/);
 });
 test('read-only queue inspection returns aggregate counts and never edits records',()=>{
