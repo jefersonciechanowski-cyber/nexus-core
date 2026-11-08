@@ -14,11 +14,11 @@ Data de revisão inicial: 07/11/2026.
    `.github/workflows/crm-asaas-production-dispatch.yml`
    executa inspeção somente leitura a cada 6 horas; inclui também uma agenda
    de 5 minutos cujo job é **ignorado** por padrão e só roda quando a
-   variável GitHub \`NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED=true\`
+   variável GitHub `NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED=true`
    for aprovada.
    Ele obtém um **JWT OIDC de curta duração**, audience
    `nexus-crm-asaas-production-dispatch`; não armazena segredos em
-   GitHub e **solicita somente `{"action":"inspect"}`**.
+   GitHub. Sem opt-in, **solicita somente `{"action":"inspect"}`**.
 4. A Edge Function nova
    `nexus-crm-asaas-production-dispatch` valida assinatura JWT,
    issuer, audience, repositório, branch `main`, evento e
