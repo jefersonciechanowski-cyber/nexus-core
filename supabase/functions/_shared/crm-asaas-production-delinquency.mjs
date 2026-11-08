@@ -1,7 +1,11 @@
 // Nexus CRM Asaas production delinquency policy: PURE, fail-closed and
 // advisory only. It cannot block a tenant, send emails or charge a customer.
 // Do NOT interpret an overdue webhook as independent proof of delinquency.
+// Commercial policy approved by the Nexus CRM operator on 07 Nov 2026.
+// Approval permits recommending a *manual review*, never automatically
+// suspending an account or bypassing independently confirmed payments.
 export const CRM_ASAAS_RECOMMENDED_GRACE_DAYS = 7;
+export const CRM_ASAAS_POLICY_APPROVED = true;
 
 const decision=(status,reason,details={})=>Object.freeze({
   decision:status,reason,readOnly:true,requiresOperatorReview:true,
