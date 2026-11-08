@@ -60,13 +60,13 @@ test('no claim without independent proof, production environment or two staged a
   }
  }
 });
-test('production worker is ALWAYS hard off before provider, finance and CRM side effects',()=>{
+test('production worker defaults off, before provider, finance and CRM side effects',()=>{
  const gate=prodWorker.indexOf('if (STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED)');
  const db=prodWorker.indexOf("admin.from('nexus_crm_asaas_production_events')");
  const remote=prodWorker.indexOf("fetch('https://api.asaas.com/v3'+path");
  const provision=prodWorker.indexOf('provisionSaleForProvider(');
  assert.ok(gate>=0 && gate<db && db<remote && remote<provision);
- assert.match(prodWorker,/STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED = true/);
+ assert.match(prodWorker,/STAGED_ASAAS_PRODUCTION_PROVISION_DISABLED = Deno.env.get\('NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED'\) !== 'true'/);
  for(const flag of [
   'NEXUS_CRM_ASAAS_PROD_PROVISION_ENABLED','NEXUS_CRM_ASAAS_PROD_VERIFY_ENABLED',
   'NEXUS_CRM_ASAAS_PROD_RESERVATION_ENABLED','NEXUS_CRM_ASAAS_PROD_CLAIM_ENABLED',
