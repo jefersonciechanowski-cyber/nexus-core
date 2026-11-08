@@ -180,6 +180,39 @@ async function crmAsaasBridgeProofStatus():Promise<string>{
   }catch{return 'unavailable';}
 }
 
+
+// Authenticated receiver health check: read-only GET using the existing private
+// webhook token. This proves endpoint auth and DB inbox access, NOT that Asaas
+// itself delivered an event or that any payment was received.
+async function checkInternalWebhookReceiver():Promise<string>{
+  const token=Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN')||'';
+  if(token.length<32 || token.length>255 || /\s/.test(token))return 'not_configured';
+  try{
+    const response=await fetch(
+      'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-events',{
+        method:'GET',redirect:'error',
+        headers:{
+          'x-nexus-crm-webhook-check':'internal-read-only',
+          'asaas-access-token':token,
+          accept:'application/json',
+        },
+        signal:AbortSignal.timeout(6000),
+      });
+    if(response.status===401)return 'receiver_rejected_token';
+    if(!response.ok || Number(response.headers.get('content-length')||0)>1000)
+      return 'receiver_unavailable';
+    const body=await response.text();
+    if(body.length>1000)return 'receiver_invalid_response';
+    const parsed=JSON.parse(body);
+    return parsed?.status==='internal_token_and_inbox_ok'
+      &&parsed?.paidEvent===false
+      &&parsed?.providerDeliveryVerified===false
+      &&parsed?.createdCharge===false
+      &&parsed?.accessGranted===false
+        ? 'internal_token_and_inbox_ok':'receiver_invalid_response';
+  }catch{return 'receiver_unavailable';}
+}
+
 async function preClientReadiness(admin:any){
   const requiredFlags=[
     'NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED',
@@ -253,13 +286,14 @@ async function preClientReadiness(admin:any){
     }catch{webhookStatus='provider_lookup_unavailable';}
   }else webhookStatus='provider_key_not_configured';
   const bridgeStatus=await crmAsaasBridgeProofStatus();
+  const receiverProbeStatus=await checkInternalWebhookReceiver();
   return {
     status:'preflight',readOnly:true,createdCharge:false,accessGranted:false,
     providerDeliveryVerified:false, // only the FIRST genuine payment proves delivery
-    flagsPending,secretsPending,plansReady,webhookStatus,bridgeStatus,
+    flagsPending,secretsPending,plansReady,webhookStatus,bridgeStatus,receiverProbeStatus,
     readyToReceiveFirstCustomer:flagsPending.length===0 && secretsPending.length===0
       &&plansReady && webhookStatus==='receiver_ready_for_delivery_test'
-      &&bridgeStatus==='matched',
+      &&bridgeStatus==='matched' &&receiverProbeStatus==='internal_token_and_inbox_ok',
   };
 }
 
