@@ -118,16 +118,27 @@ test('worker calls are authenticated separately and only success can mark comple
   assert.match(inbox,/await admin\.from\('nexus_crm_asaas_production_events'\)\.insert/);
   assert.match(inbox,/return respond\(\{received:true,duplicate:/);
 });
-test('scheduler may only inspect, never ask for financial processing',()=>{
+test('scheduler keeps read-only diagnostics and allows billing dispatch only by explicit opt-in',()=>{
   assert.match(workflow,/audience=nexus-crm-asaas-production-dispatch/);
   assert.match(workflow,/id-token: write/);
   assert.match(workflow,/cancel-in-progress: false/);
   assert.ok(workflow.includes('push:\n    branches: [main]'));
   assert.ok(workflow.includes("paths:\n      - '.github/workflows/crm-asaas-production-dispatch.yml'"));
+  assert.ok(workflow.includes("cron: '37 */6 * * *'"));
+  assert.ok(workflow.includes("cron: '*/5 * * * *'"));
+  assert.ok(workflow.includes("github.event.schedule == '37 */6 * * *'"));
   assert.match(workflow,/\{"action":"inspect"\}/);
-  assert.doesNotMatch(workflow,/\{"action":"dispatch"\}/);
+  assert.match(workflow,/\{"action":"dispatch"\}/);
+  const dispatch=workflow.slice(workflow.indexOf('name: Dispatch verified CRM Asaas events'));
+  assert.ok(dispatch.startsWith('name: Dispatch verified CRM Asaas events'));
+  assert.ok(dispatch.includes("vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true'"));
+  assert.ok(dispatch.includes("github.event_name != 'push'"));
+  assert.ok(dispatch.includes("steps.oidc.outputs.token"));
+  assert.ok(workflow.includes("if: ${{ github.event_name != 'schedule' || github.event.schedule == '37 */6 * * *' || vars.NEXUS_CRM_ASAAS_PROD_FINANCIAL_WORKFLOW_ENABLED == 'true' }}"));
   assert.doesNotMatch(workflow,/ASAAS_PRODUCTION_API_KEY|NEXUS_CRM_ASAAS_PROD_WORKER_SECRET/);
   assert.match(workflow,/financialDispatchEnabled/);
+  assert.match(source,/PRODUCTION_FINANCIAL_DISPATCH_DISABLED = true/);
+  assert.match(source,/sourceEvent==='push' && action!=='inspect'/);
 });
 test('read-only queue inspection returns aggregate counts and never edits records',()=>{
   const inspect=source.slice(source.indexOf("if(action==='inspect'){"),
