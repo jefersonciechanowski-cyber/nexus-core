@@ -45,7 +45,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return respond({ error:'Recebimento de webhook CRM produção desativado.' },503);
   }
 
-  if (request.method !== 'POST') return respond({error:'Método não permitido.'},405);
+  // An authenticated GET is a strictly read-only internal connectivity probe.
+  // Asaas delivers real events as POST, so this cannot fabricate a paid event.
+  const probe=request.method==='GET'
+    && request.headers.get('x-nexus-crm-webhook-check')==='internal-read-only';
+  if(request.method!=='POST' && !probe)
+    return respond({error:'Método não permitido.'},405);
   const secret = Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN') || '';
   // A provider webhook token must be 32-255 chars, random, and distinct
   // from BOTH API environments and all Nexus finance worker credentials.
@@ -64,6 +69,25 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (unsafeToken
     || !trustedAsaasToken(request.headers.get('asaas-access-token'),secret)) {
     return respond({error:'Webhook não autorizado.'},401);
+  }
+  if(probe) {
+    // No event is inserted and no commercial worker is called. This proves
+    // only server-to-server token equality and that the event inbox is readable.
+    const url=Deno.env.get('SUPABASE_URL')||'';
+    const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
+    if(!url||service.length<30)
+      return respond({status:'inbox_not_configured',paidEvent:false},503);
+    try{
+      const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+      const {error}=await admin.from('nexus_crm_asaas_production_events')
+        .select('provider_event_id').limit(1);
+      if(error)return respond({status:'inbox_unavailable',paidEvent:false},503);
+      return respond({status:'internal_token_and_inbox_ok',
+        paidEvent:false,providerDeliveryVerified:false,
+        createdCharge:false,accessGranted:false},200);
+    }catch{
+      return respond({status:'inbox_unavailable',paidEvent:false},503);
+    }
   }
   if (!(request.headers.get('content-type') || '').toLowerCase().startsWith('application/json')) {
     return respond({error:'Formato inválido.'},415);

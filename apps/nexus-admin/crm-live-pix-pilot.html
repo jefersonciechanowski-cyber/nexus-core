@@ -38,6 +38,9 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#22343e;col
 <p><strong>Webhook mensal Asaas — produção.</strong> Consulte se existe uma configuração exclusiva do Nexus CRM e quais eventos ela recebe. Não cria nem altera webhooks, assinaturas, cobranças ou clientes.</p>
 <button id="webhookCheck" class="secondary" type="button" disabled>Conferir webhook mensal (sem alterar)</button>
 <div class="status" id="webhookCheckResult" aria-live="polite"></div>
+<p style="margin-top:12px"><strong>Diagnóstico técnico sem cobrança.</strong> Verifica internamente se o Supabase aceita o token do webhook e consegue consultar a fila. Não simula pagamento e não comprova entrega pelo Asaas.</p>
+<button id="webhookProbe" class="secondary" type="button" disabled>Testar conexão interna do webhook</button>
+<div class="status" id="webhookProbeResult" aria-live="polite"></div>
 </div>
 </section>
 <section class="panel">

@@ -69,6 +69,9 @@ jobs:
       - name: Verify Asaas prepaid expiry guard and monthly contract isolation (no charges)
         run: node --test tests/crm-asaas-prepaid-expiry.test.mjs
 
+      - name: Verify webhook health probe is read-only and cannot create Asaas payments
+        run: node --test tests/crm-asaas-internal-webhook-probe.test.mjs
+
       - name: Verify read-only Asaas production credentials diagnostic (no charges)
         run: node --test tests/crm-asaas-production-health.test.mjs
 

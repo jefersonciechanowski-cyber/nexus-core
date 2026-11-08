@@ -10,7 +10,7 @@ const sandbox=readFileSync(new URL('../supabase/functions/nexus-crm-asaas-monthl
 test('production inbox is OFF by default; receive-only needs two independent opt-in flags',()=>{
  const on=src.indexOf('const RECEIVE_ONLY_MODE = true');
  const gate=src.indexOf("Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')");
- const db=src.indexOf("admin.from('nexus_crm_asaas_production_events')");
+ const db=src.indexOf("await admin.from('nexus_crm_asaas_production_events').insert");
  assert.ok(on>=0&&gate>on&&db>gate);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED/);
  assert.match(src,/NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED/);
@@ -27,7 +27,7 @@ test('events require a dedicated token, bounded JSON and sanitization before per
  const auth=src.indexOf('trustedAsaasToken(');
  const parse=src.indexOf('JSON.parse(raw)');
  const sanitize=src.indexOf('sanitizeCrmAsaasEvent(incoming)');
- const db=src.indexOf("admin.from('nexus_crm_asaas_production_events')");
+ const db=src.indexOf("await admin.from('nexus_crm_asaas_production_events').insert");
  assert.ok(auth>=0 && auth < parse && parse < sanitize && sanitize < db);
  assert.match(src,/ASAAS_PRODUCTION_API_KEY/);
  assert.match(src,/ASAAS_SANDBOX_API_KEY/);
