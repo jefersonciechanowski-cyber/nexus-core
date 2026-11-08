@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
-import { normalizeCheckout, planIsMonthly, CRM_PUBLIC_ORIGIN } from '../nexus-public-crm-monthly-checkout/contract.mjs';
+import { normalizeCheckout, planIsMonthly, CRM_ASAAS_PUBLIC_ORIGIN } from '../nexus-public-crm-monthly-checkout/contract.mjs';
 import { verifyCheckoutBridgeSignature } from '../nexus-public-crm-monthly-checkout/signature.mjs';
 import { buildCrmAsaasRecurringLink } from '../_shared/crm-asaas-monthly-contract.mjs';
 
@@ -66,7 +66,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   if (request.method !== 'POST') return reply({ error: 'Método não permitido.' }, 405);
-  if (request.headers.get('origin') !== CRM_PUBLIC_ORIGIN) return reply({ error: 'Origem não autorizada.' }, 403);
+  if (request.headers.get('origin') !== CRM_ASAAS_PUBLIC_ORIGIN) return reply({ error: 'Origem não autorizada.' }, 403);
   if (!(request.headers.get('content-type') || '').toLowerCase().startsWith('application/json')) return reply({ error: 'Formato inválido.' }, 415);
   const asaasKey = Deno.env.get('ASAAS_PRODUCTION_API_KEY') || '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -161,7 +161,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     provider: 'asaas', environment: 'production', billing_mode: 'recurring',
     billing_cycle_months: 1, checkout_amount_cents: Number(plan.price_cents),
     campaign_name: input.utmCampaign || null, external_reference: reference,
-    return_origin: CRM_PUBLIC_ORIGIN, lead_notes: 'Pagamento mensal por ' + method + '; sem fidelidade anual',
+    return_origin: CRM_ASAAS_PUBLIC_ORIGIN, lead_notes: 'Pagamento mensal por ' + method + '; sem fidelidade anual',
   }).select('id').single();
   if (saleError) {
     if (saleError.code === '23505') return reply({ error: 'Contratação já em andamento.' }, 409);

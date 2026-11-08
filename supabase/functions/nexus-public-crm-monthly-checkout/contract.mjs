@@ -2,6 +2,10 @@
 // The source of prices, entitlement and monthly interval remains the Central database.
 export const CRM_PUBLIC_PLANS = Object.freeze(['start', 'pro', 'gestao']);
 export const CRM_PUBLIC_ORIGIN = 'https://crm.nexuscore.app.br';
+// Separate published CRM sales site on the Nexus Core main domain.
+// Do NOT replace CRM_PUBLIC_ORIGIN: Stripe and authenticated CRM keep
+// their existing origin and gate. This constant is Asaas-specific.
+export const CRM_ASAAS_PUBLIC_ORIGIN = 'https://nexuscore.app.br';
 // Preview must be explicitly configured and may talk only to sandbox.
 export function checkoutOriginIsAllowed(origin, mode, previewOrigin) {
   if (origin === CRM_PUBLIC_ORIGIN) return true;
