@@ -1,6 +1,7 @@
-# Nexus CRM — política segura de inadimplência (proposta, não ativada)
+# Nexus CRM — política comercial aprovada de inadimplência (execução ainda bloqueada)
 
-Data: 07/11/2026. Status: **proposta técnica em revisão**. Nenhum
+Data: 07/11/2026. Status: **política aprovada pelo responsável comercial**.
+A execução de avisos e suspensões automáticas **não foi ativada**. Nenhum
 depósito, cobrança, suspensão, alteração de assinatura ou mensagem
 será gerado por esta implementação.
 
@@ -10,12 +11,12 @@ será gerado por esta implementação.
    inadimplência atual. Consultar novamente pagamento, assinatura e
    titular no Asaas, conferir CPF/CNPJ, valor, produto, empresa e
    assinatura do CRM em produção.
-2. **Carência sugerida de 7 dias corridos**, contados da data de vencimento
+2. **Carência aprovada de 7 dias corridos**, contados da data de vencimento
    da cobrança, no calendário de São Paulo. Durante esse período,
    **não suspender** o cliente por inadimplência.
 3. Após a carência, um pagamento ainda `OVERDUE` e uma assinatura
-   `ACTIVE` produzem apenas `candidate_review`, caso a política
-   seja explicitamente aprovada. Não executam suspensão automaticamente.
+   `ACTIVE` produzem apenas `candidate_review`, com a política
+   agora aprovada. Requer avaliação e decisão administrativa individual. Não executam suspensão automaticamente.
 4. Um pagamento já `RECEIVED` ou `CONFIRMED` bloqueia qualquer
    suspensão; encaminhar para o worker idempotente de renovação.
 5. `PAYMENT_REFUNDED`, `SUBSCRIPTION_DELETED`, chargebacks, assinaturas
@@ -40,9 +41,21 @@ será gerado por esta implementação.
 
 ## Não está liberado
 
-A carência de sete dias **não foi contratualmente aprovada**. Não
-comunicar nem aplicar suspensão sem definição comercial e jurídica
-sobre prazo, notificação, reativação, estorno e cancelamento.
+A carência de sete dias foi **aprovada pelo responsável comercial em
+07/11/2026**. A política estabelece que um aviso de atraso deverá ser
+encaminhado ao cliente antes de qualquer suspensão, com idempotência,
+comprovação de entrega quando disponível e nenhuma comunicação repetida
+indevidamente. O aviso automático ainda precisa de implementação,
+validação de destinatário e homologação de envio.
+
+Ao completar sete dias corridos, o sistema poderá recomendar **análise
+administrativa**, mas não suspenderá o CRM automaticamente. Antes de uma
+eventual suspensão, o operador deverá reconfirmar em tempo real a ausência
+de pagamento, o titular, a assinatura, as notificações e a situação
+contratual. Pagamentos confirmados reativam o mesmo acesso somente após
+registro financeiro idempotente e sincronização confirmada com o CRM.
+Estorno, chargeback e cancelamento exigem revisão específica, não bloqueio
+ou reativação automáticos.
 A versão desta PR não possui função de suspensão, e não habilita
 checkout, workers de cobrança, webhooks financeiros automáticos,
 envio de e-mail ou criação de tenant.
