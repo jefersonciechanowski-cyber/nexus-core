@@ -1,6 +1,7 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.112.3';
 import {createRemoteJWKSet,jwtVerify} from 'npm:jose@6.1.0';
 import {planCrmAsaasProductionDispatch} from '../_shared/crm-asaas-production-dispatch-plan.mjs';
+import {assessCrmAsaasProductionWebhook} from '../_shared/crm-asaas-webhook-readiness.mjs';
 
 // The authenticated Asaas webhook only persists events; this separate
 // scheduled workflow can inspect them without access to billing credentials.
@@ -58,7 +59,7 @@ async function readAction(request:Request) {
     if(!body||typeof body!=='object'||Array.isArray(body)
       ||Object.keys(body).length!==1)return null;
     const action=(body as Record<string,unknown>).action;
-    return action==='inspect'||action==='dispatch'?action:null;
+    return ['inspect','dispatch','readiness'].includes(String(action)) ? action : null;
   }catch{return null;}
 }
 async function backlog(admin:any) {
@@ -142,6 +143,90 @@ async function callIndependentWorker(base:string,worker:'provision'|'renewal',ev
   }catch{return {status:'worker_network_failure',decision:'retry'};}
 }
 
+
+// Read-only first-customer readiness report for authorized GitHub OIDC runs.
+// Returns names of missing switches, never values, identity or provider payloads.
+async function preClientReadiness(admin:any){
+  const requiredFlags=[
+    'NEXUS_CRM_ASAAS_PROD_RELEASE_APPROVED',
+    'NEXUS_CRM_ASAAS_PROD_CHECKOUT_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_SETTLEMENT_READY',
+    'NEXUS_CRM_ASAAS_PROD_WEBHOOK_CONFIRMED',
+    'NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_VERIFY_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_PROVISION_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_RESERVATION_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_CLAIM_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_DISPATCH_ENABLED',
+    'NEXUS_CRM_ASAAS_PROD_RENEWAL_ENABLED',
+  ];
+  const flagsPending=requiredFlags.filter(name=>Deno.env.get(name)!=='true');
+  const requiredSecrets=[
+    'NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN',
+    'NEXUS_CRM_ASAAS_PROD_CHECKOUT_BRIDGE_SECRET',
+    'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET',
+    'NEXUS_CRM_ASAAS_PROD_VERIFY_SECRET',
+    'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET',
+  ];
+  const seen=new Set<string>();
+  const secretsPending:string[]=[];
+  for(const name of requiredSecrets){
+    const value=Deno.env.get(name)||'';
+    if(value.length<32 || seen.has(value))secretsPending.push(name);
+    if(value.length>=32)seen.add(value);
+  }
+  const asaasKey=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
+  const validAsaasKey=asaasKey.startsWith('$aact_prod_')&&asaasKey.length>=32;
+  if(!validAsaasKey || seen.has(asaasKey))secretsPending.push('ASAAS_PRODUCTION_API_KEY');
+  const url=Deno.env.get('SUPABASE_URL')||'';
+  const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
+  if(!url||service.length<30)secretsPending.push('SUPABASE_BACKEND');
+  const {data:product,error:productError}=await admin.from('nexus_products')
+    .select('id').eq('code','crm').eq('status','active').maybeSingle();
+  let plansReady=false;
+  if(!productError && product?.id){
+    const {data:plans,error:planError}=await admin.from('nexus_plans')
+      .select('code,status,public_visible,price_cents,billing_interval_months,currency')
+      .eq('product_id',product.id).in('code',['start','pro','gestao']);
+    plansReady=!planError && Array.isArray(plans) && plans.length===3
+      &&new Set(plans.map((x:any)=>x.code)).size===3
+      &&plans.every((x:any)=>x.status==='active' && x.public_visible===true
+        && x.currency==='BRL' && x.billing_interval_months===1
+        && Number.isSafeInteger(x.price_cents) && x.price_cents>0);
+  }
+  let webhookStatus='provider_not_checked';
+  if(validAsaasKey){
+    try{
+      const response=await fetch('https://api.asaas.com/v3/webhooks?limit=100',{
+        method:'GET',headers:{accept:'application/json',access_token:asaasKey,
+          'User-Agent':'NexusCRM-ReadOnlyReadiness/1.0'},
+        signal:AbortSignal.timeout(8000),
+      });
+      if(response.ok && Number(response.headers.get('content-length')||0)<=30000){
+        const raw=await response.text();
+        if(raw.length<=30000){
+          const parsed=JSON.parse(raw);
+          webhookStatus=assessCrmAsaasProductionWebhook(
+            parsed?.data,
+            'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-production-events',
+            !secretsPending.includes('NEXUS_CRM_ASAAS_PROD_EVENTS_TOKEN'),
+            Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_ENABLED')==='true'
+              &&Deno.env.get('NEXUS_CRM_ASAAS_PROD_EVENTS_RECEIVE_ONLY_ENABLED')==='true',
+          ).status;
+        }else webhookStatus='provider_response_too_large';
+      }else webhookStatus='provider_lookup_unavailable';
+    }catch{webhookStatus='provider_lookup_unavailable';}
+  }else webhookStatus='provider_key_not_configured';
+  return {
+    status:'preflight',readOnly:true,createdCharge:false,accessGranted:false,
+    providerDeliveryVerified:false, // only the FIRST genuine payment proves delivery
+    flagsPending,secretsPending,plansReady,webhookStatus,
+    readyToReceiveFirstCustomer:flagsPending.length===0 && secretsPending.length===0
+      &&plansReady && webhookStatus==='receiver_ready_for_delivery_test',
+  };
+}
+
 Deno.serve(async(request:Request)=>{
   if(request.method!=='POST')return reply({error:'Método não permitido.'},405);
   // Authenticate BEFORE accepting even a read-only request. Never log JWTs.
@@ -151,7 +236,7 @@ Deno.serve(async(request:Request)=>{
   if(!action)return reply({error:'Solicitação inválida.'},400);
   // Push exists only to prove production connectivity when deploying the
   // monitor workflow. Push events can NEVER start financial processing.
-  if(sourceEvent==='push' && action!=='inspect')
+  if(sourceEvent==='push' && action!=='inspect' && action!=='readiness')
     return reply({error:'Somente diagnóstico permitido nesta execução.'},403);
   if(action==='dispatch'){
     if(PRODUCTION_FINANCIAL_DISPATCH_DISABLED
@@ -166,6 +251,10 @@ Deno.serve(async(request:Request)=>{
   const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
   if(!url||service.length<30)return reply({error:'Serviço indisponível.'},503);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+  if(action==='readiness'){
+    const details=await preClientReadiness(admin);
+    return reply(details,200);
+  }
   if(action==='inspect'){
     const counts=await backlog(admin);
     if(!counts)return reply({error:'Fila indisponível.'},503);
