@@ -125,7 +125,7 @@ BEGIN
   '60000000-0000-4000-8000-000000000044',current_date-9,7) INTO r;
  IF r->>'reason'<>'already_suspended' THEN
   RAISE EXCEPTION 'SST overdue suspension not idempotent'; END IF;
-END $
+END $;
 INSERT INTO public.nexus_sst_asaas_payment_events
  (provider_event_id,event_type,provider_payment_id,provider_link_id,provider_subscription_id)
  VALUES ('evt_sstfixture124','PAYMENT_CONFIRMED','pay_sstfixture124',
@@ -147,7 +147,7 @@ BEGIN
  IF (SELECT count(*) FROM public.nexus_payments
   WHERE provider='asaas' AND organization_id='30000000-0000-4000-8000-000000000044')<>2
  THEN RAISE EXCEPTION 'SST recurring payments not deduplicated'; END IF;
-END $
+END $;
 
 -- Confirm cross-company checkout cannot reuse another company's access id.
 INSERT INTO public.organizations(id,name)
