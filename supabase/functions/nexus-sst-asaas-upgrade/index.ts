@@ -70,7 +70,7 @@ async function getContext(admin:any,req:Request){
 }
 Deno.serve(async req=>{
   const origin=clean(req.headers.get('origin'),200);
-  if(req.method==='OPTIONS')return ALLOWED_ORIGINS.has(origin)?reply({},204,origin):reply({error:'Origem inválida.'},403);
+  if(req.method==='OPTIONS')return ALLOWED_ORIGINS.has(origin)?reply({},200,origin):reply({error:'Origem inválida.'},403);
   if(!ALLOWED_ORIGINS.has(origin))return reply({error:'Origem inválida.'},403);
   if(!['GET','POST'].includes(req.method))return reply({error:'Método não permitido.'},405,origin);
   let admin;
