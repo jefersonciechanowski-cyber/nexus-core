@@ -25,6 +25,8 @@ jobs:
           node-version: '22'
       - name: Verify independent Asaas settlement proof predicates
         run: node --test tests/sst-asaas-payment-proof.test.mjs
+      - name: Install project dependencies for Deno npm resolution
+        run: npm ci
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
