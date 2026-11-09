@@ -48,9 +48,29 @@
     return String(file.name).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9._-]/g, '-').slice(-100) || 'arquivo';
   }
+  const trustedDriveDomains = new Set([
+    'drive.google.com', 'docs.google.com', 'onedrive.live.com', '1drv.ms'
+  ]);
+
+  function normalizeExternalUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    let url;
+    try { url = new URL(raw); } catch {
+      throw new Error('Informe um link válido do Google Drive ou OneDrive.');
+    }
+    const hostname = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        !(trustedDriveDomains.has(hostname) || /^(?:[a-z0-9-]+[.])+sharepoint[.]com$/i.test(hostname)) ||
+        url.href.length > 2048) {
+      throw new Error('Utilize um link HTTPS do Google Drive ou OneDrive.');
+    }
+    return url.href;
+  }
+
   function readableError(error) {
     const message = error?.cause?.message || error?.message || 'Não foi possível concluir a operação.';
-    if (/employee_documents|schema cache|pgrst205/i.test(message)) {
+    if (/schema cache|pgrst205/i.test(message)) {
       return 'A pasta documental ainda não foi habilitada no banco de dados.';
     }
     return message;
@@ -69,6 +89,7 @@
       .employee-doc-heading small { color:var(--text-muted); }
       .employee-doc-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
       .employee-doc-form label { display:grid; gap:5px; font-size:12px; color:var(--text-muted); }
+      .employee-doc-form label small { line-height:1.5; font-size:11px; color:var(--text-muted); }
       .employee-doc-form .full { grid-column:1/-1; }
       .employee-doc-form button[type=submit] { justify-self:start; }
       .employee-doc-list { display:grid; gap:10px; margin-top:14px; }
@@ -114,13 +135,18 @@
           <label>Data de vencimento (se houver)
             <input id="employeeDocumentExpires" type="date">
           </label>
-          <label class="full">Arquivo PDF ou imagem (até 10 MB)
-            <input id="employeeDocumentFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required>
+          <label class="full">Anexar arquivo PDF ou imagem (até 10 MB) — opcional
+            <input id="employeeDocumentFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp">
+          </label>
+          <label class="full">Link do Google Drive ou OneDrive — opcional
+            <input id="employeeDocumentExternalUrl" type="url" inputmode="url" maxlength="2048"
+              autocomplete="off" placeholder="https://drive.google.com/..." >
+            <small>Informe um arquivo, um link ou ambos. O acesso ao link depende das permissões do Drive.</small>
           </label>
           <label class="full">Observações
             <textarea id="employeeDocumentNotes" maxlength="1500" rows="2" placeholder="Informações complementares (opcional)"></textarea>
           </label>
-          <button type="submit">Anexar documento</button>
+          <button type="submit">Salvar documento</button>
         </form>
         <div class="employee-doc-status" id="employeeDocumentStatus" role="status" aria-live="polite"></div>
         <h3 style="font-size:14px;margin:20px 0 8px">Documentos cadastrados</h3>
@@ -157,12 +183,16 @@
         <small>Emissão: ${formatDate(item.issued_at)} · Vencimento: ${formatDate(item.expires_at)}</small>
         ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
         <div class="employee-doc-actions">
-          <button type="button" class="ghost" data-document-open="${escapeHtml(item.id)}">Abrir arquivo</button>
+          ${item.attachment_path ? `<button type="button" class="ghost" data-document-open="${escapeHtml(item.id)}">Abrir arquivo</button>` : ''}
+          ${item.external_url ? `<button type="button" class="ghost" data-document-link="${escapeHtml(item.id)}">Abrir link do Drive</button>` : ''}
           ${item.status === 'ACTIVE' && window.NEXUS_DEMO_USER?.role !== 'hr' ? `<button type="button" class="ghost" data-document-archive="${escapeHtml(item.id)}">Arquivar</button>` : ''}
         </div>
       </article>`).join('') : '<div class="requirements-empty">Nenhum documento anexado a este colaborador.</div>';
     list.querySelectorAll('[data-document-open]').forEach(button => {
       button.onclick = () => openFile(button.dataset.documentOpen);
+    });
+    list.querySelectorAll('[data-document-link]').forEach(button => {
+      button.onclick = () => openExternalLink(button.dataset.documentLink);
     });
     list.querySelectorAll('[data-document-archive]').forEach(button => {
       button.onclick = () => archiveDocument(button.dataset.documentArchive);
@@ -172,7 +202,7 @@
   async function refresh() {
     const rows = await window.NexusData.list({
       table: 'employee_documents',
-      select: 'id,organization_id,employee_id,document_type,title,issued_at,expires_at,notes,attachment_path,status,created_at',
+      select: 'id,organization_id,employee_id,document_type,title,issued_at,expires_at,notes,attachment_path,external_url,status,created_at',
       order: { column: 'created_at', ascending: false }, label: 'documentos de colaboradores'
     });
     documents = rows;
@@ -210,7 +240,17 @@
     const file = $('employeeDocumentFile').files[0];
     const extension = String(file?.name || '').split('.').pop().toLowerCase();
     const contentType = mimeTypes[extension];
-    if (!file || !contentType || (file.type && file.type !== contentType) || !file.size || file.size > 10485760) {
+    let externalUrl;
+    try { externalUrl = normalizeExternalUrl($('employeeDocumentExternalUrl').value); }
+    catch (error) {
+      $('employeeDocumentStatus').textContent = error.message;
+      return;
+    }
+    if (!file && !externalUrl) {
+      $('employeeDocumentStatus').textContent = 'Anexe um arquivo ou informe um link do Drive.';
+      return;
+    }
+    if (file && (!contentType || (file.type && file.type !== contentType) || !file.size || file.size > 10485760)) {
       $('employeeDocumentStatus').textContent = 'Envie um PDF ou imagem válida com até 10 MB.';
       return;
     }
@@ -226,19 +266,22 @@
       document_type: $('employeeDocumentType').value,
       title: $('employeeDocumentTitle').value.trim(),
       issued_at: issued, expires_at: expires,
-      notes: $('employeeDocumentNotes').value.trim() || null
+      notes: $('employeeDocumentNotes').value.trim() || null,
+      external_url: externalUrl
     };
     await window.NexusData.runLocked('employee-document-save', async () => {
       const id = crypto.randomUUID();
-      const path = `${organizationId()}/employees/${employeeId}/${id}/${safeFileName(file)}`;
+      const path = file ? `${organizationId()}/employees/${employeeId}/${id}/${safeFileName(file)}` : null;
       let uploaded = false;
       let committed = false;
       $('employeeDocumentStatus').textContent = 'Salvando documento...';
       try {
-        const { error } = await window.NexusData.getClient().storage
-          .from(bucket).upload(path, file, { contentType, upsert: false });
-        if (error) throw error;
-        uploaded = true;
+        if (file) {
+          const { error } = await window.NexusData.getClient().storage
+            .from(bucket).upload(path, file, { contentType, upsert: false });
+          if (error) throw error;
+          uploaded = true;
+        }
         const rows = await window.NexusData.insert({
           table: 'employee_documents',
           values: { ...values, id, attachment_path: path },
@@ -284,7 +327,7 @@
 
   async function openFile(id) {
     const doc = documents.find(item => item.id === id && item.employee_id === selectedEmployeeId);
-    if (!doc) return;
+    if (!doc?.attachment_path) return;
     const { data, error } = await window.NexusData.getClient().storage
       .from(bucket).createSignedUrl(doc.attachment_path, 600);
     if (error || !data?.signedUrl) {
@@ -292,6 +335,17 @@
       return;
     }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  function openExternalLink(id) {
+    const doc = documents.find(item => item.id === id && item.employee_id === selectedEmployeeId);
+    if (!doc?.external_url) return;
+    try {
+      const url = normalizeExternalUrl(doc.external_url);
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      $('employeeDocumentStatus').textContent = error.message;
+    }
   }
 
   function getDeadlines() {
