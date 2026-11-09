@@ -104,7 +104,7 @@ test('annual expiry job is scheduled, OIDC-protected and gated by backend releas
   assert.match(yaml,/NEXUS_CRM_ASAAS_PROD_ANNUAL_EXPIRY_WORKFLOW_ENABLED != 'false'/);
   assert.match(yaml,/audience=nexus-crm-asaas-annual-expiry/);
   assert.match(yaml,/id-token: write/);
-  assert.match(yaml,/http == '503' && data.get\('error'\) == 'Expiração anual em homologação\.'/);
+  assert.ok(yaml.includes("http == '503' && data.get('error') == 'Expiração anual em homologação.'"));
   assert.match(yaml,/http == '200'/);
   assert.match(yaml,/data\['suspended'\] == data\['synced'\]/);
   assert.doesNotMatch(yaml,/secrets\.|ASAAS_PRODUCTION_API_KEY|STRIPE_SECRET/);
