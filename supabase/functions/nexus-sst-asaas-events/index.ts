@@ -52,7 +52,9 @@ Deno.serve(async req=>{
  const linkId=safeProviderId(input.payment?.paymentLink);
  const subscriptionId=safeProviderId(input.payment?.subscription);
  // A billing event may refer to an already active SST subscription, without paymentLink.
- if(!linkId&&!subscriptionId)return reply({ignored:true});
+ // Preserve even minimal Asaas webhooks containing payment.id only.
+ // The financial worker independently GETs the actual payment and its billing link.
+
  const url=Deno.env.get('SUPABASE_URL')||'';
  const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
  if(!url||key.length<32)return reply({error:'db_not_configured'},503);
