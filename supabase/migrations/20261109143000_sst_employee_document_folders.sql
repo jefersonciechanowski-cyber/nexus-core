@@ -38,7 +38,14 @@ alter table public.employee_documents enable row level security;
 
 create policy "employee documents tenant select"
   on public.employee_documents for select to authenticated
-  using (organization_id = public.current_org_id() or public.is_nexus_admin_aal2());
+  using (
+    (organization_id = public.current_org_id() or public.is_nexus_admin_aal2())
+    and (public.is_nexus_admin_aal2() or exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active
+        and p.role in ('org_admin', 'sst_manager', 'sst_technician', 'hr')
+    ))
+  );
 
 create policy "employee documents tenant insert"
   on public.employee_documents for insert to authenticated
@@ -130,6 +137,21 @@ revoke execute on function public.audit_employee_document_change()
 create trigger employee_documents_audit
   after insert or update on public.employee_documents
   for each row execute function public.audit_employee_document_change();
+
+-- Outros documentos da empresa mantêm as políticas originais.
+-- Pastas de colaboradores exigem permissão SST/RH mesmo com caminho conhecido.
+create policy "sst employee folders restricted select"
+on storage.objects as restrictive for select to authenticated
+using (
+  bucket_id <> 'sst-documents'
+  or coalesce((storage.foldername(name))[2], '') <> 'employees'
+  or public.is_nexus_admin_aal2()
+  or exists (
+    select 1 from public.profiles p
+    where p.id = (select auth.uid()) and p.active
+      and p.role in ('org_admin', 'sst_manager', 'sst_technician', 'hr')
+  )
+);
 
 revoke all on public.employee_documents from public, anon, authenticated;
 grant select on public.employee_documents to authenticated;
