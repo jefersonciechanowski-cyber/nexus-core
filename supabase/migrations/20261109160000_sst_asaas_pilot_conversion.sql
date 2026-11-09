@@ -165,7 +165,7 @@ begin
     ) then raise exception 'CNPJ diferente do cadastro do piloto'; end if;
 
     update public.organizations set
-      registration_type=case when length(v_checkout.registration_number)=14 then 'cnpj' else 'cpf' end,
+      registration_type=case when length(v_checkout.registration_number)=14 then 'CNPJ' else 'CPF' end,
       registration_number=v_checkout.registration_number,
       updated_at=now()
     where id=v_checkout.organization_id;
