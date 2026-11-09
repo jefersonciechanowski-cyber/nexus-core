@@ -67,3 +67,11 @@ test('first access verification requires user confirmation and keeps data privat
  assert.match(schedule,/cron: '23 9 \* \* \*'/);
  assert.match(schedule,/NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED/);
 });
+
+test('trial request keeps UF separate from the lifecycle status column',()=>{
+ assert.match(sql,/city text,address_state text/);
+ assert.equal((sql.match(/\bstate text NOT NULL DEFAULT 'pending'/g)||[]).length,1);
+ assert.match(request,/city:input\.city,address_state:input\.state/);
+ assert.match(activate,/city:trial\.city,state:trial\.address_state/);
+ assert.doesNotMatch(request,/city:input\.city,state:input\.state/);
+});
