@@ -158,7 +158,7 @@
         ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
         <div class="employee-doc-actions">
           <button type="button" class="ghost" data-document-open="${escapeHtml(item.id)}">Abrir arquivo</button>
-          ${item.status === 'ACTIVE' ? `<button type="button" class="ghost" data-document-archive="${escapeHtml(item.id)}">Arquivar</button>` : ''}
+          ${item.status === 'ACTIVE' && window.NEXUS_DEMO_USER?.role !== 'hr' ? `<button type="button" class="ghost" data-document-archive="${escapeHtml(item.id)}">Arquivar</button>` : ''}
         </div>
       </article>`).join('') : '<div class="requirements-empty">Nenhum documento anexado a este colaborador.</div>';
     list.querySelectorAll('[data-document-open]').forEach(button => {
@@ -310,6 +310,7 @@
   function install() {
     if (installed || !window.NexusData || !appState()) return;
     installed = true;
+    if (!['nexus_admin','org_admin','sst_manager','sst_technician','hr'].includes(window.NEXUS_DEMO_USER?.role)) return;
     installStyles();
     installDialog();
     refresh().catch(error => console.error('Pasta documental indisponível:', readableError(error)));
