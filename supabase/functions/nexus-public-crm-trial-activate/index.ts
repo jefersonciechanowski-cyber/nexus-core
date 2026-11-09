@@ -108,7 +108,7 @@ Deno.serve(async(request:Request)=>{
     registration_type:trial.registration_type,
     postal_code:trial.postal_code,street:trial.street,street_number:trial.street_number,
     address_complement:trial.address_complement,district:trial.district,
-    city:trial.city,state:trial.state,
+    city:trial.city,state:trial.address_state,
   }).select('id').single();
   if(orgError||!org?.id){
     await manual('organization_not_created');
