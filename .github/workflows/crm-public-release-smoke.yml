@@ -1,0 +1,45 @@
+name: CRM public self-service release smoke (read-only)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public_gate_probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live public endpoints without submissions, identities or charges
+        shell: bash
+        run: |
+          set -euo pipefail
+          code() {
+            curl --silent --show-error --location-trusted --max-time 12 \
+              --output /dev/null --write-out '%{http_code}' "$1"
+          }
+          origin='https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1'
+          trial="$(code "$origin/nexus-public-crm-trial-request")"
+          activate="$(code "$origin/nexus-public-crm-trial-activate")"
+          annual="$(code "$origin/nexus-public-crm-annual-bf-asaas-production")"
+          annual_expiry="$(code "$origin/nexus-crm-asaas-annual-expiry")"
+          trial_expiry="$(code "$origin/nexus-crm-trial-reconcile")"
+          site="$(code 'https://crm.nexuscore.app.br/site-captacao')"
+          if [[ "$site" != '200' ]]; then
+            echo "::error::CRM commercial page HTTP $site"
+            exit 1
+          fi
+          for check in "trial:$trial" "activation:$activate" "annual:$annual" "annual_expiry:$annual_expiry" "trial_expiry:$trial_expiry"; do
+            name="${check%%:*}"
+            http="${check#*:}"
+            case "$http" in
+              503) echo "$name: release gate CLOSED (503)" ;;
+              403|401|405) echo "$name: gate may be open, protected endpoint rejected unauthenticated GET ($http)" ;;
+              *) echo "::error::$name unexpected HTTP $http"; exit 1 ;;
+            esac
+          done
+          echo 'Commercial site reachable; no forms, payments or accounts were created.'
