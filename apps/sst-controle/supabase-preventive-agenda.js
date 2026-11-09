@@ -159,7 +159,7 @@
 
   function buildDeadlines() {
     const compliance = window.NexusCompanyCompliance?.getDeadlines?.() || [];
-    return [...buildEmployeeDeadlines(), ...compliance].sort((a, b) => String(a.due).localeCompare(String(b.due)));
+    return [...buildEmployeeDeadlines(), ...compliance, ...(window.NexusEmployeeDocuments?.getDeadlines?.() || [])].sort((a, b) => String(a.due).localeCompare(String(b.due)));
   }
 
   function options(id, items, placeholder) {
@@ -202,7 +202,11 @@
     $('preventiveCalendar').querySelectorAll('[data-date]').forEach(button => button.onclick = () => { $('preventiveStart').value = button.dataset.date; $('preventiveEnd').value = button.dataset.date; render(); });
   }
 
-  function openModule(type) {
+  function openModule(type, item) {
+    if (type === 'Documento' && item?.source === 'employee-document') {
+      window.NexusEmployeeDocuments?.open?.(item.employeeId);
+      return;
+    }
     if (type === 'Documento' || type === 'Fiscalização') {
       window.NexusCompanyCompliance?.openModule?.(type);
       return;
@@ -256,10 +260,13 @@
         <td><div class="preventive-date"><div><strong>${formatDate(item.due)}</strong><small>${days < 0 ? `${Math.abs(days)} dia(s) vencido` : `${days} dia(s)`}</small></div><span class="badge preventive-badge ${item.status}">${label(item.status)}</span></div></td>
         <td class="preventive-obligation"><strong>${esc(item.item)}</strong><small>${esc(item.type)}</small></td>
         <td class="preventive-impact"><strong>${esc(item.subjectName || 'Empresa')}</strong><small>${esc(impactLocation(item, current))}</small></td>
-        <td><button class="ghost preventive-open" data-type="${esc(item.type)}" type="button">Abrir registro</button></td>
+        <td><button class="ghost preventive-open" data-type="${esc(item.type)}" data-deadline-id="${esc(item.id)}" type="button">Abrir registro</button></td>
       </tr>`;
     }).join('') : '<tr><td style="text-align:center;">Nenhuma obrigação encontrada no período selecionado.</td></tr>';
-    $('preventiveTable').querySelectorAll('.preventive-open').forEach(button => button.onclick = () => openModule(button.dataset.type));
+    $('preventiveTable').querySelectorAll('.preventive-open').forEach(button => button.onclick = () => {
+      const item = all.find(candidate => candidate.id === button.dataset.deadlineId);
+      if (item) openModule(item.type, item);
+    });
     renderCalendar(items);
     polishComplianceFileInputs();
   }
@@ -285,7 +292,7 @@
     installStyles();
     const typeSelect = $('preventiveType');
     if (typeSelect && ![...typeSelect.options].some(option => option.value === 'Documento')) {
-      typeSelect.insertAdjacentHTML('beforeend', '<option value="Documento">Documentos da empresa</option><option value="Fiscalização">Fiscalizações</option>');
+      typeSelect.insertAdjacentHTML('beforeend', '<option value="Documento">Documentos</option><option value="Fiscalização">Fiscalizações</option>');
     }
     const agendaSubtitle = $('agenda').querySelector('p.subtitle');
     if (agendaSubtitle) agendaSubtitle.textContent = 'Centralize exames, treinamentos, EPIs, documentos e exigências oficiais para agir antes do vencimento.';
