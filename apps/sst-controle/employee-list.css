@@ -1,0 +1,77 @@
+/* Layout exclusivo da listagem de colaboradores do SST Controle.
+   Preserva os botões e seus eventos; nenhuma outra lista é afetada. */
+#employeeList {
+  container-type: inline-size;
+}
+
+#employeeList > li.employee-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  column-gap: 20px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+#employeeList .employee-list-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#employeeList .employee-list-details > strong {
+  display: block;
+  line-height: 1.4;
+}
+
+#employeeList .employee-list-details > small {
+  display: block;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+#employeeList .employee-list-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 96px);
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+#employeeList .employee-list-actions > button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 7px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: center;
+}
+
+@container (max-width: 730px) {
+  #employeeList > li.employee-list-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 12px;
+  }
+  #employeeList .employee-list-actions {
+    justify-content: start;
+  }
+}
+
+@container (max-width: 440px) {
+  #employeeList .employee-list-actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
