@@ -13,7 +13,7 @@ const reply = (body: unknown, status = 200, origin = '') => new Response(JSON.st
     'x-content-type-options':'nosniff',
     ...(ALLOWED_ORIGINS.has(origin) ? {'access-control-allow-origin':origin,'vary':'Origin'} : {}),
     'access-control-allow-methods':'POST, GET, OPTIONS',
-    'access-control-allow-headers':'authorization, apikey, content-type, x-client-info'
+    'access-control-allow-headers':'authorization, apikey, content-type, x-client-info, x-retry-count, traceparent, tracestate, baggage'
   }
 });
 const digits=(x:unknown)=>clean(x,30).replace(/\D/g,'');
@@ -101,7 +101,7 @@ Deno.serve(async req=>{
     return reply({error:'Pagamento temporariamente indisponível.'},503,origin);
 
   let input:Record<string,unknown>;
-  try{const s=await req.text();if(s.length>2048)return reply({error:'Solicitação inválida.'},400,origin);input=JSON.parse(s);}
+  try{const s=await req.text();if(s.length>2048)return reply({error:'Solicitação inválida.'},400,origin);const parsed=JSON.parse(s);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))return reply({error:'Solicitação inválida.'},400,origin);input=parsed;}
   catch{return reply({error:'Solicitação inválida.'},400,origin);}
   const planCode=clean(input.planCode,30).toLowerCase();
   const method=clean(input.paymentMethod,20).toUpperCase();
@@ -157,10 +157,10 @@ Deno.serve(async req=>{
     const data=JSON.parse(raw);
     const providerId=checkoutId(data.id),url=secureUrl(data.url);
     if(!providerId||!url)throw new Error('asaas_response_invalid');
-    const {error:saved}=await admin.from('nexus_sst_asaas_pilot_checkouts')
+    const {data:stored,error:saved}=await admin.from('nexus_sst_asaas_pilot_checkouts')
       .update({provider_link_id:providerId,provider_link_url:url,state:'ready',updated_at:new Date().toISOString()})
-      .eq('id',intentId).eq('state','reserved');
-    if(saved)throw new Error('persistence_unknown');
+      .eq('id',intentId).eq('state','reserved').select('id').maybeSingle();
+    if(saved||stored?.id!==intentId)throw new Error('persistence_unknown');
     await admin.from('audit_logs').insert({
       organization_id:context.org.id,user_id:context.user.id,
       action:'NEXUS_SST_ASAAS_PILOT_CHECKOUT_CREATED',entity:'organization_product_access',
