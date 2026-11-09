@@ -80,6 +80,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-annual-expiry/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-request/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-activate/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-public-release-preflight/index.ts
 
       - name: Verify webhook health probe is read-only and cannot create Asaas payments
         run: node --test tests/crm-asaas-internal-webhook-probe.test.mjs
@@ -124,6 +125,9 @@ jobs:
 
       - name: Test admin CRM trial 15/30 days (fail closed)
         run: node --test tests/crm-admin-trial.test.mjs tests/crm-trial-expiry.test.mjs tests/crm-trial-release-gates.test.mjs
+
+      - name: Verify OIDC-only release preflight is read-only
+        run: node --test tests/crm-public-release-preflight.test.mjs
 
       - name: Verify CRM commercial launch gates without a real transaction
         run: |
