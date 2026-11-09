@@ -34,8 +34,9 @@ async function limitedBody(req:Request){
 }
 Deno.serve(async req=>{
  if(req.method!=='POST')return reply({error:'method_not_allowed'},405);
- if(Deno.env.get('NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED')!=='true'
-   || Deno.env.get('NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED')!=='true')
+ // Webhook inbox activation is independent of financial checkout release.
+ // Events are stored only; this handler cannot create charges or grant access.
+ if(Deno.env.get('NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED')!=='true')
    return reply({error:'sst_webhook_not_released'},503);
  const expected=Deno.env.get('NEXUS_SST_ASAAS_PROD_EVENTS_TOKEN')||'';
  const supplied=req.headers.get('asaas-access-token')||'';
