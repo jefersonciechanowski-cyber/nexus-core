@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   public_gate_probe:
@@ -43,3 +44,33 @@ jobs:
             esac
           done
           echo 'Commercial site reachable; no forms, payments or accounts were created.'
+
+      - name: Check configured trial and annual flags via authenticated read-only production probe
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error --max-time 10 \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-crm-public-release-preflight")"
+          TOKEN="$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          BODY="$(curl --fail-with-body --silent --show-error --max-time 15 \
+            --request GET \
+            --url 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-public-release-preflight' \
+            --header "Authorization: Bearer ${TOKEN}" \
+            --header 'Accept: application/json')"
+          printf '%s' "${BODY}" | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d.get("status")=="preflight" and d.get("readOnly") is True
+          for key in ("createdCharge","createdAccount","sentEmail","customerDataRead"):
+              assert d.get(key) is False
+          t=d["trial"];a=d["annual"]
+          print("TRIAL: fingerprintConfigured=%s, flagsDefined=%s, releaseReady=%s" % (
+              t["fingerprintConfigured"],",".join(t["flags"]["declared"]),t["ready"]))
+          print("ANNUAL: bridgeConfigured=%s, workerConfigured=%s, providerConfigured=%s, flagsDefined=%s, releaseReady=%s" % (
+              a["bridgeConfigured"],a["workerConfigured"],a["providerConfigured"],
+              ",".join(a["flags"]["declared"]),a["ready"]))
+          print("Email transport configured: %s" % d["emailTransportConfigured"])
+          '
