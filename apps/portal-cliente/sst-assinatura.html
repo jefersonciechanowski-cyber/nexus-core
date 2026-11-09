@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Continuar com o SST Controle | Nexus Core</title>
+<style>
+:root{color-scheme:dark;--bg:#090f13;--panel:#142027;--line:#34434a;--text:#f4f3ec;--muted:#a7b4b8;--gold:#d4aa43;--warn:#eeb76b}
+*{box-sizing:border-box}body{background:linear-gradient(150deg,#090e12,#10222b);color:var(--text);font-family:Inter,"Segoe UI",Arial,sans-serif;margin:0;min-height:100vh}
+header,main{max-width:960px;margin:auto;padding:23px 22px}header{border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:center}
+header strong{letter-spacing:.12em;color:var(--gold)}a{color:var(--gold);text-decoration:none}h1{font-size:clamp(25px,4vw,35px);line-height:1.13;margin:30px 0 12px}p{color:var(--muted);line-height:1.6}h2{font-size:17px;margin:0 0 14px}
+.notice{border:1px solid #7b6640;background:#231f14;color:#ebce92;padding:14px 16px;border-radius:10px;margin:20px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:23px;margin:20px 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.option{border:1px solid var(--line);border-radius:12px;padding:18px;background:#0e191f;cursor:pointer;min-height:122px;display:block}
+.option:has(input:checked){border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.option strong{display:block;margin-bottom:12px}.option b{font-size:22px}
+.option small{display:block;color:var(--muted);margin-top:10px}.option input{accent-color:var(--gold)}
+.field{display:flex;flex-direction:column;gap:7px;margin:18px 0}.field label{font-size:13px;color:#dce2e2;font-weight:700}
+.field input,.field select{border:1px solid var(--line);background:#0a1317;border-radius:9px;color:var(--text);padding:13px;font-size:15px;width:100%}
+.actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap}.btn{background:var(--gold);border:0;border-radius:9px;color:#17120a;padding:14px 22px;font-weight:800;cursor:pointer}
+.btn:disabled{background:#354044;color:#97a3a8;cursor:not-allowed}.help{font-size:13px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}header,main{padding:18px}.card{padding:17px}}
+</style>
+</head>
+<body>
+<header><strong>NEXUS CORE • SST CONTROLE</strong><a href="index.html">Voltar à Minha Central</a></header>
+<main>
+<h1>Continue usando o SST sem perder seus registros</h1>
+<p>Seu período gratuito pode terminar, mas a sua empresa e os dados cadastrados permanecem vinculados à sua conta. Escolha um plano para continuar com os mesmos funcionários, exames, EPIs, treinamentos e documentos.</p>
+<div id="notice" class="notice">Conferindo a liberação de contratação e os planos...</div>
+<form id="purchase" class="card" hidden>
+<h2>Selecione o plano mensal</h2>
+<div id="plans" class="grid"></div>
+<div class="field"><label for="registrationNumber">CPF ou CNPJ da empresa</label><input id="registrationNumber" autocomplete="off" inputmode="numeric" placeholder="Informe CPF ou CNPJ" maxlength="18" required></div>
+<div class="field"><label for="method">Pagamento pelo Asaas</label><select id="method"><option value="PIX">Pix</option><option value="BOLETO">Boleto</option></select></div>
+<p class="help">No Asaas, utilize o mesmo e-mail do acesso piloto. A ativação depende da confirmação do pagamento; gerar o link não ativa nem cobra automaticamente sua empresa.</p>
+<div class="actions"><button id="submit" class="btn" type="submit">Ir para o pagamento seguro</button><span id="message" aria-live="polite" class="help"></span></div>
+</form>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
+<script src="../sst-controle/supabase-config.js"></script>
+<script src="../sst-controle/supabase-auth.js"></script>
+<script>
+(async()=>{
+ const note=document.getElementById('notice'),form=document.getElementById('purchase');
+ const plans=document.getElementById('plans'),submit=document.getElementById('submit');
+ const message=document.getElementById('message');
+ const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n/100);
+ try{
+  const restored=await window.NexusAuth.restoreSession();
+  if(!restored){location.href='login.html';return}
+  const client=window.NexusAuth.getClient();
+  const {data:{session}}=await client.auth.getSession();
+  if(!session?.access_token)throw Error('Seu login expirou. Entre novamente pela Minha Central.');
+  const config=window.NEXUS_SUPABASE_CONFIG;
+  const res=await fetch(config.url+'/functions/v1/nexus-sst-asaas-upgrade',{
+    headers:{'authorization':'Bearer '+session.access_token,'apikey':config.publishableKey}
+  });
+  const data=await res.json();
+  if(!res.ok)throw Error(data.error||'Não foi possível consultar sua empresa.');
+  if(!Array.isArray(data.plans)||!data.plans.length)throw Error('Nenhum plano disponível para a quantidade atual de colaboradores.');
+  for(const [i,plan] of data.plans.entries()){
+    const label=document.createElement('label');label.className='option';
+    const radio=document.createElement('input');radio.type='radio';radio.name='plan';radio.value=plan.code;radio.required=true;radio.checked=i===0;
+    const title=document.createElement('strong');title.textContent=plan.name;
+    const price=document.createElement('b');price.textContent=money(plan.priceCents)+'/mês';
+    const detail=document.createElement('small');detail.textContent=plan.employeeLimit?'Até '+plan.employeeLimit+' colaboradores':'Consulte os limites do plano';
+    label.append(radio,title,price,detail);plans.append(label);
+  }
+  document.getElementById('registrationNumber').value=data.registrationNumber||'';
+  form.hidden=false;
+  if(!data.ready){
+    note.textContent='A contratação automática pelo Asaas está em homologação. Seus dados continuam preservados; solicite a ativação comercial à Nexus Central.';
+    submit.disabled=true;
+  }else{
+    note.textContent='Plano gratuito: continue com sua empresa e seus registros. Acesse o pagamento seguro quando decidir contratar.';
+  }
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();if(submit.disabled)return;
+    const selected=form.querySelector('input[name="plan"]:checked')?.value;
+    const registrationNumber=document.getElementById('registrationNumber').value;
+    const paymentMethod=document.getElementById('method').value;
+    submit.disabled=true;message.textContent='Preparando o checkout no Asaas...';
+    try{
+      const {data:result,error}=await client.functions.invoke('nexus-sst-asaas-upgrade',{
+        body:{planCode:selected,registrationNumber,paymentMethod}
+      });
+      if(error||!result?.url)throw Error(result?.error||'O checkout não foi liberado. Consulte a Nexus Central.');
+      const url=new URL(result.url);
+      if(url.protocol!=='https:'||!['www.asaas.com','asaas.com'].includes(url.hostname))throw Error('Endereço de pagamento inesperado.');
+      location.assign(url.href);
+    }catch(e){message.textContent=e.message||'Não foi possível contratar.';submit.disabled=false}
+  });
+ }catch(e){note.textContent=e.message||'Não foi possível carregar os planos. Volte à Minha Central.';}
+})();
+</script>
+</body></html>
