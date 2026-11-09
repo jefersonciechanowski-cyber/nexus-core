@@ -82,9 +82,10 @@ async function processEvent(admin:any,key:string,event:any){
    todayISO:new Date().toISOString().slice(0,10)
  });
  if(!proof.ok){
-   await mark('review',proof.reason);return 'review';
+   await mark('review','reason' in proof ? proof.reason : 'unverified_payment');return 'review';
  }
- const nextDate=proof.nextDueDate;
+ const nextDate='nextDueDate' in proof ? proof.nextDueDate : null;
+ if(!nextDate){await mark('review','missing_next_due_date');return 'review';}
  const {data:result,error:recordError}=await admin.rpc('record_verified_nexus_sst_asaas_payment',{
    p_checkout_id:checkout.id,p_event_id:event.provider_event_id,
    p_payment_id:payment.id,p_customer_id:customerId,p_subscription_id:subId,
