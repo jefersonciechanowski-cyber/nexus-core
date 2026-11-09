@@ -73,6 +73,8 @@ jobs:
         run: |
           node --test tests/crm-asaas-production-dispatcher.test.mjs
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-dispatch/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-production-annual-provision/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-asaas-annual-expiry/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-request/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-activate/index.ts
 
