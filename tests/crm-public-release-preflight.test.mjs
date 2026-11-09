@@ -31,6 +31,8 @@ test('only boolean flag and secret configuration readiness is returned',()=>{
   ])assert.ok(src.includes(value),value);
   assert.match(src,/createdCharge:false,createdAccount:false/);
   assert.match(src,/sentEmail:false,customerDataRead:false/);
+  for(const key of ['BREVO_CRM_SMTP_USER','BREVO_CRM_SMTP_KEY','BREVO_CRM_SMTP_HOST','BREVO_CRM_SMTP_PORT','BREVO_FROM_EMAIL'])assert.ok(src.includes(key),key);
+  assert.doesNotMatch(src,/env\.BREVO_SMTP_/);
   assert.doesNotMatch(src,/createClient\(|\.from\(|fetch\('https:\/\/api\.asaas|console\.(log|info|warn|error)\(/);
   assert.doesNotMatch(src,/JSON\.stringify\(env\)|JSON\.stringify\(Deno\.env\.toObject/);
 });

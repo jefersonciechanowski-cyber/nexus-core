@@ -72,5 +72,5 @@ jobs:
           print("ANNUAL: bridgeConfigured=%s, workerConfigured=%s, providerConfigured=%s, flagsDefined=%s, releaseReady=%s" % (
               a["bridgeConfigured"],a["workerConfigured"],a["providerConfigured"],
               ",".join(a["flags"]["declared"]),a["ready"]))
-          print("Email transport configured: %s" % d["emailTransportConfigured"])
+          print("CRM email SMTP: login=%s, key=%s, host=%s, port=%s, sender=%s" % tuple(d["emailTransport"][k] for k in ("loginConfigured","keyConfigured","hostConfigured","portConfigured","senderConfigured")))
           '
