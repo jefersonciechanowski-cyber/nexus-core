@@ -100,6 +100,55 @@ BEGIN
  THEN RAISE EXCEPTION 'SST payment replay not idempotent'; END IF;
 END $$;
 
+
+-- Expired recurring access may be suspended only after the configured grace.
+DO $
+DECLARE
+ r jsonb;
+BEGIN
+ UPDATE public.organization_product_access SET renews_at=current_date-2
+ WHERE id='40000000-0000-4000-8000-000000000044';
+ SELECT public.suspend_verified_nexus_sst_asaas_overdue(
+  '60000000-0000-4000-8000-000000000044',current_date-2,7) INTO r;
+ IF r->>'reason'<>'grace_not_elapsed' THEN RAISE EXCEPTION 'Grace was ignored'; END IF;
+
+ UPDATE public.organization_product_access SET renews_at=current_date-9
+ WHERE id='40000000-0000-4000-8000-000000000044';
+ SELECT public.suspend_verified_nexus_sst_asaas_overdue(
+  '60000000-0000-4000-8000-000000000044',current_date-9,7) INTO r;
+ IF r->>'applied'<>'true' THEN RAISE EXCEPTION 'Verified overdue not suspended'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.organization_product_access
+  WHERE id='40000000-0000-4000-8000-000000000044'
+   AND subscription_status='past_due' AND access_status='suspended')
+ THEN RAISE EXCEPTION 'SST overdue entitlement not suspended'; END IF;
+ SELECT public.suspend_verified_nexus_sst_asaas_overdue(
+  '60000000-0000-4000-8000-000000000044',current_date-9,7) INTO r;
+ IF r->>'reason'<>'already_suspended' THEN
+  RAISE EXCEPTION 'SST overdue suspension not idempotent'; END IF;
+END $;
+INSERT INTO public.nexus_sst_asaas_payment_events
+ (provider_event_id,event_type,provider_payment_id,provider_link_id,provider_subscription_id)
+ VALUES ('evt_sstfixture124','PAYMENT_CONFIRMED','pay_sstfixture124',
+ 'plink_sstfixture123','sub_sstfixture123');
+DO $
+DECLARE
+ r jsonb;
+BEGIN
+ SELECT public.record_verified_nexus_sst_asaas_payment(
+  '60000000-0000-4000-8000-000000000044',
+  'evt_sstfixture124','pay_sstfixture124','cus_sstfixture123',
+  'sub_sstfixture123',current_date+31,'CONFIRMED') INTO r;
+ IF r->>'applied'<>'true' OR NOT EXISTS(
+  SELECT 1 FROM public.organization_product_access
+  WHERE id='40000000-0000-4000-8000-000000000044'
+    AND access_status='active' AND subscription_status='active'
+    AND provider_subscription_id='sub_sstfixture123')
+ THEN RAISE EXCEPTION 'Paid renewal did not restore same SST company'; END IF;
+ IF (SELECT count(*) FROM public.nexus_payments
+  WHERE provider='asaas' AND organization_id='30000000-0000-4000-8000-000000000044')<>2
+ THEN RAISE EXCEPTION 'SST recurring payments not deduplicated'; END IF;
+END $;
+
 -- Confirm cross-company checkout cannot reuse another company's access id.
 INSERT INTO public.organizations(id,name)
  VALUES('30000000-0000-4000-8000-000000000045','Empresa Invasora');
