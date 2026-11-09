@@ -61,7 +61,7 @@
     }
     const hostname = url.hostname.toLowerCase();
     if (url.protocol !== 'https:' || url.username || url.password || url.port ||
-        !(trustedDriveDomains.has(hostname) || /^(?:[a-z0-9-]+\\.)+sharepoint\\.com$/i.test(hostname)) ||
+        !(trustedDriveDomains.has(hostname) || /^(?:[a-z0-9-]+[.])+sharepoint[.]com$/i.test(hostname)) ||
         url.href.length > 2048) {
       throw new Error('Utilize um link HTTPS do Google Drive ou OneDrive.');
     }
