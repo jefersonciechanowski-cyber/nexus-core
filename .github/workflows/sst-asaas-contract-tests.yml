@@ -25,6 +25,14 @@ jobs:
           node-version: '22'
       - name: Verify independent Asaas settlement proof predicates
         run: node --test tests/sst-asaas-payment-proof.test.mjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck isolated SST Asaas edge functions
+        run: |
+          deno check supabase/functions/nexus-sst-asaas-upgrade/index.ts
+          deno check supabase/functions/nexus-sst-asaas-events/index.ts
+          deno check supabase/functions/nexus-sst-asaas-reconcile/index.ts
       - name: Check for leaked credentials and direct unsafe paths
         run: |
           set -euo pipefail
