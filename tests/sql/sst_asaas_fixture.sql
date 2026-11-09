@@ -31,3 +31,12 @@ create table if not exists public.audit_logs (
   metadata jsonb,
   created_at timestamptz not null default now()
 );
+
+-- Mirror production's uppercase CPF/CNPJ constraint. NOT VALID intentionally
+-- because the inherited CRM synthetic fixture predates this registration rule;
+-- Postgres still enforces it on the new SST pilot conversion UPDATE.
+alter table public.organizations
+  add constraint sst_fixture_organization_registration_check
+  check (((registration_type IS NULL) AND (registration_number IS NULL))
+    OR ((registration_type = 'CNPJ') AND (registration_number ~ '^[A-Z0-9]{12}[0-9]{2}$'))
+    OR ((registration_type = 'CPF') AND (registration_number ~ '^[0-9]{11}$'))) not valid;
