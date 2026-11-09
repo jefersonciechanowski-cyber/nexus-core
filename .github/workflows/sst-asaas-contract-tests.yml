@@ -25,6 +25,20 @@ jobs:
           node-version: '22'
       - name: Verify independent Asaas settlement proof predicates
         run: node --test tests/sst-asaas-payment-proof.test.mjs
+      - name: Verify real production SST webhook denies unauthenticated events (no charges)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP_CODE="$(curl --silent --show-error --connect-timeout 8 --max-time 18 \
+            --output /tmp/nexus-sst-asaas-probe-response.json \
+            --write-out '%{http_code}' \
+            --request POST 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-events' \
+            --header 'Content-Type: application/json' \
+            --header 'asaas-access-token: definitely-invalid-diagnostic-only' \
+            --data '{"probe":"no-financial-event"}')"
+          echo "SST production webhook unauthorized request returned HTTP ${HTTP_CODE}"
+          test "${HTTP_CODE}" = "401"
+          python3 -c 'import json; d=json.load(open("/tmp/nexus-sst-asaas-probe-response.json")); assert d.get("error")=="unauthorized", "Unexpected response"'
       - name: Install project dependencies for Deno npm resolution
         run: npm ci
       - uses: denoland/setup-deno@v2
