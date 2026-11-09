@@ -1,5 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.112.3';
 import {createRemoteJWKSet,jwtVerify} from 'npm:jose@6.1.0';
+import {verifySstAsaasPaymentProof} from '../_shared/sst-asaas-payment-proof.mjs';
 
 // Finance worker. Scheduled from the specifically authorized GitHub workflow.
 // Never creates payment links, customers, subscriptions or charges.
@@ -34,18 +35,6 @@ async function asaasGet(key:string,path:string){
  if(body.length>30000)throw Error('provider_response_oversized');
  return JSON.parse(body);
 }
-const matchesMoney=(value:unknown,cents:unknown)=>{
- const amount=Number(value),target=Number(cents);
- return Number.isFinite(amount)&&Number.isSafeInteger(target)&&Math.round(amount*100)===target;
-};
-const doc=(v:unknown)=>clean(v,40).replace(/\D/g,'');
-function dateInFuture(v:unknown){
- const date=clean(v,20);
- if(!/^\d{4}-\d\d-\d\d$/.test(date))return null;
- const d=new Date(date+'T12:00:00Z');
- return Number.isFinite(d.getTime())&&d.toISOString().startsWith(date)
-  && date>=new Date().toISOString().slice(0,10)?date:null;
-}
 async function processEvent(admin:any,key:string,event:any){
  const mark=async(processing_status:string,error_code:string|null=null)=>{
    await admin.from('nexus_sst_asaas_payment_events').update({
@@ -76,42 +65,26 @@ async function processEvent(admin:any,key:string,event:any){
    await mark('review','provider_payment_mismatch');return 'review';
  }
  if(!['CONFIRMED','RECEIVED'].includes(payment.status)){
-   // Some webhooks arrive ahead of provider consistency. Let next run retry.
+   // Webhook could arrive before Asaas' GET reflects settlement.
    return 'retry';
  }
  const subId=payment.subscription,customerId=payment.customer;
- if(!validId(subId)||!validId(customerId)||!matchesMoney(payment.value,checkout.amount_cents)
-   ||payment.billingType!==checkout.billing_type){
-   await mark('review','payment_identity_mismatch');return 'review';
+ if(!validId(subId)||!validId(customerId)){
+   await mark('review','payment_reference_invalid');return 'review';
  }
- if(checkout.state==='ready' && payment.paymentLink!==checkout.provider_link_id){
-   await mark('review','payment_link_mismatch');return 'review';
- }
- if(checkout.state==='paid' && checkout.provider_subscription_id!==subId){
-   await mark('review','subscription_not_bound');return 'review';
- }
-
  const [link,subscription,customer]=await Promise.all([
    asaasGet(key,'/paymentLinks/'+checkout.provider_link_id),
    asaasGet(key,'/subscriptions/'+subId),
    asaasGet(key,'/customers/'+customerId)
  ]);
- if(link?.id!==checkout.provider_link_id
-   ||link.externalReference!=='sst-pilot-'+checkout.id
-   ||link.chargeType!=='RECURRENT'||link.subscriptionCycle!=='MONTHLY'
-   ||link.billingType!==checkout.billing_type
-   ||!matchesMoney(link.value,checkout.amount_cents)
-   ||subscription?.id!==subId||subscription.status!=='ACTIVE'
-   ||subscription.cycle!=='MONTHLY'
-   ||subscription.customer!==customerId
-   ||!matchesMoney(subscription.value,checkout.amount_cents)
-   ||customer?.id!==customerId||doc(customer.cpfCnpj)!==checkout.registration_number
-   ||clean(customer.email,255).toLowerCase()!==checkout.owner_email.toLowerCase()
- ){
-   await mark('review','financial_proof_mismatch');return 'review';
+ const proof=verifySstAsaasPaymentProof({
+   checkout,payment,link,subscription,customer,
+   todayISO:new Date().toISOString().slice(0,10)
+ });
+ if(!proof.ok){
+   await mark('review',proof.reason);return 'review';
  }
- const nextDate=dateInFuture(subscription.nextDueDate);
- if(!nextDate){await mark('review','billing_period_unconfirmed');return 'review';}
+ const nextDate=proof.nextDueDate;
  const {data:result,error:recordError}=await admin.rpc('record_verified_nexus_sst_asaas_payment',{
    p_checkout_id:checkout.id,p_event_id:event.provider_event_id,
    p_payment_id:payment.id,p_customer_id:customerId,p_subscription_id:subId,
