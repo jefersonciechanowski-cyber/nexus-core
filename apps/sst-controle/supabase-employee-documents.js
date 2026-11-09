@@ -186,6 +186,7 @@
     const person = employee(id);
     if (!person) return;
     selectedEmployeeId = String(id);
+    $('employeeDocumentForm').hidden = window.NEXUS_DEMO_USER?.role === 'hr';
     $('employeeDocumentsTitle').textContent = `Documentos — ${person.name}`;
     $('employeeDocumentStatus').textContent = '';
     $('employeeDocumentForm').reset();
@@ -220,6 +221,13 @@
       return;
     }
     const employeeId = selectedEmployeeId;
+    const values = {
+      employee_id: employeeId,
+      document_type: $('employeeDocumentType').value,
+      title: $('employeeDocumentTitle').value.trim(),
+      issued_at: issued, expires_at: expires,
+      notes: $('employeeDocumentNotes').value.trim() || null
+    };
     await window.NexusData.runLocked('employee-document-save', async () => {
       const id = crypto.randomUUID();
       const path = `${organizationId()}/employees/${employeeId}/${id}/${safeFileName(file)}`;
@@ -233,20 +241,13 @@
         uploaded = true;
         const rows = await window.NexusData.insert({
           table: 'employee_documents',
-          values: {
-            id, employee_id: employeeId,
-            document_type: $('employeeDocumentType').value,
-            title: $('employeeDocumentTitle').value.trim(),
-            issued_at: issued, expires_at: expires,
-            notes: $('employeeDocumentNotes').value.trim() || null,
-            attachment_path: path
-          },
+          values: { ...values, id, attachment_path: path },
           select: 'id',
           label: 'documento do colaborador'
         });
         if (!rows[0]) throw new Error('O documento não pôde ser confirmado.');
         committed = true;
-        form.reset();
+        if (selectedEmployeeId === employeeId) form.reset();
         $('employeeDocumentStatus').textContent = 'Documento salvo com sucesso.';
         try { await refresh(); } catch (refreshError) {
           console.error('Documento salvo, mas a listagem não pôde ser atualizada.', refreshError);
