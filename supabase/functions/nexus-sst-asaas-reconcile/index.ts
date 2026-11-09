@@ -24,7 +24,7 @@ async function authenticate(req:Request){
  }catch{return false;}
 }
 async function asaasGet(key:string,path:string){
- if(!/^\/(payments|paymentLinks|subscriptions|customers)\/[A-Za-z0-9_-]{5,130}$/.test(path))
+ if(!/^\/(?:payments|paymentLinks|subscriptions|customers)\/[A-Za-z0-9_-]{5,130}(?:\/payments\?limit=100)?$/.test(path))
    throw Error('unsafe_provider_path');
  const res=await fetch('https://api.asaas.com/v3'+path,{
    headers:{'accept':'application/json','access_token':key,'User-Agent':'NexusSST-VerifiedSettlement/1.0'},
@@ -99,6 +99,73 @@ async function processEvent(admin:any,key:string,event:any){
  }
  await mark('review','unexpected_settlement_result');return 'review';
 }
+
+async function reconcileOverdueSst(admin:any,asaasKey:string){
+ const GRACE_DAYS=7; // SST monthly grace; provider proof is required for suspension.
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',
+   year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const {data:checkouts,error}=await admin.from('nexus_sst_asaas_pilot_checkouts')
+   .select('id,access_id,provider_subscription_id,provider_customer_id,amount_cents')
+   .eq('state','paid').eq('environment','production')
+   .order('created_at',{ascending:true}).limit(100);
+ if(error)throw Error('paid_checkouts_unavailable');
+ const result={checked:0,suspended:0,review:0,retry:0};
+ for(const checkout of checkouts||[]){
+   const {data:access,error:accessError}=await admin.from('organization_product_access')
+     .select('id,renews_at,access_status,subscription_status,billing_provider')
+     .eq('id',checkout.access_id).maybeSingle();
+   if(accessError){result.retry++;continue;}
+   if(!access || access.access_status!=='active' || access.subscription_status!=='active'
+     || access.billing_provider!=='asaas' || !access.renews_at)continue;
+   const lateBy=Math.floor((Date.parse(today+'T12:00:00Z')-Date.parse(access.renews_at+'T12:00:00Z'))/86400000);
+   if(!Number.isFinite(lateBy)||lateBy<=GRACE_DAYS)continue;
+   if(!validId(checkout.provider_subscription_id)||!validId(checkout.provider_customer_id)){
+     result.review++;continue;
+   }
+   result.checked++;
+   if(result.checked>3)break;
+   try{
+     const subscription=await asaasGet(asaasKey,'/subscriptions/'+checkout.provider_subscription_id);
+     if(subscription?.id!==checkout.provider_subscription_id
+       ||subscription.customer!==checkout.provider_customer_id
+       ||subscription.cycle!=='MONTHLY'
+       ||!Number.isFinite(Number(subscription.value))
+       ||Math.round(Number(subscription.value)*100)!==Number(checkout.amount_cents)){
+       result.review++;continue;
+     }
+     const invoices=await asaasGet(asaasKey,
+       '/subscriptions/'+checkout.provider_subscription_id+'/payments?limit=100');
+     if(!Array.isArray(invoices?.data)||invoices.hasMore===true){
+       result.review++;continue;
+     }
+     const relevant=invoices.data.filter((p:any)=>
+       p?.subscription===checkout.provider_subscription_id
+       && p?.customer===checkout.provider_customer_id
+       && Number.isFinite(Number(p?.value))
+       && Math.round(Number(p.value)*100)===Number(checkout.amount_cents)
+       && typeof p?.dueDate==='string'&&p.dueDate>=access.renews_at
+       && p.dueDate<=today);
+     if(relevant.some((p:any)=>['CONFIRMED','RECEIVED'].includes(p.status))){
+       // Never suspend if Asaas has a recent paid invoice; investigate missed webhook.
+       result.review++;continue;
+     }
+     if(!relevant.some((p:any)=>p.status==='OVERDUE')){
+       // No authoritative overdue invoice: stay active, require investigation.
+       result.review++;continue;
+     }
+     const {data:state,error:rpcError}=await admin.rpc('suspend_verified_nexus_sst_asaas_overdue',{
+       p_checkout_id:checkout.id,p_expected_renews_at:access.renews_at,p_grace_days:GRACE_DAYS
+     });
+     if(rpcError){result.retry++;continue;}
+     if(state?.applied===true)result.suspended++;
+   }catch(e){
+     console.error('sst-asaas-overdue-provider-unavailable',clean((e as Error)?.message,80));
+     result.retry++;
+   }
+ }
+ return result;
+}
+
 Deno.serve(async req=>{
  if(req.method!=='POST')return reply({error:'method_not_allowed'},405);
  if(!await authenticate(req))return reply({error:'unauthorized'},401);
@@ -138,6 +205,15 @@ Deno.serve(async req=>{
      console.error('sst-asaas-reconcile-retry',clean((e as Error)?.message,80));
      summary.retry++;
    }
+ }
+ try{
+   const overdue=await reconcileOverdueSst(admin,key);
+   Object.assign(summary,{overdueChecked:overdue.checked,
+     overdueSuspended:overdue.suspended,overdueReview:overdue.review,
+     overdueRetry:overdue.retry});
+ }catch(e){
+   console.error('sst-asaas-overdue-check-failed',clean((e as Error)?.message,80));
+   Object.assign(summary,{overdueChecked:0,overdueSuspended:0,overdueReview:0,overdueRetry:1});
  }
  return reply(summary);
 });
