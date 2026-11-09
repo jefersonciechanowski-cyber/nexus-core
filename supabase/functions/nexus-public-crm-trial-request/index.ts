@@ -78,7 +78,7 @@ Deno.serve(async(request:Request)=>{
     registration_type:input.registrationType,phone:input.phone,plan_id:plan.id,
     postal_code:input.postalCode,street:input.street,street_number:input.streetNumber,
     address_complement:input.addressComplement||null,district:input.district,
-    city:input.city,state:input.state,trial_days:15,state:'pending',expires_at:expiration,
+    city:input.city,address_state:input.state,trial_days:15,state:'pending',expires_at:expiration,
   }).select('id').single();
   if(insertError||!row?.id)return reply({error:'Não foi possível preparar seu teste.'},503);
   const url=ORIGIN+'/site-captacao/trial/confirm#token='+token;
