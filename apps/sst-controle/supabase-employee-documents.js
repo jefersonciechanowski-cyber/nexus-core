@@ -224,6 +224,7 @@
       const id = crypto.randomUUID();
       const path = `${organizationId()}/employees/${employeeId}/${id}/${safeFileName(file)}`;
       let uploaded = false;
+      let committed = false;
       $('employeeDocumentStatus').textContent = 'Salvando documento...';
       try {
         const { error } = await window.NexusData.getClient().storage
@@ -244,11 +245,15 @@
           label: 'documento do colaborador'
         });
         if (!rows[0]) throw new Error('O documento não pôde ser confirmado.');
+        committed = true;
         form.reset();
         $('employeeDocumentStatus').textContent = 'Documento salvo com sucesso.';
-        await refresh();
+        try { await refresh(); } catch (refreshError) {
+          console.error('Documento salvo, mas a listagem não pôde ser atualizada.', refreshError);
+          $('employeeDocumentStatus').textContent = 'Documento salvo. Atualize a página para conferir a listagem.';
+        }
       } catch (error) {
-        if (uploaded) {
+        if (uploaded && !committed) {
           const cleanup = await window.NexusData.getClient().storage.from(bucket).remove([path]);
           if (cleanup.error) console.error('Anexo não vinculado exige limpeza administrativa.', cleanup.error);
         }
@@ -262,12 +267,16 @@
     if (!doc || !window.confirm('Arquivar este documento? O arquivo e o histórico serão preservados.')) return;
     await window.NexusData.runLocked(`employee-document-archive-${id}`, async () => {
       try {
-        await window.NexusData.update({
+        const rows = await window.NexusData.update({
           table: 'employee_documents', id, values: { status: 'ARCHIVED' },
-          label: 'documento do colaborador'
+          select: 'id', label: 'documento do colaborador'
         });
+        if (!rows[0]) throw new Error('O arquivamento não foi confirmado.');
         $('employeeDocumentStatus').textContent = 'Documento arquivado.';
-        await refresh();
+        try { await refresh(); } catch (refreshError) {
+          console.error('Arquivamento salvo, mas a listagem não foi atualizada.', refreshError);
+          $('employeeDocumentStatus').textContent = 'Documento arquivado. Atualize a página para conferir a listagem.';
+        }
       } catch (error) { $('employeeDocumentStatus').textContent = readableError(error); }
     });
   }
