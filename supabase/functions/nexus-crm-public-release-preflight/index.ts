@@ -83,11 +83,11 @@ Deno.serve(async(request:Request)=>{
     // CRM uses dedicated SMTP credentials, not the older generic Brevo config.
     // Return only readiness booleans: never sender address, login or password.
     emailTransport:{
-      loginConfigured:/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test((env.BREVO_CRM_SMTP_USER||'').trim()),
+      loginConfigured:/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((env.BREVO_CRM_SMTP_USER||'').trim()),
       keyConfigured:(env.BREVO_CRM_SMTP_KEY||'').length>=12,
       hostConfigured:(env.BREVO_CRM_SMTP_HOST||'').trim().toLowerCase()==='smtp-relay.brevo.com',
       portConfigured:(env.BREVO_CRM_SMTP_PORT||'').trim()==='2525',
-      senderConfigured:/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test((env.BREVO_FROM_EMAIL||'').trim()),
+      senderConfigured:/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((env.BREVO_FROM_EMAIL||'').trim()),
     },
   });
 });
