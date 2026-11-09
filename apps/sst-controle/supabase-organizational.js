@@ -382,7 +382,7 @@
       const reference = item.esocialRegistration ? `Matrícula: ${item.esocialRegistration}` : item.esocialCategoryCode ? `Categoria: ${item.esocialCategoryCode}` : '';
       const allocation = `${unitName(item.unitId)} / ${current.sectors.find(sector => String(sector.id) === String(item.sectorId))?.name || 'Sem setor'} / ${item.role || 'Sem função'}`;
       const profileStatus = employeeProfileComplete(item) ? 'Cadastro completo' : 'Cadastro incompleto';
-      return `<li><span><strong>${esc(item.name)}</strong><small>${esc(identity)} | ${esc(worker)}${reference ? ` | ${esc(reference)}` : ''}</small><small>${esc(allocation)} | ${esc(profileStatus)}</small></span><span><button type="button" class="ghost" data-organizational-action="show-employee" data-organizational-id="${esc(item.id)}">Visualizar</button><button type="button" class="ghost" data-organizational-action="edit-employee" data-organizational-id="${esc(item.id)}">Editar</button><button type="button" class="ghost" data-organizational-action="deactivate-employee" data-organizational-id="${esc(item.id)}">Desativar</button></span></li>`;
+      return `<li><span><strong>${esc(item.name)}</strong><small>${esc(identity)} | ${esc(worker)}${reference ? ` | ${esc(reference)}` : ''}</small><small>${esc(allocation)} | ${esc(profileStatus)}</small></span><span><button type="button" class="ghost" data-organizational-action="show-employee" data-organizational-id="${esc(item.id)}">Visualizar</button><button type="button" class="ghost" data-organizational-action="open-employee-documents" data-organizational-id="${esc(item.id)}">Documentos</button><button type="button" class="ghost" data-organizational-action="edit-employee" data-organizational-id="${esc(item.id)}">Editar</button><button type="button" class="ghost" data-organizational-action="deactivate-employee" data-organizational-id="${esc(item.id)}">Desativar</button></span></li>`;
     }).join('') : '<li><span style="color:var(--text-muted)">Nenhum colaborador cadastrado.</span></li>';
   }
 
@@ -416,6 +416,7 @@
         'delete-sector': () => deleteEntity('sectors', id),
         'delete-role': () => deleteEntity('jobRoles', id),
         'show-employee': () => window.showEmployeeRequirements?.(id),
+        'open-employee-documents': () => window.NexusEmployeeDocuments?.open?.(id),
         'edit-employee': () => editEmployee(id),
         'deactivate-employee': () => deactivateEmployee(id)
       };
