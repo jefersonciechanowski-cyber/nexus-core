@@ -1,4 +1,4 @@
-import { normalizeCheckout } from './nexus-public-crm-monthly-checkout/contract.mjs';
+import { normalizeCheckout } from '../nexus-public-crm-monthly-checkout/contract.mjs';
 
 // One 15-day trial, no charge and no card, only after verified email.
 // Reuse the same CPF/CNPJ check-digit and contact/address checks as paid CRM.
