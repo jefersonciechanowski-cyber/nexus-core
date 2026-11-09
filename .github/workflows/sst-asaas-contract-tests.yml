@@ -32,9 +32,9 @@ jobs:
           deno-version: v2.x
       - name: Typecheck isolated SST Asaas edge functions
         run: |
-          deno check supabase/functions/nexus-sst-asaas-upgrade/index.ts
-          deno check supabase/functions/nexus-sst-asaas-events/index.ts
-          deno check supabase/functions/nexus-sst-asaas-reconcile/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-upgrade/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-events/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-reconcile/index.ts
       - name: Check for leaked credentials and direct unsafe paths
         run: |
           set -euo pipefail
