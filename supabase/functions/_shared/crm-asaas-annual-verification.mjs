@@ -47,8 +47,10 @@ export async function verifyProductionCrmAsaasAnnual({
     ||link.active===false ||link.chargeType!=='DETACHED'
     ||link.externalReference!=='nexus-crm-bf-annual-'+sale.id)
     return reject('not_verified_annual_detached_payment');
-  if(!['RECEIVED','CONFIRMED'].includes(payment.status))
-    return reject('provider_payment_not_settled');
+  // The prepaid expiry RPC requires a durable RECEIVED receipt. A merely
+  // CONFIRMED payment must be retried later, never granted 12 months early.
+  if(payment.status==='CONFIRMED')return reject('await_provider_receipt','retry');
+  if(payment.status!=='RECEIVED')return reject('provider_payment_not_settled');
   if(!['PIX','BOLETO'].includes(payment.billingType)
     ||payment.billingType!==link.billingType
     ||cents(payment.value)!==offer.annualAmountCents
