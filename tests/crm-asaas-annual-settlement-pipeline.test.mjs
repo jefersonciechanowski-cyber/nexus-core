@@ -97,3 +97,15 @@ test('annual worker requires independent flags and does not reuse monthly provis
   assert.match(annualSale,/billing_mode !== 'prepaid'/);
   assert.match(annualSale,/source !== 'site-captacao'/);
 });
+
+test('annual expiry job is scheduled, OIDC-protected and gated by backend release',()=>{
+  const yaml=readFileSync(new URL('../.github/workflows/crm-asaas-annual-expiry.yml',import.meta.url),'utf8');
+  assert.match(yaml,/schedule:/);
+  assert.match(yaml,/NEXUS_CRM_ASAAS_PROD_ANNUAL_EXPIRY_WORKFLOW_ENABLED != 'false'/);
+  assert.match(yaml,/audience=nexus-crm-asaas-annual-expiry/);
+  assert.match(yaml,/id-token: write/);
+  assert.match(yaml,/http == '503' && data.get\('error'\) == 'Expiração anual em homologação\.'/);
+  assert.match(yaml,/http == '200'/);
+  assert.match(yaml,/data\['suspended'\] == data\['synced'\]/);
+  assert.doesNotMatch(yaml,/secrets\.|ASAAS_PRODUCTION_API_KEY|STRIPE_SECRET/);
+});
