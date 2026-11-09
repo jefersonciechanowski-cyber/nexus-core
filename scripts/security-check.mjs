@@ -114,7 +114,7 @@ if (portalSource.includes("location.href='sst-assinatura.html'")) {
   const sstReconcileSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-reconcile', 'index.ts'), 'utf8');
   const sstProofSource = await readFile(join(projectRoot, 'supabase', 'functions', '_shared', 'sst-asaas-payment-proof.mjs'), 'utf8');
   for (const [code,source,required] of [
-    ['checkout',sstCheckoutSource,["profile.role!=='org_admin'","pilot.subscription_status","NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED","state:'reserved'","externalReference:'sst-pilot-'+intentId"]],
+    ['checkout',sstCheckoutSource,["profile.role!=='org_admin'","a.subscription_status==='trial'","NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED","state:'reserved'","externalReference:'sst-pilot-'+intentId"]],
     ['reconcile',sstReconcileSource,["createRemoteJWKSet","payload.workflow_ref===WF","NEXUS_SST_ASAAS_PROD_RECONCILE_ENABLED","verifySstAsaasPaymentProof","record_verified_nexus_sst_asaas_payment"]],
     ['proof',sstProofSource,["payment.paymentLink!==checkout.provider_link_id","link.externalReference!=='sst-pilot-'+checkout.id","customer.cpfCnpj","checkout.owner_email"]],
   ]) {
