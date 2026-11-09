@@ -11,8 +11,9 @@ permissions:
 
 jobs:
   expire_trials:
-    # The workflow is skipped by default. Release requires explicit
-    # repository variable, independent Supabase flags and private OIDC auth.
+    # Scheduled runs are safe no-ops while the Supabase release gate is closed.
+    # Explicit repository opt-out: NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED=false.
+    # Backend checks Supabase gates and verifies GitHub OIDC before any DB writes.
     if: vars.NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
