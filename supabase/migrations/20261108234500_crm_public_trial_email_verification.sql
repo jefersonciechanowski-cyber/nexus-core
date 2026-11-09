@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.nexus_crm_public_trial_requests (
  phone text,
  plan_id uuid NOT NULL REFERENCES public.nexus_plans(id) ON DELETE RESTRICT,
  postal_code text,street text,street_number text,address_complement text,
- district text,city text,state text,
+ district text,city text,address_state text,
  trial_days integer NOT NULL DEFAULT 15 CHECK (trial_days=15),
  state text NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','activating','provisioned','manual_review','expired')),
  expires_at timestamptz NOT NULL,
