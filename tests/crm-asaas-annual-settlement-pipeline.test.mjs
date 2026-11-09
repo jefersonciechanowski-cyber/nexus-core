@@ -36,6 +36,8 @@ test('annual verifies one detached provider payment; does not trust webhook as p
   assert.equal(result.canActivateCrm,false);
   assert.equal(result.paymentId,paymentId);
   assert.equal(result.customerId,'cus_1234567890');
+  const confirmed={...resources,['/payments/'+paymentId]:{...resources['/payments/'+paymentId],status:'CONFIRMED'}};
+  assert.equal((await run({resources:confirmed})).decision,'retry');
   const outbound=await run({event:{...event,event_type:'PAYMENT_REFUNDED'}});
   assert.notEqual(outbound.decision,'verified_for_settlement');
 });
