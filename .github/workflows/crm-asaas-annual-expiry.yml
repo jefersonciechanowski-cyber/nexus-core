@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   expire_annual:
-    if: vars.NEXUS_CRM_ASAAS_PROD_ANNUAL_EXPIRY_WORKFLOW_ENABLED == 'true'
+    if: vars.NEXUS_CRM_ASAAS_PROD_ANNUAL_EXPIRY_WORKFLOW_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,10 +32,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RESULT="$(curl --fail-with-body --silent --show-error \
+          BODY_FILE="$(mktemp)"
+          trap 'rm -f "${BODY_FILE}"' EXIT
+          HTTP="$(curl --silent --show-error --max-time 45 \
             --request POST \
             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-asaas-annual-expiry" \
             --header "Authorization: Bearer ${OIDC_TOKEN}" \
             --header 'Content-Type: application/json' \
+            --output "${BODY_FILE}" --write-out '%{http_code}' \
             --data '{}')"
-          printf '%s' "${RESULT}" | python3 -c 'import json,sys; r=json.load(sys.stdin); ok=r.get("pending_review")==0 and r.get("suspended")==r.get("synced");print("CRM annual expiry verified" if ok else "CRM annual expiry review required");sys.exit(0 if ok else 1)'
+          python3 - "${HTTP}" "${BODY_FILE}" <<'PY'
+          import json
+          import sys
+          http, path = sys.argv[1:]
+          try:
+              with open(path, encoding='utf8') as f:
+                  data = json.load(f)
+          except (OSError, ValueError):
+              print('Annual expiry: invalid backend response')
+              sys.exit(1)
+          if http == '503' and data.get('error') == 'Expiração anual em homologação.':
+              print('Annual expiry: backend release gate is closed; no changes')
+              sys.exit(0)
+          if http == '200' and type(data.get('pending_review')) is int and data['pending_review'] == 0 and type(data.get('suspended')) is int and type(data.get('synced')) is int and data['suspended'] == data['synced']:
+              print('Annual expiry: completed and CRM entitlement reconciled')
+              sys.exit(0)
+          print('Annual expiry: backend or entitlement delivery requires review (HTTP ' + http + ')')
+          sys.exit(1)
+          PY
