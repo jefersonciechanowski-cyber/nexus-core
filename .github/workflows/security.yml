@@ -35,6 +35,9 @@ jobs:
       - name: Verify Nexus SST employee document privacy and integration
         run: node --test tests/sst-employee-documents.test.mjs tests/sst-employee-list-layout.test.mjs
 
+      - name: Verify SST session remains logged in after temporary Auth outages
+        run: node --test tests/sst-auth-session-continuity.test.mjs
+
       - name: Verify Nexus Admin session continuity and MFA across tabs
         run: node --test tests/nexus-admin-login-session.test.mjs
 

@@ -13,6 +13,26 @@
 
   let client = null;
 
+  function temporaryAuthFailure(message, cause) {
+    const error = new Error(message);
+    error.code = 'NEXUS_TEMPORARY_AUTH_FAILURE';
+    error.cause = cause;
+    return error;
+  }
+
+  function accessDenied(message) {
+    const error = new Error(message);
+    error.code = 'NEXUS_ACCESS_DENIED';
+    return error;
+  }
+
+  function isTemporaryAuthFailure(error) {
+    const status = Number(error?.status);
+    return error?.name === 'AuthRetryableFetchError'
+      || [0, 408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524].includes(status)
+      || /failed to fetch|networkerror|network request failed|load failed|timeout|temporarily unavailable/i.test(String(error?.message || ''));
+  }
+
   function getRecoveryRedirectTarget() {
     const hash = window.location.hash || '';
     if (!hash) return null;
@@ -49,7 +69,12 @@
       .eq('product.code', 'sst')
       .maybeSingle();
 
-    if (error) throw new Error('Não foi possível validar a liberação do Nexus SST.');
+    if (error) {
+      if (isTemporaryAuthFailure(error)) {
+        throw temporaryAuthFailure('Não foi possível consultar a liberação do Nexus SST por instabilidade de conexão.', error);
+      }
+      throw accessDenied('Não foi possível validar a liberação do Nexus SST.');
+    }
     const product = Array.isArray(access?.product) ? access.product[0] : access?.product;
     const hasTimedExpiry = access?.subscription_status === 'trial' || access?.billing_mode === 'prepaid';
     const expired = Boolean(hasTimedExpiry && access?.renews_at && new Date(`${access.renews_at}T23:59:59`) < new Date());
@@ -61,7 +86,7 @@
 
     if (blocked) {
       sessionStorage.removeItem('nexus_demo_session');
-      throw new Error(expired
+      throw accessDenied(expired
         ? 'Seu período de acesso ao Nexus SST foi encerrado. Consulte a Minha Central Nexus para continuar.'
         : 'O Nexus SST não está liberado para esta empresa. Consulte a Minha Central Nexus.');
     }
@@ -75,11 +100,15 @@
       .eq('id', user.id)
       .single();
 
-    if (error || !data) throw new Error('Perfil de acesso não encontrado.');
-    if (!data.active) throw new Error('Este usuário está inativo.');
+    if (error) {
+      if (isTemporaryAuthFailure(error)) throw temporaryAuthFailure('Não foi possível consultar seu perfil por instabilidade de conexão.', error);
+      throw accessDenied('Não foi possível validar seu perfil de acesso.');
+    }
+    if (!data) throw accessDenied('Perfil de acesso não encontrado.');
+    if (!data.active) throw accessDenied('Este usuário está inativo.');
 
     const organization = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
-    if (organization?.status && organization.status !== 'active') throw new Error('Esta empresa está com o acesso suspenso.');
+    if (organization?.status && organization.status !== 'active') throw accessDenied('Esta empresa está com o acesso suspenso.');
     await ensureSstEntitlement(data);
 
     const sessionData = {
@@ -133,8 +162,21 @@
       return null;
     }
     const supabaseClient = getClient();
-    const { data, error } = await supabaseClient.auth.getUser();
-    if (error || !data.user) {
+    let response;
+    try {
+      response = await supabaseClient.auth.getUser();
+    } catch (cause) {
+      throw temporaryAuthFailure('Não foi possível confirmar sua sessão. Verifique a conexão e tente novamente.', cause);
+    }
+    const { data, error } = response;
+    if (error) {
+      if (isTemporaryAuthFailure(error)) {
+        throw temporaryAuthFailure('Não foi possível confirmar sua sessão. Verifique a conexão e tente novamente.', error);
+      }
+      sessionStorage.removeItem('nexus_demo_session');
+      return null;
+    }
+    if (!data?.user) {
       sessionStorage.removeItem('nexus_demo_session');
       return null;
     }
@@ -376,11 +418,21 @@
     if (!needsGlobalSelector && !needsPortalPanel) return;
     try {
       const session = await restoreSession();
-      if (!session) return;
+      if (!session) {
+        if (needsGlobalSelector && location.pathname.includes('/apps/sst-controle/')) {
+          location.replace('login.html');
+        }
+        return;
+      }
       if (needsGlobalSelector) await setupGlobalCompanySelector(session);
       if (needsPortalPanel) await setupPortalMultiCompany(session);
     } catch (error) {
       console.error('[Nexus multiempresa init]', error);
+      if (error?.code === 'NEXUS_TEMPORARY_AUTH_FAILURE') {
+        // Nunca encerre uma sessão válida por indisponibilidade temporária do Supabase.
+        // O servidor e as políticas RLS continuam validando cada acesso aos dados.
+        return;
+      }
       if (needsGlobalSelector && location.pathname.includes('/apps/sst-controle/')) {
         await getClient().auth.signOut({ scope: 'local' }).catch(() => undefined);
         sessionStorage.removeItem('nexus_demo_session');
