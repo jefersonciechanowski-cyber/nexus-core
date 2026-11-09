@@ -32,6 +32,9 @@ jobs:
       - name: Run security checks
         run: npm run security:check
 
+      - name: Verify Nexus SST employee document privacy and integration
+        run: node --test tests/sst-employee-documents.test.mjs
+
       - name: Verify Nexus Admin session continuity and MFA across tabs
         run: node --test tests/nexus-admin-login-session.test.mjs
 
