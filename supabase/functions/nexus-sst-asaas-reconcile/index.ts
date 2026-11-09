@@ -46,10 +46,19 @@ async function processEvent(admin:any,key:string,event:any){
    await mark('ignored','not_paid_event');
    return 'ignored';
  }
+ // Trust only an independently fetched payment, never the webhook's
+ // optional paymentLink/subscription fields. Some genuine Asaas events carry
+ // only payment.id, and they must still be classified correctly.
+ const payment=await asaasGet(key,'/payments/'+event.provider_payment_id);
+ if(payment?.id!==event.provider_payment_id){
+   await mark('review','provider_payment_mismatch');return 'review';
+ }
+ const providerLink=validId(payment.paymentLink)?payment.paymentLink:null;
+ const providerSubscription=validId(payment.subscription)?payment.subscription:null;
  let query=admin.from('nexus_sst_asaas_pilot_checkouts').select('*');
- if(event.provider_link_id)query=query.eq('provider_link_id',event.provider_link_id);
- else if(event.provider_subscription_id)query=query.eq('provider_subscription_id',event.provider_subscription_id);
- else{await mark('ignored','no_billing_reference');return 'ignored';}
+ if(providerLink)query=query.eq('provider_link_id',providerLink);
+ else if(providerSubscription)query=query.eq('provider_subscription_id',providerSubscription);
+ else{await mark('ignored','no_verified_billing_reference');return 'ignored';}
  const {data:intent,error:intentError}=await query.limit(2);
  if(intentError)throw Error('intent_lookup_unavailable');
  if(!intent?.length){await mark('ignored','not_sst_checkout');return 'ignored';}
@@ -59,10 +68,6 @@ async function processEvent(admin:any,key:string,event:any){
  const checkout=intent[0];
  if(checkout.environment!=='production'||!validId(checkout.provider_link_id)){
    await mark('review','provider_reference_invalid');return 'review';
- }
- const payment=await asaasGet(key,'/payments/'+event.provider_payment_id);
- if(payment?.id!==event.provider_payment_id){
-   await mark('review','provider_payment_mismatch');return 'review';
  }
  if(!['CONFIRMED','RECEIVED'].includes(payment.status)){
    // Webhook could arrive before Asaas' GET reflects settlement.
