@@ -112,9 +112,11 @@ if (!portalSource.includes('data-pilot-upgrade')
 if (portalSource.includes("location.href='sst-assinatura.html'")) {
   const sstCheckoutSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-upgrade', 'index.ts'), 'utf8');
   const sstReconcileSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-reconcile', 'index.ts'), 'utf8');
+  const sstWebhookSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-events', 'index.ts'), 'utf8');
   const sstProofSource = await readFile(join(projectRoot, 'supabase', 'functions', '_shared', 'sst-asaas-payment-proof.mjs'), 'utf8');
   for (const [code,source,required] of [
     ['checkout',sstCheckoutSource,["profile.role!=='org_admin'","a.subscription_status==='trial'","NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED","state:'reserved'","externalReference:'sst-pilot-'+intentId"]],
+    ['webhook',sstWebhookSource,["NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED","asaas-access-token","authenticToken(supplied,expected)","nexus_sst_asaas_payment_events","provider_payment_id:id","onConflict:'provider_event_id'"]],
     ['reconcile',sstReconcileSource,["createRemoteJWKSet","payload.workflow_ref===WF","NEXUS_SST_ASAAS_PROD_RECONCILE_ENABLED","verifySstAsaasPaymentProof","record_verified_nexus_sst_asaas_payment"]],
     ['proof',sstProofSource,["payment.paymentLink!==checkout.provider_link_id","link.externalReference!=='sst-pilot-'+checkout.id","customer.cpfCnpj","checkout.owner_email"]],
   ]) {
