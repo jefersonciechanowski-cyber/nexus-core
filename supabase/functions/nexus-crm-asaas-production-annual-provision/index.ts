@@ -91,7 +91,7 @@ Deno.serve(async(request:Request):Promise<Response>=>{
     return JSON.parse(text);
   };
   const verified=await verifyProductionCrmAsaasAnnual({eventRow:event,sale,plan,fetchResource});
-  if(verified.decision!=='verified_for_settlement')
+  if(!('saleId' in verified))
     return reply({decision:verified.decision,reason:verified.reason,canActivateCrm:false},
       verified.decision==='retry'?503:409);
   const {data:reserved,error:reserveError}=await admin.rpc(
