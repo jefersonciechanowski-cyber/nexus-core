@@ -1,0 +1,33 @@
+name: SST Asaas contract regression tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/_shared/sst-asaas-payment-proof.mjs'
+      - 'supabase/functions/nexus-sst-asaas-*/**'
+      - 'supabase/migrations/20261109160000_sst_asaas_pilot_conversion.sql'
+      - 'tests/sst-asaas-payment-proof.test.mjs'
+      - '.github/workflows/sst-asaas-contract-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify independent Asaas settlement proof predicates
+        run: node --test tests/sst-asaas-payment-proof.test.mjs
+      - name: Check for leaked credentials and direct unsafe paths
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E '\$aact_prod_[A-Za-z0-9]+' \
+            supabase/functions/nexus-sst-asaas-{upgrade,events,reconcile}/index.ts \
+            supabase/functions/_shared/sst-asaas-payment-proof.mjs
