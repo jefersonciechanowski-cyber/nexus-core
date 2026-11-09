@@ -139,7 +139,7 @@
       element.querySelector('.alert-open').onclick = async () => {
         try { if (!isRead(item)) await persist(item, new Date().toISOString()); } catch (error) { console.error('Falha ao marcar alerta como lido.', error); }
         close();
-        window.NexusPreventiveAgenda.openModule(item.type);
+        window.NexusPreventiveAgenda.openModule(item.type, item);
       };
     });
   }
