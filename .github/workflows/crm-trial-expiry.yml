@@ -11,9 +11,10 @@ permissions:
 
 jobs:
   expire_trials:
-    # The workflow is skipped by default. Release requires explicit
-    # repository variable, independent Supabase flags and private OIDC auth.
-    if: vars.NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED == 'true'
+    # Scheduled runs are safe no-ops while the Supabase release gate is closed.
+    # Explicit repository opt-out: NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED=false.
+    # Backend checks Supabase gates and verifies GitHub OIDC before any DB writes.
+    if: vars.NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,10 +36,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RESPONSE="$(curl --fail-with-body --silent --show-error \
+          BODY_FILE="$(mktemp)"
+          trap 'rm -f "${BODY_FILE}"' EXIT
+          HTTP="$(curl --silent --show-error --max-time 45 \
             --request POST \
             --url "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-trial-reconcile" \
             --header "Authorization: Bearer ${OIDC_TOKEN}" \
             --header 'Content-Type: application/json' \
+            --output "${BODY_FILE}" --write-out '%{http_code}' \
             --data '{}')"
-          printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; x=json.load(sys.stdin); n=x.get("pending_review"); ok=isinstance(n,int) and n==0; print("CRM trial expiry verified" if ok else "CRM trial expiry requires review"); sys.exit(0 if ok else 1)'
+          python3 - "${HTTP}" "${BODY_FILE}" <<'PY'
+          import json
+          import sys
+          http, path = sys.argv[1:]
+          try:
+              with open(path, encoding='utf8') as f:
+                  data = json.load(f)
+          except (OSError, ValueError):
+              print('Trial expiry: invalid backend response')
+              sys.exit(1)
+          if http == '503' and data.get('error') == 'Conciliação de testes em homologação.':
+              print('Trial expiry: backend release gate is closed; no changes')
+              sys.exit(0)
+          if http == '200' and type(data.get('pending_review')) is int and data['pending_review'] == 0 and type(data.get('suspended')) is int and type(data.get('synced')) is int and data['suspended'] == data['synced']:
+              print('Trial expiry: completed and CRM entitlement reconciled')
+              sys.exit(0)
+          print('Trial expiry: backend or entitlement delivery requires review (HTTP ' + http + ')')
+          sys.exit(1)
+          PY

@@ -28,7 +28,10 @@ export function assessCrmCommercialLaunch(root=resolve(here,'..')) {
       && grantGate.includes('NEXUS_CRM_TRIAL_RELEASE_APPROVED')
       && grantGate.includes('NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED'),
     expirationWorkerExplicitlyGated:expiry.includes("canOperateCrmTrial(Deno.env.toObject(), 'expire')"),
-    expiryScheduleOptIn:trialSchedule.includes("NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED == 'true'")
+    // Historical evidence key: a scheduled job may run by default, but must
+    // still be an authenticated NO-OP until the independent backend release gate.
+    expiryScheduleOptIn:trialSchedule.includes("NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED != 'false'")
+      && trialSchedule.includes("data.get('error') == 'Conciliação de testes em homologação.'")
       && trialSchedule.includes('audience=nexus-crm-trial-reconcile'),
   };
   const blockers=[];

@@ -40,10 +40,12 @@ test('trial admin and worker deny before any DB access or tenant mutation',()=>{
   assert.match(gates,/NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED/);
 });
 
-test('expiry workflow is scheduled daily but skipped until explicitly opted in',()=>{
+test('expiry workflow is scheduled daily and inactive until backend approves release',()=>{
   const src=readFileSync(new URL('../.github/workflows/crm-trial-expiry.yml',import.meta.url),'utf8');
   assert.match(src,/schedule:/);
-  assert.match(src,/NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED == 'true'/);
+  assert.match(src,/NEXUS_CRM_TRIAL_EXPIRY_WORKFLOW_ENABLED != 'false'/);
+  assert.ok(src.includes("http == '503' and data.get('error') == 'Conciliação de testes em homologação.'"));
+  assert.match(src,/http == '200'/);
   assert.match(src,/audience=nexus-crm-trial-reconcile/);
   assert.match(src,/nexus-crm-trial-reconcile/);
   assert.match(src,/id-token: write/);
