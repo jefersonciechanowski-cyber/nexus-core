@@ -191,4 +191,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_production_renewal_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_asaas_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109160000_sst_asaas_pilot_conversion.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109163000_sst_asaas_overdue_suspension.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_asaas_assertions.sql
