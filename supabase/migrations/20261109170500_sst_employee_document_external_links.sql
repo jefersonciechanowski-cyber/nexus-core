@@ -14,7 +14,7 @@ alter table public.employee_documents
   add constraint employee_documents_external_url_safe check (
     external_url is null or (
       char_length(external_url) <= 2048
-      and external_url ~* '^https://(drive\\.google\\.com|docs\\.google\\.com|onedrive\\.live\\.com|1drv\\.ms|([a-z0-9-]+\\.)+sharepoint\\.com)(/|[?#]|$)'
+      and external_url ~* '^https://(drive[.]google[.]com|docs[.]google[.]com|onedrive[.]live[.]com|1drv[.]ms|([a-z0-9-]+[.])+sharepoint[.]com)(/|[?#]|$)'
       and external_url !~ '[[:space:][:cntrl:]]'
     )
   );
