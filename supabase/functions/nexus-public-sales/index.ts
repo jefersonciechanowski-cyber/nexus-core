@@ -36,6 +36,18 @@ function trustedOrigin(request: Request) {
   }
 }
 
+// Never redirect a buyer to an arbitrary URL persisted in a sales row.
+function verifiedStripeCheckoutUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 2048) return null;
+  try {
+    const target = new URL(value);
+    return target.protocol === 'https:'
+      && target.hostname === 'checkout.stripe.com'
+      && !target.username && !target.password && !target.port
+      ? target.href : null;
+  } catch { return null; }
+}
+
 function originAllowed(request: Request) {
   const raw = clean(request.headers.get('Origin'), 500);
   if (!raw) return true;
@@ -302,6 +314,11 @@ Deno.serve(async request => {
     if (pilotContext?.userEmail && pilotContext.userEmail !== email) {
       return json(request, { error: 'Para preservar seus dados, use o mesmo e-mail do acesso piloto.' }, 409);
     }
+    if (body.pilotUpgrade === true || pilotContext) {
+      // SST pilot upgrades use the Asaas checkout tied to the existing tenant.
+      // Do not create a second Stripe checkout for that same organization.
+      return json(request, { error: 'Para manter os registros e evitar cobrança duplicada, assine o SST pela Minha Central (Asaas).' }, 409);
+    }
     if (pilotContext) employeeCount = pilotContext.employeeCount;
   }
 
@@ -408,7 +425,13 @@ Deno.serve(async request => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (reusable?.provider_checkout_url) return json(request, { saleId: reusable.id, link: reusable.provider_checkout_url, reused: true, environment, billingMode });
+  if (reusable?.provider_checkout_url) {
+    const url = verifiedStripeCheckoutUrl(reusable.provider_checkout_url);
+    if (!url) {
+      return json(request, { error: 'O link de cobrança existente não é confiável. Solicite revisão à Nexus Central.' }, 503);
+    }
+    return json(request, { saleId: reusable.id, link: url, reused: true, environment, billingMode });
+  }
 
   const saleId = crypto.randomUUID();
   const externalReference = `nexus-sale-${saleId}`;
@@ -536,18 +559,19 @@ Deno.serve(async request => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
-    if (!session.url) throw new Error('A Stripe não retornou o link do checkout.');
+    const safeCheckoutUrl = verifiedStripeCheckoutUrl(session.url);
+    if (!safeCheckoutUrl) throw new Error('O provedor retornou um endereço de pagamento não autorizado.');
 
     const { data: saved } = await admin.from('nexus_sales').update({
       sale_status: 'checkout_created',
       provider_customer_id: customerId,
       provider_checkout_id: session.id,
-      provider_checkout_url: session.url,
+      provider_checkout_url: safeCheckoutUrl,
       last_error: null,
     }).eq('id', saleId).select('id,company_name,responsible_name,email,phone,employee_count,sale_status,billing_mode').single();
 
     if (saved) await sendLeadNotification(admin, saved, plan.name);
-    return json(request, { saleId, link: session.url, environment, provider: 'stripe', billingMode, amountCents: checkoutAmountCents });
+    return json(request, { saleId, link: safeCheckoutUrl, environment, provider: 'stripe', billingMode, amountCents: checkoutAmountCents });
   } catch (error) {
     const message = stripeMessage(error);
     await admin.from('nexus_sales').update({ sale_status: 'failed', provider_customer_id: customerId || null, last_error: message }).eq('id', saleId);

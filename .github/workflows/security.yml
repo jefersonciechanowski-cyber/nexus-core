@@ -38,6 +38,9 @@ jobs:
       - name: Verify SST session remains logged in after temporary Auth outages
         run: node --test tests/sst-auth-session-continuity.test.mjs
 
+      - name: Verify SST and Nexus Central tenant, payment, Storage and expiry security guards
+        run: node --test tests/sst-central-security-boundaries.test.mjs
+
       - name: Verify Nexus Admin session continuity and MFA across tabs
         run: node --test tests/nexus-admin-login-session.test.mjs
 
