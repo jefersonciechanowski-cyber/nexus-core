@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import { normalizeCrmPublicTrial, hashCrmTrialToken, publicTrialAllowed }
   from '../supabase/functions/_shared/crm-public-trial-contract.mjs';
 
+import { canOperateCrmTrial } from '../supabase/functions/_shared/crm-trial-release-gates.mjs';
+
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const request=read('supabase/functions/nexus-public-crm-trial-request/index.ts');
 const activate=read('supabase/functions/nexus-public-crm-trial-activate/index.ts');
@@ -27,6 +29,7 @@ test('secret, email-only activation and expiry flags must all be approved',()=>{
  assert.equal(publicTrialAllowed({NEXUS_CRM_PUBLIC_TRIAL_READY:'true'}),false);
  assert.equal(publicTrialAllowed({
   NEXUS_CRM_PUBLIC_TRIAL_READY:'true',NEXUS_CRM_TRIAL_RELEASE_APPROVED:'true',
+  NEXUS_CRM_TRIAL_RELEASE_MODE:'pilot',
   NEXUS_CRM_TRIAL_RECONCILE_ENABLED:'true',
   NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED:'true',
  }),true);
@@ -74,4 +77,17 @@ test('trial request keeps UF separate from the lifecycle status column',()=>{
  assert.match(request,/city:input\.city,address_state:input\.state/);
  assert.match(activate,/city:trial\.city,state:trial\.address_state/);
  assert.doesNotMatch(request,/city:input\.city,state:input\.state/);
+});
+
+test('public activation never opens while the scheduled expiry gate rejects configuration',()=>{
+ const keys=['NEXUS_CRM_PUBLIC_TRIAL_READY','NEXUS_CRM_TRIAL_RELEASE_APPROVED',
+  'NEXUS_CRM_TRIAL_RECONCILE_ENABLED','NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED'];
+ for(const mode of [undefined,'','production','pilot']){
+  for(let mask=0;mask<16;mask++){
+   const env=Object.fromEntries(keys.map((key,i)=>[key,mask&(1<<i)?'true':'false']));
+   env.NEXUS_CRM_TRIAL_RELEASE_MODE=mode;
+   assert.equal(publicTrialAllowed(env),mode==='pilot'&&mask===15);
+   if(publicTrialAllowed(env))assert.equal(canOperateCrmTrial(env,'expire'),true);
+  }
+ }
 });
