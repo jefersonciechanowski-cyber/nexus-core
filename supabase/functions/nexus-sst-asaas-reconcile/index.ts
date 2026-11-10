@@ -20,7 +20,7 @@ async function authenticate(req:Request){
   const {payload}=await jwtVerify(token,jwks,{issuer:'https://token.actions.githubusercontent.com',audience:AUDIENCE});
   return payload.repository===REPO && payload.ref==='refs/heads/main'
     && payload.workflow_ref===WF
-    && ['schedule','workflow_dispatch'].includes(String(payload.event_name||''));
+    && ['schedule','workflow_dispatch','push'].includes(String(payload.event_name||''));
  }catch{return false;}
 }
 async function asaasGet(key:string,path:string){
@@ -179,22 +179,58 @@ Deno.serve(async req=>{
  const secret=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
  if(!url||secret.length<32)return reply({error:'db_unavailable'},503);
  const admin=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
- const release=Deno.env.get('NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED')==='true';
- const worker=Deno.env.get('NEXUS_SST_ASAAS_PROD_RECONCILE_ENABLED')==='true';
- const verified=Deno.env.get('NEXUS_SST_ASAAS_PROD_SETTLEMENT_READY')==='true';
+ const {data:release,error:releaseError}=await admin.from('nexus_sst_asaas_release_controls')
+   .select('checkout_enabled,reconciliation_enabled,asaas_connection_verified_at,webhook_secret_present_at,worker_heartbeat_at')
+   .eq('id','production').maybeSingle();
+ if(releaseError||!release)return reply({error:'release_controls_unavailable'},503);
  const {count:pending,error:countError}=await admin.from('nexus_sst_asaas_payment_events')
    .select('provider_event_id',{count:'exact',head:true}).eq('processing_status','pending');
  if(countError)return reply({error:'inbox_unavailable'},503);
  let input:Record<string,unknown>={};
  try{input=await req.json();}catch{return reply({error:'invalid_request'},400);}
- if(input.action==='inspect')return reply({
-   status:'inspected',readOnly:true,createdCharge:false,accessGranted:false,
-   pending:pending||0,readyForFinancialDispatch:release&&worker&&verified
- });
- if(input.action!=='dispatch')return reply({error:'invalid_action'},400);
- if(!release||!worker||!verified)return reply({error:'financial_dispatch_not_approved'},503);
  const key=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
- if(!key.startsWith('$aact_prod_')||key.length<32)return reply({error:'provider_not_configured'},503);
+ const keyConfigured=key.startsWith('$aact_prod_')&&key.length>=32;
+ const token=Deno.env.get('NEXUS_SST_ASAAS_PROD_EVENTS_TOKEN')||'';
+ const webhookConfigured=token.length>=32
+   &&Deno.env.get('NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED')==='true';
+ if(input.action==='inspect'){
+   let providerVerified=false;
+   if(keyConfigured){
+     try{
+       const response=await fetch('https://api.asaas.com/v3/paymentLinks?limit=1',{
+         method:'GET',headers:{'accept':'application/json','access_token':key,
+           'User-Agent':'NexusSST-ReadOnly-Health/1.0'},
+         signal:AbortSignal.timeout(10000)
+       });
+       providerVerified=response.status===200;
+       await response.body?.cancel();
+     }catch{providerVerified=false;}
+   }
+   // Store only timestamps and booleans inferred from read-only API health;
+   // never persist or disclose payment-link data, credentials or bearer tokens.
+   const now=new Date().toISOString();
+   const changes:Record<string,unknown>={worker_heartbeat_at:now,updated_at:now};
+   if(providerVerified)changes.asaas_connection_verified_at=now;
+   if(webhookConfigured)changes.webhook_secret_present_at=now;
+   const {error:healthError}=await admin.from('nexus_sst_asaas_release_controls')
+     .update(changes).eq('id','production');
+   if(healthError)return reply({error:'health_not_saved'},503);
+   return reply({status:'inspected',readOnly:true,createdCharge:false,accessGranted:false,
+     pending:pending||0,providerVerified,webhookConfigured,
+     checkoutEnabled:release.checkout_enabled,
+     reconciliationEnabled:release.reconciliation_enabled});
+ }
+ if(input.action!=='dispatch')return reply({error:'invalid_action'},400);
+ if(!release.reconciliation_enabled){
+   return reply({status:'disabled',readOnly:true,createdCharge:false,accessGranted:false});
+ }
+ const hoursSince=(value:unknown)=>typeof value==='string'&&Number.isFinite(Date.parse(value))
+   ?(Date.now()-Date.parse(value))/3600000:Infinity;
+ if(!keyConfigured||!webhookConfigured
+   ||hoursSince(release.asaas_connection_verified_at)>=24
+   ||hoursSince(release.worker_heartbeat_at)>=24
+   ||hoursSince(release.webhook_secret_present_at)>=24)
+   return reply({error:'verified_financial_connection_unavailable'},503);
  const {data:events,error}=await admin.from('nexus_sst_asaas_payment_events')
    .select('*').eq('processing_status','pending').order('created_at',{ascending:true}).limit(5);
  if(error)return reply({error:'events_unavailable'},503);
