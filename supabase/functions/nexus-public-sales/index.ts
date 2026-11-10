@@ -302,6 +302,11 @@ Deno.serve(async request => {
     if (pilotContext?.userEmail && pilotContext.userEmail !== email) {
       return json(request, { error: 'Para preservar seus dados, use o mesmo e-mail do acesso piloto.' }, 409);
     }
+    if (body.pilotUpgrade === true || pilotContext) {
+      // SST pilot upgrades use the Asaas checkout tied to the existing tenant.
+      // Do not create a second Stripe checkout for that same organization.
+      return json(request, { error: 'Para manter os registros e evitar cobrança duplicada, assine o SST pela Minha Central (Asaas).' }, 409);
+    }
     if (pilotContext) employeeCount = pilotContext.employeeCount;
   }
 
