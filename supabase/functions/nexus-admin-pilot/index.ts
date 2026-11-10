@@ -162,12 +162,14 @@ Deno.serve(async request => {
   const email = clean(body.email, 255).toLowerCase();
   const phone = digits(body.phone).slice(0, 15);
   const days = Math.trunc(Number(body.days ?? 15));
+  const targetPlanCode = clean(body.targetPlanCode ?? 'essencial', 30).toLowerCase();
 
   if (companyName.length < 2) return json({ error: 'Informe o nome da empresa.' }, 400);
   if (responsibleName.length < 2) return json({ error: 'Informe o nome do responsável.' }, 400);
   if (!validEmail(email)) return json({ error: 'Informe um e-mail válido.' }, 400);
   if (!Number.isInteger(days) || days < 1 || days > 90) return json({ error: 'A duração do piloto deve ficar entre 1 e 90 dias.' }, 400);
   if (phone && phone.length < 10) return json({ error: 'Informe um telefone válido ou deixe o campo vazio.' }, 400);
+  if (!['essencial','profissional','empresarial'].includes(targetPlanCode)) return json({ error: 'Selecione um plano SST disponível para avaliação.' }, 400);
 
   let pilotUser: any = null;
   let createdAuthUser = false;
@@ -188,7 +190,7 @@ Deno.serve(async request => {
       createdAuthUser = true;
     }
 
-    const { data: provisioned, error: provisionError } = await admin.rpc('provision_nexus_pilot', {
+    const { data: provisioned, error: provisionError } = await admin.rpc('provision_nexus_pilot_with_plan', {
       p_user_id: pilotUser.id,
       p_created_by: user.id,
       p_company_name: companyName,
@@ -196,6 +198,7 @@ Deno.serve(async request => {
       p_email: email,
       p_phone: phone || null,
       p_days: days,
+      p_target_plan_code: targetPlanCode,
     });
 
     if (provisionError || !provisioned?.organizationId) {
@@ -214,6 +217,7 @@ Deno.serve(async request => {
       organizationId: provisioned.organizationId,
       accessId: provisioned.accessId,
       validUntil: provisioned.validUntil,
+      targetPlanCode: provisioned.pilotTargetPlanCode,
       email,
       emailSent: firstEmail.sent,
       emailError: firstEmail.sent ? null : firstEmail.reason,
