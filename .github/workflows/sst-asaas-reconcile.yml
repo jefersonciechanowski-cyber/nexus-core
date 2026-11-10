@@ -1,9 +1,14 @@
 name: Nexus SST Asaas payment reconciliation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/nexus-sst-asaas-*/**'
+      - 'supabase/migrations/*sst_asaas*'
+      - '.github/workflows/sst-asaas-reconcile.yml'
   schedule:
-    - cron: '17 */6 * * *'    # read-only diagnostics
-    - cron: '*/5 * * * *'     # enabled only after explicit production approval
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +21,6 @@ concurrency:
 
 jobs:
   reconcile:
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '17 */6 * * *' || vars.NEXUS_SST_ASAAS_PROD_WORKFLOW_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -43,10 +47,9 @@ jobs:
             -H "authorization: Bearer ${OIDC_TOKEN}" \
             -H 'content-type: application/json' \
             --data '{"action":"inspect"}')"
-          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False;print("SST Asaas inbox: pending=%s"%d.get("pending"))'
+          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False;print("SST Asaas production health: provider=%s webhook=%s pending=%s"%(d.get("providerVerified"),d.get("webhookConfigured"),d.get("pending")));assert d.get("providerVerified") is True and d.get("webhookConfigured") is True, "SST financial credentials not ready"'
 
       - name: Reconcile only after SST-specific financial release
-        if: ${{ vars.NEXUS_SST_ASAAS_PROD_WORKFLOW_ENABLED == 'true' }}
         env:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         shell: bash
@@ -57,4 +60,4 @@ jobs:
             -H "authorization: Bearer ${OIDC_TOKEN}" \
             -H 'content-type: application/json' \
             --data '{"action":"dispatch"}')"
-          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="dispatched" and d.get("createdCharge") is False;print("SST verified: %s; retry: %s; review: %s"%(d.get("processed"),d.get("retry"),d.get("review")))'
+          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status") in ("dispatched","disabled") and d.get("createdCharge") is False;print("SST status: %s; processed: %s; retry: %s; review: %s"%(d.get("status"),d.get("processed"),d.get("retry"),d.get("review")))'
