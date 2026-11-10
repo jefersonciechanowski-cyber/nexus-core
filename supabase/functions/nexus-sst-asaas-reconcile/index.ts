@@ -172,6 +172,63 @@ async function reconcileOverdueSst(admin:any,asaasKey:string){
  return result;
 }
 
+// Read-only audit of pre-migration SST Asaas contracts. Returns counts only,
+// never identifiers, customer data or bank credentials to GitHub Actions.
+async function inspectLegacySstAsaas(admin:any,asaasKey:string){
+ const summary={examined:0,activeSubscription:0,hasConfirmedPayment:0,
+   paidRecently:0,unverified:0};
+ const {data:prod,error:productError}=await admin.from('nexus_products')
+   .select('id').eq('code','sst').maybeSingle();
+ if(productError||!prod?.id)throw Error('sst_product_missing');
+ const {data:accesses,error}=await admin.from('organization_product_access')
+   .select('id,provider_subscription_id,provider_customer_id')
+   .eq('product_id',prod.id).eq('subscription_status','legacy')
+   .eq('access_status','active').eq('billing_provider','asaas')
+   .limit(20);
+ if(error)throw Error('legacy_access_lookup_failed');
+ const localToday=new Intl.DateTimeFormat('en-CA',{
+   timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'
+ }).format(new Date());
+ const cutoffDate=new Date(Date.parse(localToday+'T12:00:00Z')-50*86400000)
+   .toISOString().slice(0,10);
+ for(const a of accesses||[]){
+   summary.examined++;
+   if(!validId(a.provider_subscription_id)||!validId(a.provider_customer_id)){
+     summary.unverified++;continue;
+   }
+   try{
+     const subscription=await asaasGet(asaasKey,
+       '/subscriptions/'+a.provider_subscription_id);
+     if(subscription?.id!==a.provider_subscription_id
+       ||subscription.customer!==a.provider_customer_id){
+       summary.unverified++;continue;
+     }
+     if(subscription.status==='ACTIVE')summary.activeSubscription++;
+     const payments=await asaasGet(asaasKey,
+       '/subscriptions/'+a.provider_subscription_id+'/payments?limit=100');
+     if(!Array.isArray(payments?.data)||payments.hasMore===true){
+       summary.unverified++;continue;
+     }
+     const verified=payments.data.filter((p:any)=>
+       p?.subscription===a.provider_subscription_id
+       &&p?.customer===a.provider_customer_id
+       &&['CONFIRMED','RECEIVED'].includes(p?.status));
+     if(verified.length){
+       summary.hasConfirmedPayment++;
+       if(verified.some((p:any)=>{
+         const date=String(p?.paymentDate||p?.confirmedDate||p?.dueDate||'');
+         return /^\d{4}-\d\d-\d\d$/.test(date)&&date>=cutoffDate&&date<=localToday;
+       }))summary.paidRecently++;
+     }
+   }catch(e){
+     console.error('sst legacy read-only verification failed',
+       clean((e as Error)?.message,90));
+     summary.unverified++;
+   }
+ }
+ return summary;
+}
+
 Deno.serve(async req=>{
  if(req.method!=='POST')return reply({error:'method_not_allowed'},405);
  if(!await authenticate(req))return reply({error:'unauthorized'},401);
@@ -215,8 +272,17 @@ Deno.serve(async req=>{
    const {error:healthError}=await admin.from('nexus_sst_asaas_release_controls')
      .update(changes).eq('id','production');
    if(healthError)return reply({error:'health_not_saved'},503);
+   let legacy={examined:0,activeSubscription:0,hasConfirmedPayment:0,paidRecently:0,unverified:0};
+   if(providerVerified){
+     try{legacy=await inspectLegacySstAsaas(admin,key);}
+     catch(e){
+       console.error('sst legacy provider audit unavailable',
+         clean((e as Error)?.message,90));
+       legacy.unverified++;
+     }
+   }
    return reply({status:'inspected',readOnly:true,createdCharge:false,accessGranted:false,
-     pending:pending||0,providerVerified,webhookConfigured,
+     pending:pending||0,providerVerified,webhookConfigured,legacy,
      checkoutEnabled:release.checkout_enabled,
      reconciliationEnabled:release.reconciliation_enabled});
  }
