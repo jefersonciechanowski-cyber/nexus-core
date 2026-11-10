@@ -26,7 +26,7 @@ async function authorized(req:Request){
     });
     return payload.repository===REPO && payload.ref==='refs/heads/main'
       &&payload.workflow_ref===WORKFLOW &&payload.ref_type==='branch'
-      &&['schedule','workflow_dispatch'].includes(String(payload.event_name||''));
+      &&['schedule','workflow_dispatch','push'].includes(String(payload.event_name||''));
   }catch{return false;}
 }
 async function sign(raw:string,secret:string){
