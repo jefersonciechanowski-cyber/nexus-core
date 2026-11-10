@@ -41,10 +41,46 @@ Escopo: apenas SST Controle; não alterar fluxo do CRM, cobranças existentes ou
 
 **Regra de segurança:** esta branch NÃO autoriza religar Stripe, não altera secret keys, não cria cobranças nem modifica clientes existentes. Nenhuma correção do checkout Asaas deve ser anunciada como concluída até que a verificação financeira esteja comprovada.
 
-## Liberação de produção (fechada por padrão)
+## Liberação de produção — controle verificável no banco
 
-A publicação exige revisar e habilitar em separado `NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED`, `NEXUS_SST_ASAAS_PROD_CHECKOUT_ENABLED`, `NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED`, `NEXUS_SST_ASAAS_PROD_RECONCILE_ENABLED`, `NEXUS_SST_ASAAS_PROD_SETTLEMENT_READY` e `NEXUS_SST_ASAAS_PROD_EVENTS_TOKEN` no Supabase, além da variável de workflow `NEXUS_SST_ASAAS_PROD_WORKFLOW_ENABLED` no GitHub. A chave Asaas permanece exclusivamente no backend. **Não colocar valores de segredos em documentação, commits ou conversas.**
+O checkout do SST **não é liberado por simples presença da chave**. O banco de produção
+`public.nexus_sst_asaas_release_controls` mantém, em linha única `production`,
+`checkout_enabled=false` e `reconciliation_enabled=false` até aprovação.
 
-URL projetada para webhook (somente depois de implantada a função): `https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-events`. O webhook deve receber eventos de pagamentos e passar token separado em `asaas-access-token`.
+O workflow `.github/workflows/sst-asaas-reconcile.yml` valida sua identidade
+por GitHub OIDC no `main` e executa **somente GET de leitura** em
+`https://api.asaas.com/v3/paymentLinks?limit=1`, com a chave do Asaas
+restrita ao Supabase. A verificação registra apenas datas de sucesso
+(`asaas_connection_verified_at`, `webhook_secret_present_at`,
+`worker_heartbeat_at`). Não consulta nem imprime credenciais ou dados de pagadores.
 
-O período gratuito não cria cobrança ou assinatura. A inadimplência mensal após contratação exige um boleto/PIX vencido confirmado via GET do Asaas; a rotina admite sete dias de tolerância, preservando os dados ao suspender.
+O processamento periódico das cobranças começa somente quando
+`reconciliation_enabled=true` no banco e os indicadores de saúde estão
+válidos. A criação de checkout exige adicionalmente
+`checkout_enabled=true`, secret `NEXUS_SST_ASAAS_PROD_EVENTS_TOKEN`
+presente, `NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED=true` e uma API key de
+produção válida. Um problema de saúde fecha a oferta de pagamento
+automaticamente, sem apagar dados ou desativar a Minha Central.
+
+A URL do webhook exclusivo permanece:
+`https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-events`.
+Asaas precisa enviar os eventos no header `asaas-access-token`; o valor
+do token não deve aparecer em commits, relatórios ou conversas.
+
+### Escopo efetivo da ativação
+
+- A nova contratação **Asaas SST** vale para **pilotos SST já autenticados** na
+  Minha Central, com o mesmo cadastro e todos os registros preservados.
+- O fluxo público de primeira assinatura SST que ainda utiliza **Stripe**
+  continua separado e não foi convertido neste PR. Não anunciar contratação
+  pública SST com Asaas até implementar essa rota.
+- Sem um pagamento real autorizado, os testes de segurança, SQL, API somente
+  leitura e webhook não comprovam todo o caminho **pagar → webhook legítimo →
+  ativar**. O primeiro contrato real exige monitoramento e confirmação do
+  evento antes de prometer ativação instantânea ao cliente.
+- Piloto gratuito não gera cobrança nem assinatura automaticamente. A
+  inadimplência mensal só suspende depois da tolerância de sete dias, sob
+  confirmação de cobrança vencida no Asaas. Todos os registros permanecem.
+- **Não usar sandbox, não gerar cobrança artificial e não modificar
+  clientes existentes.**
+
