@@ -5,7 +5,7 @@ const id=(value,prefix,min=5,max=120)=>typeof value==='string' &&
   new RegExp('^'+prefix+'_[A-Za-z0-9_-]{'+min+','+max+'}$').test(value);
 
 /** @param {string} decision @param {string} reason
- * @param {'provision'|'renewal'|'annual'|null} [worker] */
+ * @param {'provision'|'renewal'|'annual'|'upgrade'|null} [worker] */
 const result=(decision,reason,worker=null)=>Object.freeze({
   decision,reason,worker,canCharge:false,canProvision:false,
   independentlyVerified:false,
@@ -42,6 +42,14 @@ export function planCrmAsaasProductionDispatch({eventRow,sales=[],productCode}={
   if(!Array.isArray(sales)||sales.length!==1)
     return result('manual_review','sale_match_not_unique');
   const sale=sales[0];
+  if(productCode==='crm'&&sale?.source==='crm-trial-upgrade'
+    &&sale.provider==='asaas'&&sale.environment==='production'
+    &&sale.billing_mode==='recurring'&&sale.billing_cycle_months===1
+    &&['checkout_created','paid'].includes(sale.sale_status)){
+    if(!link||!sub||sale.asaas_checkout_id!==resource.paymentLink)
+      return result('manual_review','upgrade_relationship_invalid');
+    return result('route_for_independent_verification','authenticated_trial_upgrade','upgrade');
+  }
   if(productCode==='crm' && sale?.provider==='asaas'
     && sale.environment==='production' && sale.billing_mode==='prepaid'
     && sale.billing_cycle_months===12 && sale.product_id && sale.id){
@@ -73,3 +81,4 @@ export function planCrmAsaasProductionDispatch({eventRow,sales=[],productCode}={
   }
   return result('manual_review','sale_not_eligible');
 }
+
