@@ -3,7 +3,7 @@
 // CRM tenant and entitlement safeguards with a trusted provider parameter.
 // DO NOT CALL THIS DIRECTLY from a public endpoint or webhook payload.
 // Only use after a durable, verified settlement and authorized orchestration.
-import { provisionCrmTenant, sendCrmAccessEmail } from '../stripe-webhook/crm-provisioning.ts';
+import { provisionCrmTenant, sendCrmAccessEmail, syncCrmEntitlement } from '../stripe-webhook/crm-provisioning.ts';
 import { recordVerifiedCrmAsaasAnnualPayment } from './crm-asaas-annual-payment-record.mjs';
 
 export async function provisionCrmAnnualAsaasSale(
@@ -306,9 +306,25 @@ export async function provisionCrmAnnualAsaasSale(
   }
 
   const crmProvision = await provisionCrmTenant(admin, sale, access);
-  if (crmProvision.isCrm && crmProvision.error) {
-    await admin.from('nexus_sales').update({ sale_status: 'manual_review', last_error: crmProvision.error }).eq('id', sale.id);
-    return { access: null, error: crmProvision.error };
+  // The annual worker serves ONLY CRM. A misconfigured product lookup must
+  // never result in a paid sale being marked provisioned without a CRM tenant.
+  if (!crmProvision.isCrm || crmProvision.error || !crmProvision.crmOrganizationId) {
+    const detail = crmProvision.error || 'O CRM não confirmou o tenant do cliente pago.';
+    await admin.from('nexus_sales').update({
+      sale_status:'manual_review',last_error:detail,
+    }).eq('id',sale.id);
+    return { access:null,error:detail };
+  }
+  // Independent second confirmation after the original CRM provisioning:
+  // deliver and acknowledge this exact paid contract to the SAME tenant.
+  // A payment alone or a local Central row is not evidence of CRM access.
+  const synced=await syncCrmEntitlement(admin,access.id,'active',new Date().toISOString(),true);
+  if(!synced.isCrm || !synced.synced || synced.error){
+    const detail='O contrato foi pago, mas o CRM ainda não confirmou a ativação.';
+    await admin.from('nexus_sales').update({
+      sale_status:'manual_review',last_error:detail,
+    }).eq('id',sale.id);
+    return {access:null,error:detail};
   }
 
   if (sale.provider_checkout_id) {
@@ -335,7 +351,7 @@ export async function provisionCrmAnnualAsaasSale(
   }
 
   const provisionedAt = new Date().toISOString();
-  await admin.from('nexus_sales').update({
+  const {data:marked,error:markError}=await admin.from('nexus_sales').update({
     sale_status: 'provisioned',
     organization_id: organizationId,
     user_id: userId,
@@ -344,7 +360,9 @@ export async function provisionCrmAnnualAsaasSale(
     paid_at: sale.paid_at || provisionedAt,
     provisioned_at: sale.provisioned_at || provisionedAt,
     last_error: null,
-  }).eq('id', sale.id);
+  }).eq('id', sale.id).eq('sale_status','paid').select('id').maybeSingle();
+  if(markError||marked?.id!==sale.id)
+    return {access:null,error:'A Central não confirmou o contrato como provisionado.'};
 
   sale.organization_id = organizationId;
   sale.user_id = userId;
