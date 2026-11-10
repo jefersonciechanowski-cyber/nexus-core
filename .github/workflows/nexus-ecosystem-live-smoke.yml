@@ -1,0 +1,53 @@
+name: Nexus ecosystem live site and CRM ads smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - site.css
+      - crm/index.html
+      - apps/site-captacao/index.html
+      - sst-controle/**
+      - scripts/prepare-cloudflare.mjs
+      - .github/workflows/nexus-ecosystem-live-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify_official_domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify official institutional home, CRM form, attribution and preserved SST route
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nexuscore.app.br'
+          READY=0
+          for ATTEMPT in $(seq 1 12); do
+            echo "Checking live Nexus routes — attempt ${ATTEMPT}/12"
+            HOME="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-home.html --write-out '%{http_code}' "${ORIGIN}/" || true)"
+            CRM="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-crm.html --write-out '%{http_code}' "${ORIGIN}/crm/?utm_source=instagram&utm_medium=paid_social&utm_campaign=nexus_crm_lancamento" || true)"
+            SST="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-sst.html --write-out '%{http_code}' "${ORIGIN}/sst-controle/" || true)"
+            CSS="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-site.css --write-out '%{http_code}' "${ORIGIN}/site.css" || true)"
+            echo "HTTP: homepage=${HOME} crm=${CRM} sst=${SST} css=${CSS}"
+            if [[ "${HOME}" == "200" && "${CRM}" == "200" && "${SST}" == "200" && "${CSS}" == "200" ]] &&
+               grep -q 'Nexus Core Industrial Trust' /tmp/nexus-home.html &&
+               grep -q 'href="/crm/"' /tmp/nexus-home.html &&
+               grep -q 'id="crmInterestForm"' /tmp/nexus-crm.html &&
+               grep -q "params.get('utm_campaign')" /tmp/nexus-crm.html &&
+               grep -q 'url=/apps/site-captacao/' /tmp/nexus-sst.html &&
+               grep -q '.solution.crm' /tmp/nexus-site.css; then
+              READY=1
+              break
+            fi
+            sleep 12
+          done
+          if [[ "${READY}" != "1" ]]; then
+            echo "::error::Official Nexus domain has not yet deployed all marketing routes."
+            exit 1
+          fi
+          echo 'PASS: official brand homepage, CRM ads and existing SST commerce are reachable. No payments or test leads generated.'
