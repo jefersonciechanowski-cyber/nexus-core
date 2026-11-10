@@ -129,7 +129,7 @@
           <div class="pilot-field"><label for="pilotResponsible">Responsável</label><input id="pilotResponsible" maxlength="160" required placeholder="Nome completo"></div>
           <div class="pilot-field"><label for="pilotEmail">E-mail</label><input id="pilotEmail" type="email" maxlength="255" required placeholder="tecnico@empresa.com"></div>
           <div class="pilot-field"><label for="pilotPhone">Telefone</label><input id="pilotPhone" maxlength="20" placeholder="Opcional"></div>
-          <div class="pilot-field"><label for="pilotDays">Duração</label><select id="pilotDays"><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option></select></div>
+          <div class="pilot-field"><label for="pilotDays">Duração</label><select id="pilotDays"><option value="15" selected>15 dias</option><option value="30">30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option></select></div>
           <button class="action primary pilot-submit" id="pilotSubmit" type="submit">Criar piloto</button>
         </div>
         <div class="pilot-message" id="pilotMessage"></div>
@@ -179,7 +179,7 @@
           showMessage(message, `Piloto criado até ${until}, mas o e-mail de primeiro acesso não foi enviado. Verifique a configuração da Brevo antes de entregar o acesso.`, 'warn');
         }
         form.reset();
-        card.querySelector('#pilotDays').value = '30';
+        card.querySelector('#pilotDays').value = '15';
         if (typeof window.loadData === 'function') await window.loadData();
         setTimeout(normalizePilotPresentation, 0);
       } catch (error) {

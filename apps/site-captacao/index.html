@@ -101,6 +101,7 @@
 const cfg=window.NEXUS_SUPABASE_CONFIG;
 const client=cfg?.url&&cfg?.publishableKey?window.supabase.createClient(cfg.url,cfg.publishableKey,{auth:{persistSession:true,autoRefreshToken:true}}):null;
 const pilotUpgrade=new URLSearchParams(location.search).get('upgrade')==='pilot';
+if(pilotUpgrade) location.replace('../portal-cliente/sst-assinatura.html');
 let selectedPlan='';
 let planMap={
   essencial:{name:'Nexus SST Essencial',price:9700,limit:50,summary:'Para pequenas operações que precisam centralizar o SST e controlar vencimentos.'},
