@@ -100,8 +100,30 @@ for (const requiredPilotProvisionGuard of [
 }
 
 const portalSource = await readFile(join(projectRoot, 'apps', 'portal-cliente', 'index.html'), 'utf8');
-if (!portalSource.includes('data-pilot-upgrade') || !portalSource.includes('?upgrade=pilot#planos')) {
+if (!portalSource.includes('data-pilot-upgrade')
+  || !(
+    portalSource.includes('?upgrade=pilot#planos')
+    || portalSource.includes("location.href='sst-assinatura.html'")
+  )) {
   fail('apps/portal-cliente/index.html: ação autenticada para converter o piloto ausente.');
+}
+// The SST conversion uses a dedicated authenticated Asaas route; the checks
+// below replace the old single literal Stripe redirect check, not its tenant guards.
+if (portalSource.includes("location.href='sst-assinatura.html'")) {
+  const sstCheckoutSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-upgrade', 'index.ts'), 'utf8');
+  const sstReconcileSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-reconcile', 'index.ts'), 'utf8');
+  const sstWebhookSource = await readFile(join(projectRoot, 'supabase', 'functions', 'nexus-sst-asaas-events', 'index.ts'), 'utf8');
+  const sstProofSource = await readFile(join(projectRoot, 'supabase', 'functions', '_shared', 'sst-asaas-payment-proof.mjs'), 'utf8');
+  for (const [code,source,required] of [
+    ['checkout',sstCheckoutSource,["profile.role!=='org_admin'","a.subscription_status==='trial'","NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED","state:'reserved'","externalReference:'sst-pilot-'+intentId"]],
+    ['webhook',sstWebhookSource,["NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED","asaas-access-token","authenticToken(supplied,expected)","nexus_sst_asaas_payment_events","provider_payment_id:paymentId","onConflict:'provider_event_id'"]],
+    ['reconcile',sstReconcileSource,["createRemoteJWKSet","payload.workflow_ref===WF","NEXUS_SST_ASAAS_PROD_RECONCILE_ENABLED","verifySstAsaasPaymentProof","record_verified_nexus_sst_asaas_payment"]],
+    ['proof',sstProofSource,["payment.paymentLink!==checkout.provider_link_id","link.externalReference!=='sst-pilot-'+checkout.id","customer.cpfCnpj","checkout.owner_email"]],
+  ]) {
+    for (const guard of required) if (!source.includes(guard)) {
+      fail('nexus-sst-asaas-'+code+': proteção da conversão ausente: '+guard);
+    }
+  }
 }
 
 const finalHardeningMigrations = migrationFiles.filter(file => file.endsWith('_final_security_hardening.sql'));
