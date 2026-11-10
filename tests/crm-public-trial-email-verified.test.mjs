@@ -30,6 +30,7 @@ test('secret, email-only activation and expiry flags must all be approved',()=>{
  assert.equal(publicTrialAllowed({
   NEXUS_CRM_PUBLIC_TRIAL_READY:'true',NEXUS_CRM_TRIAL_RELEASE_APPROVED:'true',
   NEXUS_CRM_TRIAL_RELEASE_MODE:'pilot',
+  NEXUS_CRM_TRIAL_PAID_UPGRADE_READY:'true',
   NEXUS_CRM_TRIAL_RECONCILE_ENABLED:'true',
   NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED:'true',
  }),true);
@@ -81,12 +82,12 @@ test('trial request keeps UF separate from the lifecycle status column',()=>{
 
 test('public activation never opens while the scheduled expiry gate rejects configuration',()=>{
  const keys=['NEXUS_CRM_PUBLIC_TRIAL_READY','NEXUS_CRM_TRIAL_RELEASE_APPROVED',
-  'NEXUS_CRM_TRIAL_RECONCILE_ENABLED','NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED'];
+  'NEXUS_CRM_TRIAL_RECONCILE_ENABLED','NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED','NEXUS_CRM_TRIAL_PAID_UPGRADE_READY'];
  for(const mode of [undefined,'','production','pilot']){
-  for(let mask=0;mask<16;mask++){
+  for(let mask=0;mask<32;mask++){
    const env=Object.fromEntries(keys.map((key,i)=>[key,mask&(1<<i)?'true':'false']));
    env.NEXUS_CRM_TRIAL_RELEASE_MODE=mode;
-   assert.equal(publicTrialAllowed(env),mode==='pilot'&&mask===15);
+   assert.equal(publicTrialAllowed(env),mode==='pilot'&&mask===31);
    if(publicTrialAllowed(env))assert.equal(canOperateCrmTrial(env,'expire'),true);
   }
  }
