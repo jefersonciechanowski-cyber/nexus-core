@@ -41,6 +41,23 @@ test('annual verifies one detached provider payment; does not trust webhook as p
   const outbound=await run({event:{...event,event_type:'PAYMENT_REFUNDED'}});
   assert.notEqual(outbound.decision,'verified_for_settlement');
 });
+test('consumed one-use link does not suppress RECEIVED annual payment delivery',async()=>{
+  const consumed={...resources,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink],active:false}};
+  const decision=await run({resources:consumed});
+  assert.equal(decision.decision,'verified_for_settlement');
+  assert.equal(decision.paymentStatus,'RECEIVED');
+  assert.equal(decision.canActivateCrm,false); // still requires private RPC lease
+  const merelyConfirmed={...consumed,
+    ['/payments/'+paymentId]:{...resources['/payments/'+paymentId],status:'CONFIRMED'}};
+  assert.equal((await run({resources:merelyConfirmed})).decision,'retry');
+  const cancelled={...consumed,
+    ['/payments/'+paymentId]:{...resources['/payments/'+paymentId],status:'REFUNDED'}};
+  assert.notEqual((await run({resources:cancelled})).decision,'verified_for_settlement');
+  const differentLink={...consumed,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink],active:false,externalReference:'unrelated-sale'}};
+  assert.notEqual((await run({resources:differentLink})).decision,'verified_for_settlement');
+});
 test('forged price, document, provider link, subscription and plan fail closed',async()=>{
   for(const [path,change] of [
     ['/payments/'+paymentId,{value:119}],
@@ -98,6 +115,18 @@ test('annual worker requires independent flags and does not reuse monthly provis
   assert.match(annualSale,/source !== 'site-captacao'/);
 });
 
+test('annual paid sale never claims success before CRM acknowledges entitlement',()=>{
+  const src=readFileSync(new URL('../supabase/functions/_shared/crm-asaas-annual-sale-provisioning.ts',import.meta.url),'utf8');
+  assert.match(src,/!crmProvision\.isCrm \|\| crmProvision\.error \|\| !crmProvision\.crmOrganizationId/);
+  assert.match(src,/syncCrmEntitlement\(admin,access\.id,'active',new Date\(\)\.toISOString\(\),true\)/);
+  assert.match(src,/!synced\.isCrm \|\| !synced\.synced \|\| synced\.error/);
+  assert.match(src,/\.eq\('sale_status','paid'\)\.select\('id'\)\.maybeSingle\(\)/);
+  const check=src.indexOf('const synced=await syncCrmEntitlement(');
+  const marked=src.indexOf("sale_status: 'provisioned'");
+  const emailed=src.indexOf('await sendCrmAccessEmail(');
+  assert.ok(check>0&&marked>check&&emailed>marked,
+    'CRM entitlement must be acknowledged before marking the paid sale and sending first access');
+});
 test('annual expiry job is scheduled, OIDC-protected and gated by backend release',()=>{
   const yaml=readFileSync(new URL('../.github/workflows/crm-asaas-annual-expiry.yml',import.meta.url),'utf8');
   assert.match(yaml,/schedule:/);

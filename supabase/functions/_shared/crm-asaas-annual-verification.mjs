@@ -42,9 +42,14 @@ export async function verifyProductionCrmAsaasAnnual({
     if(!validId(payment?.customer,'cus'))return reject('payment_customer_missing');
     customer=await fetchResource('/customers/'+payment.customer);
   }catch{return reject('provider_lookup_failed','retry');}
+  // A single-use payment link may be inactive AFTER the buyer completed it.
+  // Inactive is not a refund or an authorization failure: trust fresh Asaas
+  // PAYMENT RECEIVED, its immutable paymentLink ID, detached charge and price,
+  // payer CPF/CNPJ, and sale reference instead. Never reopen a checkout.
+  // Conversely, an ACTIVE link alone is NEVER proof of a paid invoice.
   if(payment?.id!==paymentId || payment?.paymentLink!==sale.asaas_checkout_id
     ||payment?.subscription != null ||link?.id!==sale.asaas_checkout_id
-    ||link.active===false ||link.chargeType!=='DETACHED'
+    ||link.chargeType!=='DETACHED'
     ||link.externalReference!=='nexus-crm-bf-annual-'+sale.id)
     return reject('not_verified_annual_detached_payment');
   // The prepaid expiry RPC requires a durable RECEIVED receipt. A merely
