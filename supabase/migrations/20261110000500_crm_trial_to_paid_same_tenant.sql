@@ -39,7 +39,8 @@ BEGIN
    OR v_sale.paid_at IS NULL OR v_sale.asaas_checkout_id IS NULL
    OR v_sale.provider_subscription_id IS NULL
    OR v_sale.provider_customer_id IS NULL
-   OR v_sale.provider_customer_id !~ '^cus_[A-Za-z0-9_-]{5,120}
+   OR v_sale.provider_customer_id !~ '^cus_[A-Za-z0-9_-]{5,120}$'
+   OR v_sale.provider_subscription_id !~ '^sub_[A-Za-z0-9_-]{5,120}$'
    OR v_sale.asaas_subscription_id IS DISTINCT FROM v_sale.provider_subscription_id
  THEN RETURN pg_catalog.jsonb_build_object('decision','manual_review','reason','not_authenticated_trial_upgrade_sale'); END IF;
 
