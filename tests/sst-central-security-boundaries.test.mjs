@@ -9,6 +9,7 @@ const privileged=read('supabase/migrations/20261110014500_sst_security_definer_e
 const expiry=read('supabase/migrations/20261110015000_sst_brazil_expiry_and_suspension.sql');
 const worker=read('supabase/functions/nexus-sst-asaas-reconcile/index.ts');
 const oldCheckout=read('supabase/functions/nexus-public-sales/index.ts');
+const stripeCheckout=read('supabase/functions/stripe-create-checkout/index.ts');
 const pilot=read('supabase/functions/nexus-sst-asaas-upgrade/index.ts');
 const financial=read('supabase/migrations/20261110015500_sst_central_financial_evidence_guard.sql');
 const proof=read('supabase/functions/_shared/sst-asaas-payment-proof.mjs');
@@ -93,4 +94,14 @@ test('Central forbids forging payment URLs, buyer identity or paid status',()=>{
   assert.match(financial,/current_user not in \('authenticated','anon'\)/);
   assert.match(financial,/new\.subscription_status='active'/);
   assert.match(financial,/new\.access_status='active'/);
+});
+
+
+test('existing Asaas and pilot contracts cannot open a second Stripe subscription',()=>{
+  assert.match(stripeCheckout,/access\.billing_provider === 'asaas'/);
+  assert.match(stripeCheckout,/access\.subscription_status === 'trial'/);
+  assert.match(stripeCheckout,/access\.provider_subscription_id/);
+  assert.match(stripeCheckout,/checkedStripeCheckoutUrl\(existingCheckout\.provider_checkout_url\)/);
+  assert.match(stripeCheckout,/checkedStripeCheckoutUrl\(session\.url\)/);
+  assert.match(stripeCheckout,/target\.hostname === 'checkout\.stripe\.com'/);
 });
