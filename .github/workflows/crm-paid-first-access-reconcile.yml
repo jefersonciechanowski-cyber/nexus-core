@@ -2,6 +2,10 @@ name: CRM paid first-access email recovery (no charges)
 on:
   schedule:
     - cron: '11,26,41,56 * * * *'
+  # One initial smoke on main; future finance remains separately gated.
+  push:
+    branches: [main]
+    paths: ['.github/workflows/crm-paid-first-access-reconcile.yml']
   workflow_dispatch:
 permissions:
   contents: read
