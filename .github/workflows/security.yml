@@ -212,3 +212,37 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261110000500_crm_trial_to_paid_same_tenant.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_assertions.sql
+
+  sst_storage_rls_isolation:
+    name: SST document storage cross-tenant RLS regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: sst_storage_security_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sst_storage_security_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: sst_storage_security_ci
+    steps:
+      - name: Check out reviewed repository
+        uses: actions/checkout@v4
+      - name: Prove old leak then enforce tenant and employee permissions
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_storage_cross_tenant_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109215000_sst_storage_tenant_select_security_hotfix.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_storage_cross_tenant_assertions.sql
