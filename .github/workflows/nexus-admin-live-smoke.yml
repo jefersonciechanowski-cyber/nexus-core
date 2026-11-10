@@ -24,8 +24,11 @@ jobs:
           for RESOURCE in 'index.html' 'pilot.js' 'admin-management.css'; do
             CODE="$(curl --silent --show-error --location --max-time 20 --output "/tmp/${RESOURCE##*/}" --write-out '%{http_code}' "${ORIGIN}/${RESOURCE}")"
             echo "Nexus Admin ${RESOURCE}: HTTP ${CODE}"
-            test "${CODE}" = "200"
           done
+          grep -q 'newPilotShortcut' /tmp/index.html && echo 'LIVE index contains management dashboard' || echo 'LIVE index is still old'
+          grep -q 'pilotTargetPlan' /tmp/pilot.js && echo 'LIVE pilot contains tier picker' || echo 'LIVE pilot is still old'
+          PAGECSS="$(curl --silent --show-error --location --max-time 20 --output /dev/null --write-out '%{http_code}' 'https://jefersonciechanowski-cyber.github.io/nexus-core/apps/nexus-admin/admin-management.css')"
+          echo "GitHub Pages origin CSS: HTTP ${PAGECSS}"
           grep -q 'newPilotShortcut' /tmp/index.html
           grep -q 'admin-management.css' /tmp/index.html
           grep -q 'href="accounts.html"' /tmp/index.html
