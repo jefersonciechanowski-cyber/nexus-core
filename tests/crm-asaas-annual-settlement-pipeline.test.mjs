@@ -41,6 +41,23 @@ test('annual verifies one detached provider payment; does not trust webhook as p
   const outbound=await run({event:{...event,event_type:'PAYMENT_REFUNDED'}});
   assert.notEqual(outbound.decision,'verified_for_settlement');
 });
+test('consumed one-use link does not suppress RECEIVED annual payment delivery',async()=>{
+  const consumed={...resources,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink],active:false}};
+  const decision=await run({resources:consumed});
+  assert.equal(decision.decision,'verified_for_settlement');
+  assert.equal(decision.paymentStatus,'RECEIVED');
+  assert.equal(decision.canActivateCrm,false); // still requires private RPC lease
+  const merelyConfirmed={...consumed,
+    ['/payments/'+paymentId]:{...resources['/payments/'+paymentId],status:'CONFIRMED'}};
+  assert.equal((await run({resources:merelyConfirmed})).decision,'retry');
+  const cancelled={...consumed,
+    ['/payments/'+paymentId]:{...resources['/payments/'+paymentId],status:'REFUNDED'}};
+  assert.notEqual((await run({resources:cancelled})).decision,'verified_for_settlement');
+  const differentLink={...consumed,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink],active:false,externalReference:'unrelated-sale'}};
+  assert.notEqual((await run({resources:differentLink})).decision,'verified_for_settlement');
+});
 test('forged price, document, provider link, subscription and plan fail closed',async()=>{
   for(const [path,change] of [
     ['/payments/'+paymentId,{value:119}],
