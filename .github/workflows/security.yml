@@ -186,6 +186,8 @@ jobs:
           PGDATABASE: nexus_crm_ci
         run: |
           set -euo pipefail
+          createdb nexus_crm_checkout_identity_ci
+          psql -X -d nexus_crm_checkout_identity_ci -v ON_ERROR_STOP=1 -f tests/sql/crm_checkout_identity_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_billing_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107110000_crm_live_pix_ten_real_pilot.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_live_pix_pilot_assertions.sql
