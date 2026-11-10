@@ -1,0 +1,57 @@
+name: SST Asaas contract regression tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/_shared/sst-asaas-payment-proof.mjs'
+      - 'supabase/functions/nexus-sst-asaas-*/**'
+      - 'supabase/migrations/20261109160000_sst_asaas_pilot_conversion.sql'
+      - 'tests/sst-asaas-payment-proof.test.mjs'
+      - '.github/workflows/sst-asaas-contract-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify independent Asaas settlement proof predicates
+        run: node --test tests/sst-asaas-payment-proof.test.mjs
+      - name: Verify real production SST webhook denies unauthenticated events (no charges)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP_CODE="$(curl --silent --show-error --connect-timeout 8 --max-time 18 \
+            --output /tmp/nexus-sst-asaas-probe-response.json \
+            --write-out '%{http_code}' \
+            --request POST 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-events' \
+            --header 'Content-Type: application/json' \
+            --header 'asaas-access-token: definitely-invalid-diagnostic-only' \
+            --data '{"probe":"no-financial-event"}')"
+          echo "SST production webhook unauthorized request returned HTTP ${HTTP_CODE}"
+          test "${HTTP_CODE}" = "401"
+          python3 -c 'import json; d=json.load(open("/tmp/nexus-sst-asaas-probe-response.json")); assert d.get("error")=="unauthorized", "Unexpected response"'
+      - name: Install project dependencies for Deno npm resolution
+        run: npm ci
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck isolated SST Asaas edge functions
+        run: |
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-upgrade/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-events/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-reconcile/index.ts
+      - name: Check for leaked credentials and direct unsafe paths
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E '\$aact_prod_[A-Za-z0-9]+' \
+            supabase/functions/nexus-sst-asaas-{upgrade,events,reconcile}/index.ts \
+            supabase/functions/_shared/sst-asaas-payment-proof.mjs

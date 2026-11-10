@@ -1,0 +1,60 @@
+name: Nexus SST Asaas payment reconciliation
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'    # read-only diagnostics
+    - cron: '*/5 * * * *'     # enabled only after explicit production approval
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: nexus-sst-asaas-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '17 */6 * * *' || vars.NEXUS_SST_ASAAS_PROD_WORKFLOW_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Get narrowly-scoped GitHub OIDC identity
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-sst-asaas-reconcile")"
+          TOKEN="$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          printf 'token=%s\n' "${TOKEN}" >> "${GITHUB_OUTPUT}"
+
+      - name: Inspect SST inbox without financial side effects
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$(curl --fail-with-body --silent --show-error --max-time 30 \
+            -X POST 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-reconcile' \
+            -H "authorization: Bearer ${OIDC_TOKEN}" \
+            -H 'content-type: application/json' \
+            --data '{"action":"inspect"}')"
+          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False;print("SST Asaas inbox: pending=%s"%d.get("pending"))'
+
+      - name: Reconcile only after SST-specific financial release
+        if: ${{ vars.NEXUS_SST_ASAAS_PROD_WORKFLOW_ENABLED == 'true' }}
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$(curl --fail-with-body --silent --show-error --max-time 180 \
+            -X POST 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-reconcile' \
+            -H "authorization: Bearer ${OIDC_TOKEN}" \
+            -H 'content-type: application/json' \
+            --data '{"action":"dispatch"}')"
+          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="dispatched" and d.get("createdCharge") is False;print("SST verified: %s; retry: %s; review: %s"%(d.get("processed"),d.get("retry"),d.get("review")))'
