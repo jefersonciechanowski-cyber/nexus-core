@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 const read = path => readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const home=read('index.html'),css=read('site.css'),crm=read('crm/index.html'),
   sst=read('apps/site-captacao/index.html'),sstRoute=read('sst-controle/index.html'),
@@ -31,6 +32,24 @@ test('Old /crm/ ads shortcut forwards campaigns to approved Vercel CRM capture',
   assert.match(redirect,/approved\.search = window\.location\.search/);
   assert.match(redirect,/approved\.hash = window\.location\.hash/);
   assert.match(redirect,/window\.location\.replace\(approved\.href\)/);
+});
+
+test('CRM redirect keeps advertising attribution and deep-link sections',()=>{
+  let forwarded='';
+  runInNewContext(redirect,{
+    URL,
+    window:{location:{
+      search:'?utm_source=instagram&utm_medium=paid_social&utm_campaign=nexus_crm_lancamento&fbclid=ref123',
+      hash:'#planos',
+      replace:url=>{forwarded=url;}
+    }}
+  });
+  const target=new URL(forwarded);
+  assert.equal(target.origin,'https://crm.nexuscore.app.br');
+  assert.equal(target.pathname,'/site-captacao');
+  assert.equal(target.searchParams.get('utm_campaign'),'nexus_crm_lancamento');
+  assert.equal(target.searchParams.get('fbclid'),'ref123');
+  assert.equal(target.hash,'#planos');
 });
 
 test('SST landing and checkout remain in original product application',()=>{
