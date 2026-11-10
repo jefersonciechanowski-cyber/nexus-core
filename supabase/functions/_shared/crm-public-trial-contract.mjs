@@ -28,6 +28,8 @@ export function newCrmTrialToken(){
 export function publicTrialAllowed(env){
   return !!env
     &&env.NEXUS_CRM_PUBLIC_TRIAL_READY==='true'
+    // Match the expiry worker gate: never grant a trial that cannot expire.
+    &&env.NEXUS_CRM_TRIAL_RELEASE_MODE==='pilot'
     &&env.NEXUS_CRM_TRIAL_RELEASE_APPROVED==='true'
     &&env.NEXUS_CRM_TRIAL_RECONCILE_ENABLED==='true'
     &&env.NEXUS_CRM_TRIAL_EXPIRY_SCHEDULE_CONFIRMED==='true';
