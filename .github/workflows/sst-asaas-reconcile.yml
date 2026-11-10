@@ -47,7 +47,7 @@ jobs:
             -H "authorization: Bearer ${OIDC_TOKEN}" \
             -H 'content-type: application/json' \
             --data '{"action":"inspect"}')"
-          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False;print("SST Asaas production health: provider=%s webhook=%s pending=%s"%(d.get("providerVerified"),d.get("webhookConfigured"),d.get("pending")));assert d.get("providerVerified") is True and d.get("webhookConfigured") is True, "SST financial credentials not ready"'
+          printf '%s' "${BODY}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("status")=="inspected" and d.get("readOnly") is True and d.get("createdCharge") is False and d.get("accessGranted") is False;print("SST Asaas production health: provider=%s webhook=%s pending=%s"%(d.get("providerVerified"),d.get("webhookConfigured"),d.get("pending"))); legacy=d.get("legacy",{});print("SST legacy read-only: examined=%s active=%s paidAny=%s paidRecent=%s unverified=%s"%(legacy.get("examined"),legacy.get("activeSubscription"),legacy.get("hasConfirmedPayment"),legacy.get("paidRecently"),legacy.get("unverified")));assert d.get("providerVerified") is True and d.get("webhookConfigured") is True, "SST financial credentials not ready"'
 
       - name: Reconcile only after SST-specific financial release
         env:
