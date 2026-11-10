@@ -1,0 +1,46 @@
+name: SST Controle official-domain production smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sst-live-portal-smoke.yml'
+      - 'apps/portal-cliente/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live_sst_portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify SST Asaas portal is served on the official production domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAGE="$(curl --silent --show-error --max-time 20 --location \
+            --output /tmp/sst-official-portal.html --write-out '%{http_code}' \
+            'https://nexuscore.app.br/apps/portal-cliente/sst-assinatura.html')"
+          echo "SST portal official domain HTTP $PAGE"
+          if [ "$PAGE" != "200" ]; then
+            echo "::error::Official SST Asaas portal is not reachable (HTTP $PAGE)"
+            exit 1
+          fi
+          grep -q 'nexus-sst-asaas-upgrade' /tmp/sst-official-portal.html
+          grep -q 'Continue usando o SST' /tmp/sst-official-portal.html
+          echo 'Official SST Asaas portal HTML is deployed.'
+      - name: Verify production checkout rejects unauthenticated callers
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECK="$(curl --silent --show-error --max-time 20 \
+            --output /tmp/sst-unauthenticated-api.txt --write-out '%{http_code}' \
+            -H 'Origin: https://nexuscore.app.br' \
+            'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-sst-asaas-upgrade')"
+          echo "SST unauthenticated checkout endpoint HTTP $CHECK"
+          case "$CHECK" in
+            401|403) echo 'Unauthenticated API access blocked correctly.' ;;
+            *) echo "::error::Unexpected public SST checkout response $CHECK"; exit 1 ;;
+          esac
