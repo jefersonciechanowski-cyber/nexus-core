@@ -221,8 +221,14 @@ Deno.serve(async req=>{
      reconciliationEnabled:release.reconciliation_enabled});
  }
  if(input.action!=='dispatch')return reply({error:'invalid_action'},400);
+ // A free-trial expiration cannot depend on the Asaas API being healthy.
+ // This service-role RPC only suspends expired trials and never deletes records.
+ const {data:expired,error:expiryError}=await admin.rpc('suspend_expired_nexus_sst_trials');
+ if(expiryError)return reply({error:'sst_trial_expiry_failed'},503);
+ const expiredTrials=Number(expired?.suspended||0);
  if(!release.reconciliation_enabled){
-   return reply({status:'disabled',readOnly:true,createdCharge:false,accessGranted:false});
+   return reply({status:'disabled',readOnly:true,createdCharge:false,
+     accessGranted:false,expiredTrials});
  }
  const hoursSince=(value:unknown)=>typeof value==='string'&&Number.isFinite(Date.parse(value))
    ?(Date.now()-Date.parse(value))/3600000:Infinity;
