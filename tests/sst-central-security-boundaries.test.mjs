@@ -10,6 +10,7 @@ const expiry=read('supabase/migrations/20261110015000_sst_brazil_expiry_and_susp
 const worker=read('supabase/functions/nexus-sst-asaas-reconcile/index.ts');
 const oldCheckout=read('supabase/functions/nexus-public-sales/index.ts');
 const pilot=read('supabase/functions/nexus-sst-asaas-upgrade/index.ts');
+const financial=read('supabase/migrations/20261110015500_sst_central_financial_evidence_guard.sql');
 const proof=read('supabase/functions/_shared/sst-asaas-payment-proof.mjs');
 
 test('tenant context rejects revoked membership and inactive organization',()=>{
@@ -76,4 +77,20 @@ test('pilot payment cannot be diverted to old Stripe flow',()=>{
   assert.match(proof,/link\.externalReference!=='sst-pilot-'\+checkout\.id/);
   assert.match(proof,/customer\.cpfCnpj/);
   assert.match(proof,/customer\.email/);
+});
+
+
+test('Central forbids forging payment URLs, buyer identity or paid status',()=>{
+  for(const field of [
+    'provider_checkout_url','asaas_checkout_url','provider_subscription_id',
+    'asaas_subscription_id','organization_id','user_id',
+    'registration_number','email','plan_id','paid_at','provisioned_at'
+  ]){
+    assert.ok(financial.includes("'"+field+"'"), 'Financial identity guard missing '+field);
+  }
+  assert.match(financial,/guard_nexus_sales_financial_evidence/);
+  assert.match(financial,/guard_sst_paid_entitlement_evidence/);
+  assert.match(financial,/current_user not in \('authenticated','anon'\)/);
+  assert.match(financial,/new\.subscription_status='active'/);
+  assert.match(financial,/new\.access_status='active'/);
 });
