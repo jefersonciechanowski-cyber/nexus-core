@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {Script} from 'node:vm';
 
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const html=file('apps/nexus-admin/index.html');
@@ -73,6 +74,8 @@ test('content-security policy pins the updated admin script hash',()=>{
   const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(m=>m[1]).filter(s=>s.trim().length>0);
   assert.equal(scripts.length,1);
+  assert.doesNotThrow(()=>new Script(scripts[0]),'Main dashboard script must parse');
+  assert.doesNotThrow(()=>new Script(pilot),'Pilot form script must parse');
   const digest=createHash('sha256').update(scripts[0]).digest('base64');
   assert.ok(headers.includes("'sha256-"+digest+"'"),'Updated admin inline script blocked by CSP');
   assert.match(html,/src="pilot\.js"/);
