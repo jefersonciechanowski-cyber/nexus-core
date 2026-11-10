@@ -10,6 +10,10 @@ body{background:radial-gradient(ellipse at 73% 0%,#11242d 0%,#081319 54%,#070e13
 .nav button:focus-visible,.nav a:focus-visible,.action:focus-visible,.pilot-field input:focus-visible,.pilot-field select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .nav a:hover,.nav button:hover{color:#fff;background:#16242b;border-color:#2c3b43}
 .nav a.active,.nav button.active{color:#f6f4e9;background:#24271f;border-color:#57502d;border-left:3px solid #e0b84a;font-weight:700}
+.sidebar-tools{margin-top:14px;padding-top:12px;border-top:1px solid #26343b}
+.sidebar-tools summary{cursor:pointer;color:#82959c;font-size:11px;padding:8px 12px;border-radius:8px}
+.sidebar-tools summary:hover{color:#d4c18b;background:#152027}
+.sidebar-tools .admin-pix-shortcut{margin-top:7px;font-size:12px}
 .admin-pix-shortcut{margin-top:22px;font-size:12px}
 .side-footer{position:static;width:auto;margin-top:auto;padding-top:30px;font-size:11px;color:#7e9097}
 .main{padding:22px clamp(20px,2.4vw,36px) 52px}
