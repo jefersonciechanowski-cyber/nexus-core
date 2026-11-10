@@ -1,0 +1,64 @@
+name: CRM ads same-day safety smoke (no writes)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-advertising-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: crm-advertising-readiness-production
+  cancel-in-progress: false
+jobs:
+  verify_live_sales:
+    name: Verify site, trial, annual and inquiry intake without customer data
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate production endpoints with non-mutating and malformed requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITE='https://crm.nexuscore.app.br/site-captacao'
+          CENTRAL='https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1'
+          STATUS_SITE="$(curl -sS -L --max-time 20 -o /tmp/site.html -w '%{http_code}' "$SITE")"
+          # GET requests cannot create trials or payment links. A 503
+          # means the release gate is still closed. A 405 means it is open
+          # and the handler correctly requires POST.
+          STATUS_TRIAL="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Origin: https://crm.nexuscore.app.br' "$CENTRAL/nexus-public-crm-trial-request")"
+          STATUS_ACTIVATE="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Origin: https://crm.nexuscore.app.br' "$CENTRAL/nexus-public-crm-trial-activate")"
+          STATUS_ANNUAL="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Origin: https://nexuscore.app.br' "$CENTRAL/nexus-public-crm-annual-bf-asaas-production")"
+          # Deliberately invalid payload: validation MUST reject it without
+          # inserting a lead or charging any customer.
+          STATUS_INTEREST="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
+            -X POST -H 'Origin: https://crm.nexuscore.app.br' \
+            -H 'Content-Type: application/json' -d '{}' \
+            "$CENTRAL/nexus-public-crm-intake")"
+          echo "CRM production site HTTP: $STATUS_SITE"
+          echo "15-day trial request HTTP: $STATUS_TRIAL"
+          echo "15-day trial activate HTTP: $STATUS_ACTIVATE"
+          echo "Annual Black Friday checkout HTTP: $STATUS_ANNUAL"
+          echo "Black Friday/commercial interest API with malformed request HTTP: $STATUS_INTEREST"
+          test "$STATUS_SITE" = '200'
+          test "$STATUS_TRIAL" = '503' -o "$STATUS_TRIAL" = '405'
+          test "$STATUS_ACTIVATE" = '503' -o "$STATUS_ACTIVATE" = '405'
+          test "$STATUS_ANNUAL" = '503' -o "$STATUS_ANNUAL" = '405'
+          # 400 = properly validated enabled intake, 503 = disabled intake.
+          test "$STATUS_INTEREST" = '400' -o "$STATUS_INTEREST" = '503'
+          if test "$STATUS_TRIAL" = '503' -o "$STATUS_ACTIVATE" = '503'; then
+            echo 'ADVERTISING: 15-day self-service trial is NOT yet released.'
+          else
+            echo 'ADVERTISING: trial HTTP gates open; this is NOT an end-to-end activation proof.'
+          fi
+          if test "$STATUS_ANNUAL" = '503'; then
+            echo 'ADVERTISING: annual automatic payment is NOT yet released.'
+          else
+            echo 'ADVERTISING: annual HTTP gate open; this is NOT a confirmed-payment proof.'
+          fi
+          if test "$STATUS_INTEREST" = '400'; then
+            echo 'ADVERTISING: commercial interest intake is ON and rejects invalid requests.'
+          else
+            echo 'ADVERTISING: commercial interest intake appears disabled.'
+          fi
+          echo 'No real lead, customer, trial, payment, email or tenant was created.'
