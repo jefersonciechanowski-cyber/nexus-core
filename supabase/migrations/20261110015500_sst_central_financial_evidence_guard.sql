@@ -48,6 +48,26 @@ begin
     and new.sale_status in ('paid','provisioned','checkout_created')
  then raise exception 'Somente a confirmação financeira pode validar uma venda.'
    using errcode='42501'; end if;
+
+ -- After checkout, never let an admin rebind the buyer/email/CNPJ/plan to a
+ -- different client or tamper with paid history. Commercial lead notes are
+ -- deliberately left editable before checkout.
+ if old.sale_status in ('checkout_created','paid','provisioned')
+     or old.provider_checkout_id is not null or old.asaas_checkout_id is not null then
+   foreach v_field in array array[
+     'registration_number','registration_type','email','company_name',
+     'responsible_name','phone','product_id','plan_id','employee_count'
+   ] loop
+     if (to_jsonb(old)->v_field) is distinct from (to_jsonb(new)->v_field) then
+       raise exception 'Identidade da venda vinculada ao checkout não pode ser trocada.'
+         using errcode='42501';
+     end if;
+   end loop;
+   if new.sale_status is distinct from old.sale_status then
+     raise exception 'Situação de cobrança é definida somente pelo provedor financeiro.'
+       using errcode='42501';
+   end if;
+ end if;
  return new;
 end;
 $$;
