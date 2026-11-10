@@ -12,7 +12,8 @@ const attributionSql=readFileSync(new URL('../supabase/migrations/20261108190000
 test('Asaas monthly checkout uses published sales origin and never Stripe CRM origin',()=>{
  assert.equal(CRM_ASAAS_PUBLIC_ORIGIN,'https://nexuscore.app.br');
  assert.equal(CRM_PUBLIC_ORIGIN,'https://crm.nexuscore.app.br');
- assert.match(site,/https:\/\/nexuscore\.app\.br\/crm\//);
+ assert.match(site,/https:\/\/crm\.nexuscore\.app\.br\/site-captacao/);
+ assert.match(site,/name="robots" content="noindex,follow"/);
  assert.match(asaas,/request\.headers\.get\('origin'\) !== CRM_ASAAS_PUBLIC_ORIGIN/);
  assert.match(asaas,/return_origin: CRM_ASAAS_PUBLIC_ORIGIN/);
  assert.doesNotMatch(asaas,/\bCRM_PUBLIC_ORIGIN\b/);
