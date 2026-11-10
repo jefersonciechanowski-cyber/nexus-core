@@ -9,7 +9,7 @@ test('OIDC auth only permits the exact 15-minute recovery workflow on main',()=>
     "jwtVerify","createRemoteJWKSet","payload.repository===REPO",
     "payload.workflow_ref===WORKFLOW","payload.ref==='refs/heads/main'",
     "payload.ref_type==='branch'",
-    "['schedule','workflow_dispatch'].includes",
+    "['schedule','workflow_dispatch','push'].includes",
   ])assert.ok(code.includes(value),value);
   assert.match(flow,/id-token: write/);
   assert.match(flow,/audience=nexus-crm-paid-first-access-reconcile/);
