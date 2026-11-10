@@ -81,6 +81,9 @@ jobs:
       - name: Verify automatic recovery of paid CRM first access (offline, no mail)
         run: node --test tests/crm-paid-first-access-recovery.test.mjs
 
+      - name: Full offline CRM functional and provisioning regression suite
+        run: node --test tests/crm-*.test.mjs
+
       - name: Verify normal paid CRM first-access email (no emails actually sent)
         run: node --test tests/crm-crm-first-access-mail.test.mjs
 

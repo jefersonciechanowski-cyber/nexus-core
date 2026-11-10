@@ -6,10 +6,15 @@ const stripe=readFileSync(new URL('../supabase/functions/stripe-webhook/index.ts
 const crm=readFileSync(new URL('../supabase/functions/stripe-webhook/crm-provisioning.ts',import.meta.url),'utf8');
 const draft=readFileSync(new URL('../docs/CRM_ASAAS_PAYMENT_CLAIM_SQL_DRAFT.sql',import.meta.url),'utf8');
 
-test('existing Stripe passes provider explicitly to the same reusable, guarded provisioner',()=>{
-  assert.match(stripe,/import \{ provisionSaleForProvider \} from '\.\.\/_shared\/nexus-sale-provisioning\.ts'/);
-  assert.match(stripe,/return provisionSaleForProvider\(admin, saleInput, context, \{/);
-  assert.match(stripe,/provider: 'stripe'/);
+test('Stripe dedicated webhook verifies signature and paid session before CRM provisioning',()=>{
+  // Stripe now has a dedicated provisioner. Shared Asaas is a DIFFERENT,
+  // lease-gated path; asserting the old Stripe import would be misleading.
+  assert.match(stripe,/stripe\.webhooks\.constructEventAsync\(rawBody, signature, webhookSecret/);
+  assert.match(stripe,/if \(event\.livemode && !livePaymentsEnabled\(\)\)/);
+  assert.match(stripe,/const paid = !expired && session\.payment_status === 'paid'/);
+  assert.match(stripe,/const crmProvision = await provisionCrmTenant\(admin, sale, access\)/);
+  assert.match(stripe,/await sendCrmAccessEmail\(admin, sale, plan, crmProvision\.firstAccessUrl\)/);
+  assert.match(stripe,/syncCrmEntitlement/);
   assert.match(shared,/export async function provisionSaleForProvider/);
   for(const str of [
     "sale.source === 'portal-pilot-upgrade'",
@@ -24,26 +29,37 @@ test('existing Stripe passes provider explicitly to the same reusable, guarded p
   assert.match(shared,/sendCrmAccessEmail\(admin, sale, plan, crmProvision\.firstAccessUrl, provider\)/);
 });
 
-test('Asaas cannot call shared CRM provisioner merely after webhook or paid event',()=>{
+test('Asaas sandbox and production cannot provision from webhook without verified lease',()=>{
   assert.match(shared,/saleInput\?\.provider !== 'asaas'/);
-  assert.match(shared,/saleInput\?\.environment !== 'sandbox'/);
+  assert.match(shared,/!\['sandbox','production'\]\.includes\(asaasEnvironment\)/);
+  assert.match(shared,/saleInput\?\.environment !== asaasEnvironment/);
   assert.match(shared,/saleInput\?\.source !== 'site-captacao'/);
+  assert.match(shared,/saleInput\?\.billing_mode !== 'recurring'/);
+  assert.match(shared,/saleInput\?\.billing_cycle_months !== 1/);
   assert.match(shared,/saleInput\?\.sale_status !== 'paid'/);
   assert.match(shared,/!saleInput\?\.paid_at/);
   assert.match(shared,/!context\.subscriptionId/);
-  assert.match(shared,/from\('nexus_crm_asaas_verified_payments'\)/);
-  assert.match(shared,/eq\('decision', 'provisioning'\)/);
-  assert.match(shared,/eq\('registration_number', saleInput\.registration_number\)/);
+  assert.match(shared,/!context\.paymentId/);
+  assert.match(shared,/!context\.customerId/);
+  assert.match(shared,/const verifiedTable=asaasEnvironment==='production'/);
+  assert.match(shared,/nexus_crm_asaas_production_verified_payments/);
+  assert.match(shared,/nexus_crm_asaas_verified_payments/);
+  assert.match(shared,/\.from\(verifiedTable\)/);
+  assert.match(shared,/\.eq\('decision', 'provisioning'\)/);
+  assert.match(shared,/\.eq\('registration_number', saleInput\.registration_number\)/);
   assert.match(shared,/if \(linkedOrgError \|\| linkedOrg\?\.id\)/);
-  // Provider-specific hard stop: a paid Asaas checkout must never silently
-  // appropriate another login or update an existing courtesy/contract.
+  // A new company cannot automatically adopt an existing login or courtesy.
   assert.match(shared,/if \(provider === 'asaas'\) \{\s*await admin\.from\('nexus_sales'\)\.update\(\{\s*sale_status: 'manual_review'/);
   assert.match(shared,/E-mail já cadastrado; requer vinculação manual/);
   assert.match(shared,/Contrato CRM existente; nenhuma alteração realizada/);
   assert.ok(shared.indexOf("if (provider === 'asaas') {",shared.indexOf("createError ||")) <
     shared.indexOf("auth.admin.listUsers"));
-
-  assert.ok(shared.indexOf("eq('decision', 'provision_ready')") < shared.indexOf("auth.admin.createUser"));
+  // The lease and company collision check are BEFORE creating the user.
+  assert.ok(shared.indexOf("eq('decision', 'provisioning')") <
+    shared.indexOf("auth.admin.createUser"));
+  assert.ok(shared.indexOf("if (linkedOrgError || linkedOrg?.id)") <
+    shared.indexOf("auth.admin.createUser"));
+  assert.match(shared,/recordVerifiedCrmAsaasPayment/);
 });
 
 test('SQL claim is a DRAFT and cannot be executed by browser roles',()=>{
