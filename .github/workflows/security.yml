@@ -44,6 +44,9 @@ jobs:
       - name: Validate Nexus Admin pilot tier, stable sidebar and CSP navigation
         run: node --test tests/nexus-admin-pilot-plan-ux.test.mjs
 
+      - name: Validate unified Nexus site and direct CRM ad destination (no payments)
+        run: node --test tests/nexus-ecosystem-landing.test.mjs
+
       - name: Verify Nexus Admin session continuity and MFA across tabs
         run: node --test tests/nexus-admin-login-session.test.mjs
 

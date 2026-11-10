@@ -10,6 +10,7 @@ const publicDirectories = [
   'apps/nexus-admin',
   'apps/portal-cliente',
   'crm',
+  'sst-controle',
 ];
 const publicExtensions = new Set([
   '.avif', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.map',
@@ -82,6 +83,7 @@ await mkdir(distRoot, { recursive: true });
 
 await Promise.all([
   copyOptionalFile('index.html'),
+  copyOptionalFile('site.css'),
   copyOptionalFile('404.html'),
   copyOptionalFile('.nojekyll'),
   copyOptionalFile('_headers'),
