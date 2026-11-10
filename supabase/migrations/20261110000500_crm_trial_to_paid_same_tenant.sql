@@ -113,7 +113,7 @@ BEGIN
      provider_subscription_id=v_sale.provider_subscription_id,
      access_status='active',subscription_status='active',
      last_payment_status='RECEIVED',last_payment_at=pg_catalog.now(),
-     renews_at=(pg_catalog.current_date + INTERVAL '1 month')::date,
+     renews_at=(CURRENT_DATE + INTERVAL '1 month')::date,
      updated_at=pg_catalog.now()
  WHERE id=v_access.id AND subscription_status IN ('trial','past_due')
    AND billing_provider IS NULL AND contracted_price_cents=0;
