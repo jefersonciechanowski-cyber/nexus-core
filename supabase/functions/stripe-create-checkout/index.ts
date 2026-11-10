@@ -27,6 +27,17 @@ function stripeMessage(error: unknown) {
   return clean(value?.raw?.message || value?.message || 'Não foi possível comunicar com a Stripe.', 700);
 }
 
+// Checkout URLs come only from Stripe, never from arbitrary saved database URLs.
+function checkedStripeCheckoutUrl(input: unknown): string | null {
+  if (typeof input !== 'string' || input.length > 2048) return null;
+  try {
+    const target = new URL(input);
+    return target.protocol === 'https:' && target.hostname === 'checkout.stripe.com'
+      && !target.username && !target.password && !target.port
+      ? target.href : null;
+  } catch { return null; }
+}
+
 function trustedOrigin(request: Request) {
   const fallback = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
   const raw = clean(request.headers.get('Origin'), 500);
@@ -142,6 +153,17 @@ Deno.serve(async request => {
   const plan = Array.isArray(access.plan) ? access.plan[0] : access.plan;
   const organization = Array.isArray(access.organization) ? access.organization[0] : access.organization;
   const product = Array.isArray(access.product) ? access.product[0] : access.product;
+  if (product?.code === 'sst') {
+    if (access.billing_provider === 'asaas') {
+      return json(request, { error: 'Este contrato já utiliza Asaas. Continue pela Minha Central, sem abrir uma segunda assinatura Stripe.' }, 409);
+    }
+    if (access.subscription_status === 'trial' || plan?.code === 'piloto') {
+      return json(request, { error: 'Pilotos SST devem contratar pelo Asaas na Minha Central.' }, 409);
+    }
+    if (access.provider_subscription_id) {
+      return json(request, { error: 'Já existe uma assinatura vinculada a este acesso. Regularize a cobrança existente sem duplicar o contrato.' }, 409);
+    }
+  }
   if (!access.plan_id || !plan || plan.status !== 'active') return json(request, { error: 'Selecione um plano comercial ativo antes de gerar o checkout.' }, 409);
   if (access.contracted_price_cents === null || Number(access.contracted_price_cents) <= 0) return json(request, { error: 'A assinatura não possui valor contratado válido.' }, 409);
 
@@ -164,7 +186,11 @@ Deno.serve(async request => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existingCheckout?.provider_checkout_url) return json(request, { checkoutId: existingCheckout.id, link: existingCheckout.provider_checkout_url, reused: true, provider: 'stripe', environment });
+  if (existingCheckout?.provider_checkout_url) {
+    const url = checkedStripeCheckoutUrl(existingCheckout.provider_checkout_url);
+    if (!url) return json(request, { error: 'Link de cobrança não reconhecido. Solicite revisão pela Central.' }, 503);
+    return json(request, { checkoutId: existingCheckout.id, link: url, reused: true, provider: 'stripe', environment });
+  }
 
   const registrationNumber = digits(organization?.registration_number);
   if (![11, 14].includes(registrationNumber.length)) return json(request, { error: 'Cadastre um CPF ou CNPJ válido na empresa antes de gerar o checkout.' }, 409);
@@ -270,18 +296,19 @@ Deno.serve(async request => {
       },
     });
 
-    if (!session.url) throw new Error('A Stripe não retornou o link do checkout.');
+    const safeCheckoutUrl = checkedStripeCheckoutUrl(session.url);
+    if (!safeCheckoutUrl) throw new Error('Stripe retornou um endereço de pagamento inválido.');
     const expiresAt = session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null;
     await adminClient.from('nexus_payment_checkouts').update({
       provider_checkout_id: session.id,
-      provider_checkout_url: session.url,
+      provider_checkout_url: safeCheckoutUrl,
       provider_customer_id: customerId,
       status: 'active',
       expires_at: expiresAt,
       updated_at: new Date().toISOString(),
     }).eq('id', checkoutId);
 
-    return json(request, { checkoutId, providerCheckoutId: session.id, customerId, link: session.url, status: 'active', environment, provider: 'stripe' });
+    return json(request, { checkoutId, providerCheckoutId: session.id, customerId, link: safeCheckoutUrl, status: 'active', environment, provider: 'stripe' });
   } catch (error) {
     const message = stripeMessage(error);
     await adminClient.from('nexus_payment_checkouts').update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() }).eq('id', checkoutId);
