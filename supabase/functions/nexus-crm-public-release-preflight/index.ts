@@ -62,7 +62,8 @@ Deno.serve(async(request:Request)=>{
       configuredReleaseMode:present('NEXUS_CRM_TRIAL_RELEASE_MODE'),
       expiryModePilot:env.NEXUS_CRM_TRIAL_RELEASE_MODE==='pilot',
       flags:trial,
-      ready:trial.pending.length===0&&secret('NEXUS_CRM_TRIAL_FINGERPRINT_SECRET'),
+      ready:trial.pending.length===0&&env.NEXUS_CRM_TRIAL_RELEASE_MODE==='pilot'
+        &&secret('NEXUS_CRM_TRIAL_FINGERPRINT_SECRET'),
     },
     annual:{
       bridgeConfigured:secret('NEXUS_CRM_ASAAS_PROD_CHECKOUT_BRIDGE_SECRET'),
