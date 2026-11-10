@@ -1,0 +1,35 @@
+name: Nexus Admin live management interface (read-only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/nexus-admin/**'
+      - '.github/workflows/nexus-admin-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live_admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate official Nexus Central HTML, styles and pilot plan selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nexuscore.app.br/apps/nexus-admin'
+          for RESOURCE in 'index.html' 'pilot.js' 'admin-management.css'; do
+            CODE="$(curl --silent --show-error --location --max-time 20 --output "/tmp/${RESOURCE##*/}" --write-out '%{http_code}' "${ORIGIN}/${RESOURCE}")"
+            echo "Nexus Admin ${RESOURCE}: HTTP ${CODE}"
+            test "${CODE}" = "200"
+          done
+          grep -q 'newPilotShortcut' /tmp/index.html
+          grep -q 'admin-management.css' /tmp/index.html
+          grep -q 'href="accounts.html"' /tmp/index.html
+          grep -q 'pilotTargetPlan' /tmp/pilot.js
+          grep -q 'profissional' /tmp/pilot.js
+          grep -q '.work-queue' /tmp/admin-management.css
+          echo 'Nexus Admin management shell and SST tier picker are live; no login or payments used.'
