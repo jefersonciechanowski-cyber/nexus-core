@@ -69,6 +69,9 @@ jobs:
       - name: Verify Brevo first-access sender configuration read-only (no emails)
         run: node --test tests/crm-onboarding-email-readiness.test.mjs tests/crm-brevo-smtp-transport.test.mjs tests/crm-admin-smtp-selftest.test.mjs
 
+      - name: Verify automatic recovery of paid CRM first access (offline, no mail)
+        run: node --test tests/crm-paid-first-access-recovery.test.mjs
+
       - name: Verify normal paid CRM first-access email (no emails actually sent)
         run: node --test tests/crm-crm-first-access-mail.test.mjs
 
@@ -84,6 +87,7 @@ jobs:
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-request/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-public-crm-trial-activate/index.ts
           deno check --node-modules-dir=auto supabase/functions/nexus-crm-public-release-preflight/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-paid-first-access-reconcile/index.ts
 
       - name: Verify webhook health probe is read-only and cannot create Asaas payments
         run: node --test tests/crm-asaas-internal-webhook-probe.test.mjs

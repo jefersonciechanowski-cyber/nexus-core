@@ -1,0 +1,45 @@
+name: CRM paid first-access email recovery (no charges)
+on:
+  schedule:
+    - cron: '11,26,41,56 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: crm-paid-first-access-reconcile-production
+  cancel-in-progress: false
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send an OIDC-only, no-charge recovery request to Nexus Central
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN_JSON="$(curl --silent --show-error --fail-with-body --max-time 10 \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nexus-crm-paid-first-access-reconcile")"
+          TOKEN="$(printf '%s' "${TOKEN_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${TOKEN}"
+          BODY="$(curl --silent --show-error --fail-with-body --max-time 210 \
+            --request POST \
+            --url 'https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-crm-paid-first-access-reconcile' \
+            --header "Authorization: Bearer ${TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{}')"
+          printf '%s' "${BODY}" | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d.get("status")=="reconciliation_checked"
+          assert d.get("readOnlyFinancial") is True
+          assert d.get("createdCharge") is False
+          assert d.get("createdAccount") is False
+          assert all(type(d.get(k)) is int and d[k]>=0
+                     for k in ("inspected","recovered","skipped","pendingReview"))
+          print("CRM paid access recovery: inspected=%s recovered=%s skipped=%s review=%s; no charges" %
+                (d["inspected"],d["recovered"],d["skipped"],d["pendingReview"]))
+          if d["pendingReview"]>0:
+              print("::warning::CRM onboarding recovery has pending reviews")
+          '
