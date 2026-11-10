@@ -115,6 +115,18 @@ test('annual worker requires independent flags and does not reuse monthly provis
   assert.match(annualSale,/source !== 'site-captacao'/);
 });
 
+test('annual paid sale never claims success before CRM acknowledges entitlement',()=>{
+  const src=readFileSync(new URL('../supabase/functions/_shared/crm-asaas-annual-sale-provisioning.ts',import.meta.url),'utf8');
+  assert.match(src,/!crmProvision\.isCrm \|\| crmProvision\.error \|\| !crmProvision\.crmOrganizationId/);
+  assert.match(src,/syncCrmEntitlement\(admin,access\.id,'active',new Date\(\)\.toISOString\(\),true\)/);
+  assert.match(src,/!synced\.isCrm \|\| !synced\.synced \|\| synced\.error/);
+  assert.match(src,/\.eq\('sale_status','paid'\)\.select\('id'\)\.maybeSingle\(\)/);
+  const check=src.indexOf('const synced=await syncCrmEntitlement(');
+  const marked=src.indexOf("sale_status: 'provisioned'");
+  const emailed=src.indexOf('await sendCrmAccessEmail(');
+  assert.ok(check>0&&marked>check&&emailed>marked,
+    'CRM entitlement must be acknowledged before marking the paid sale and sending first access');
+});
 test('annual expiry job is scheduled, OIDC-protected and gated by backend release',()=>{
   const yaml=readFileSync(new URL('../.github/workflows/crm-asaas-annual-expiry.yml',import.meta.url),'utf8');
   assert.match(yaml,/schedule:/);
