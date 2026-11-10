@@ -46,6 +46,14 @@ for (const root of publicRoots) {
 }
 
 const headers = await readFile(join(projectRoot, '_headers'), 'utf8');
+// Cloudflare Workers refuses _headers lines longer than 2,000 characters.
+// Catch this before the production deploy, rather than relying on Wrangler logs.
+for (const [lineNumber, line] of headers.split(/\r?\n/).entries()) {
+  if (line.length > 2000) failures.push(
+    `_headers: linha ${lineNumber+1} tem ${line.length} caracteres (limite Cloudflare: 2000).`
+  );
+}
+
 const policies = headers
   .split(/\r?\n/)
   .map(line => line.trim())
