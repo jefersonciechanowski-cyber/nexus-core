@@ -78,6 +78,11 @@ jobs:
       - name: Verify Brevo first-access sender configuration read-only (no emails)
         run: node --test tests/crm-onboarding-email-readiness.test.mjs tests/crm-brevo-smtp-transport.test.mjs tests/crm-admin-smtp-selftest.test.mjs
 
+      - name: Typecheck authenticated same-tenant trial conversion (no payments)
+        run: |
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-trial-upgrade-checkout/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-crm-trial-upgrade-provision/index.ts
+
       - name: Verify automatic recovery of paid CRM first access (offline, no mail)
         run: node --test tests/crm-paid-first-access-recovery.test.mjs
 
@@ -226,6 +231,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261110000500_crm_trial_to_paid_same_tenant.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_upgrade_pipeline_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261110185750_crm_authenticated_trial_upgrade_pipeline.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_upgrade_pipeline_assertions.sql
 
   sst_storage_rls_isolation:
     name: SST document storage cross-tenant RLS regression
@@ -260,3 +268,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_storage_cross_tenant_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109215000_sst_storage_tenant_select_security_hotfix.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_storage_cross_tenant_assertions.sql
+

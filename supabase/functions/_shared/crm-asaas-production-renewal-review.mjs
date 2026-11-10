@@ -14,15 +14,18 @@ const cents=value=>typeof value==='number' && Number.isFinite(value)
   && value>0 && Math.round(value*100);
 
 export async function previewProductionCrmAsaasRenewal({
- eventRow,sale,access,productCode,fetchResource,
+ eventRow,sale,access,productCode,fetchResource,upgradeReceipt,
 }={}) {
  if(!eventRow || eventRow.provider!=='asaas'
    || !['PAYMENT_RECEIVED','PAYMENT_CONFIRMED'].includes(eventRow.event_type)
    || eventRow.payload?.event!==eventRow.event_type
    || !/^asaas:evt_[A-Za-z0-9_&.-]{6,150}$/.test(eventRow.provider_event_id||'')
    || !eventRow.payload?.dateCreated) return held('untrusted_settlement_event');
+ const upgrade=sale?.source==='crm-trial-upgrade' && upgradeReceipt?.state==='completed'
+  && upgradeReceipt.sale_id===sale.id && upgradeReceipt.access_id===access?.id
+  && upgradeReceipt.tenant_id===access?.external_tenant_id;
  if(productCode!=='crm' || sale?.provider!=='asaas' || sale?.environment!=='production'
-   || sale?.source!=='site-captacao' || sale?.billing_mode!=='recurring'
+   || (sale?.source!=='site-captacao'&&!upgrade) || sale?.billing_mode!=='recurring'
    || sale?.billing_cycle_months!==1 || sale?.sale_status!=='provisioned'
    || !sale?.provisioned_at || !sale.organization_id
    || !id(sale.asaas_subscription_id,'sub')
@@ -67,7 +70,8 @@ export async function previewProductionCrmAsaasRenewal({
    ||String(customer.cpfCnpj||'').replace(/\D/g,'')!==document) {
   return held('customer_document_mismatch');
  }
- if(link?.externalReference!=='nexus-crm-monthly-'+sale.id
+ if(link?.externalReference!==(upgrade?'nexus-crm-trial-upgrade-':'nexus-crm-monthly-')+sale.id
+   ||(upgrade&&link.limit!==1)
    ||link.chargeType!=='RECURRENT' ||link.subscriptionCycle!=='MONTHLY'
    ||subscription?.cycle!=='MONTHLY' ||subscription?.status!=='ACTIVE'
    ||!['PIX','BOLETO'].includes(payment.billingType)
@@ -94,3 +98,4 @@ export async function previewProductionCrmAsaasRenewal({
   dueDate:payment.dueDate,nextDueDate:subscription.nextDueDate,
  });
 }
+

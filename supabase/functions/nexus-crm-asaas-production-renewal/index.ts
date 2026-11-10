@@ -78,6 +78,12 @@ Deno.serve(async(req:Request)=>{
   .select('code').eq('id',sale.product_id).maybeSingle();
  if(productError||product?.code!=='crm')
   return reply({decision:'manual_review',reason:'not_crm_product'},409);
+ let upgradeReceipt=null;
+ if(sale.source==='crm-trial-upgrade'){
+  const {data,error}=await admin.from('nexus_crm_trial_upgrade_receipts').select('sale_id,access_id,tenant_id,state').eq('sale_id',sale.id).single();
+  if(error||data?.state!=='completed')return reply({decision:'retry',reason:'upgrade_activation_pending'},503);
+  upgradeReceipt=data;
+ }
  const fetchResource=async(path:string)=>{
   if(!/^\/(payments|paymentLinks|subscriptions|customers)\/[A-Za-z0-9_-]{4,130}$/.test(path))
    throw Error('invalid_provider_path');
@@ -93,7 +99,7 @@ Deno.serve(async(req:Request)=>{
   return JSON.parse(body);
  };
  const verified=await previewProductionCrmAsaasRenewal({
-  eventRow:{...evt,provider:'asaas'},sale,access,productCode:product.code,fetchResource,
+  eventRow:{...evt,provider:'asaas'},sale,access,productCode:product.code,fetchResource,upgradeReceipt,
  });
  if(verified.decision!=='verified_renewal_for_review' || !('accessId' in verified))
   return reply({decision:verified.decision,reason:('reason' in verified ? verified.reason : 'not_verified')},
@@ -123,3 +129,4 @@ Deno.serve(async(req:Request)=>{
  .eq('processing_status','pending');
  return reply({decision:'renewal_confirmed',crmSynced:true,alreadyRecorded:recorded.decision==='already_recorded'});
 });
+

@@ -15,6 +15,7 @@ const MAX_EVENTS=3;
 const ALLOWED_SUCCESS={
   provision:'provisioned',
   annual:'provisioned',
+  upgrade:'provisioned',
   renewal:'renewal_confirmed',
 } as const;
 const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{
@@ -78,7 +79,7 @@ async function findSales(admin:any,event:EventRow){
   const link=resource?.paymentLink;
   const sub=resource?.subscription;
   if(!paymentLink(link)&&!providerId(sub,'sub'))return [];
-  const selected='id,product_id,provider,environment,billing_mode,billing_cycle_months,sale_status,asaas_checkout_id,asaas_subscription_id,paid_at';
+  const selected='id,source,product_id,provider,environment,billing_mode,billing_cycle_months,sale_status,asaas_checkout_id,asaas_subscription_id,paid_at';
   const found=new Map<string,any>();
   if(paymentLink(link)){
     const {data,error}=await admin.from('nexus_sales').select(selected)
@@ -105,7 +106,7 @@ async function markEvent(admin:any,eventId:string,status:'processed'|'manual_rev
   if(error)throw Error('event_state_update_failed');
   return (data||[]).length===1;
 }
-async function callIndependentWorker(base:string,worker:'provision'|'renewal'|'annual',eventId:string){
+async function callIndependentWorker(base:string,worker:'provision'|'renewal'|'annual'|'upgrade',eventId:string){
   const envName=worker==='renewal'
     ?'NEXUS_CRM_ASAAS_PROD_RENEWAL_SECRET'
     :'NEXUS_CRM_ASAAS_PROD_WORKER_SECRET';
@@ -117,9 +118,11 @@ async function callIndependentWorker(base:string,worker:'provision'|'renewal'|'a
   }
   const slug=worker==='renewal' ?'nexus-crm-asaas-production-renewal'
     :worker==='annual' ?'nexus-crm-asaas-production-annual-provision'
+    :worker==='upgrade' ?'nexus-crm-trial-upgrade-provision'
     :'nexus-crm-asaas-production-provision';
   const name=worker==='renewal'?'x-nexus-crm-renewal-key'
     :worker==='annual'?'x-nexus-crm-annual-key'
+    :worker==='upgrade'?'x-nexus-crm-upgrade-key'
     :'x-nexus-central-internal-key';
   try{
     const response=await fetch(new URL('/functions/v1/'+slug,base),{
@@ -137,7 +140,7 @@ async function callIndependentWorker(base:string,worker:'provision'|'renewal'|'a
     let body:any;
     try{body=JSON.parse(text);}catch{return {status:'worker_bad_response',decision:'retry'};}
     if(response.status===200 && body?.decision===ALLOWED_SUCCESS[worker]
-      &&(worker!=='renewal'||body.crmSynced===true)) {
+      &&(!['renewal','upgrade'].includes(worker)||body.crmSynced===true)) {
       return {status:'accepted',decision:'processed'};
     }
     if(response.status===409)return {status:'operator_review',decision:'manual_review'};
@@ -370,10 +373,10 @@ Deno.serve(async(request:Request)=>{
       continue;
     }
     if(plan.decision!=='route_for_independent_verification'
-      ||!['provision','renewal','annual'].includes(plan.worker||'')){
+      ||!['provision','renewal','annual','upgrade'].includes(plan.worker||'')){
       summary.retry++;continue;
     }
-    const worked=await callIndependentWorker(url,plan.worker as 'provision'|'renewal'|'annual',
+    const worked=await callIndependentWorker(url,plan.worker as 'provision'|'renewal'|'annual'|'upgrade',
       event.provider_event_id);
     if(worked.decision==='processed'){
       try{
@@ -391,3 +394,4 @@ Deno.serve(async(request:Request)=>{
   }
   return reply(summary,200);
 });
+
