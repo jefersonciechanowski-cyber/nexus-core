@@ -1,39 +1,58 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 const read = path => readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const home=read('index.html'),css=read('site.css'),crm=read('crm/index.html'),
   sst=read('apps/site-captacao/index.html'),sstRoute=read('sst-controle/index.html'),
-  build=read('scripts/prepare-cloudflare.mjs'),sitemap=read('sitemap.xml');
+  build=read('scripts/prepare-cloudflare.mjs'),sitemap=read('sitemap.xml'),
+  redirect=read('crm/redirect.js');
 
-test('Nexus Core Industrial Trust replaces SST home redirect without changing product URL',()=>{
+test('Nexus Core stays institutional and links to approved CRM product domain',()=>{
   assert.match(home,/<title>Nexus Core Industrial Trust/);
   assert.match(home,/<link rel="canonical" href="https:\/\/nexuscore\.app\.br\/">/);
   assert.doesNotMatch(home,/<meta[^>]+http-equiv="refresh"/i);
   assert.match(home,/href="\/site\.css"/);
   assert.match(home,/\/apps\/sst-controle\/logo-nexus-core\.png/);
-  assert.match(home,/href="\/crm\/"/);
+  assert.match(home,/href="https:\/\/crm\.nexuscore\.app\.br\/site-captacao"/);
   assert.match(home,/href="\/sst-controle\/"/);
   assert.match(home,/href="\/apps\/portal-cliente\/login\.html"/);
   assert.match(css,/\.solution\.crm/);
   assert.match(css,/\.solution\.sst/);
 });
 
-test('CRM ads link lands directly on CRM page and preserves qualified UTM capture',()=>{
-  assert.match(crm,/<link rel="canonical" href="https:\/\/nexuscore\.app\.br\/crm\/"/);
-  assert.match(crm,/id="crmInterestForm"/);
-  assert.match(crm,/functions\/v1\/nexus-public-crm-interest/);
-  for(const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']){
-    assert.ok(crm.includes("params.get('"+key+"')"),'CRM tracking missing '+key);
-  }
-  assert.match(crm,/href="\/"/);
-  assert.match(crm,/logo-nexus-core\.png/);
-  assert.match(crm,/acceptedContact/);
-  assert.match(crm,/id="interestWebsite"/);
-  assert.match(crm,/result\?\.received!==true/);
+test('Old /crm/ ads shortcut forwards campaigns to approved Vercel CRM capture',()=>{
+  assert.match(crm,/<link rel="canonical" href="https:\/\/crm\.nexuscore\.app\.br\/site-captacao"/);
+  assert.match(crm,/name="robots" content="noindex,follow"/);
+  assert.match(crm,/src="\/crm\/redirect\.js"/);
+  assert.match(crm,/href="https:\/\/crm\.nexuscore\.app\.br\/site-captacao"/);
+  assert.doesNotMatch(crm,/id="crmInterestForm"/);
+  assert.doesNotMatch(crm,/action="\/api\/public\/crm-checkout"/);
+  assert.match(redirect,/new URL\('https:\/\/crm\.nexuscore\.app\.br\/site-captacao'\)/);
+  assert.match(redirect,/approved\.search = window\.location\.search/);
+  assert.match(redirect,/approved\.hash = window\.location\.hash/);
+  assert.match(redirect,/window\.location\.replace\(approved\.href\)/);
 });
 
-test('SST landing checkout remains in its original place with a stable product alias',()=>{
+test('CRM redirect keeps advertising attribution and deep-link sections',()=>{
+  let forwarded='';
+  runInNewContext(redirect,{
+    URL,
+    window:{location:{
+      search:'?utm_source=instagram&utm_medium=paid_social&utm_campaign=nexus_crm_lancamento&fbclid=ref123',
+      hash:'#planos',
+      replace:url=>{forwarded=url;}
+    }}
+  });
+  const target=new URL(forwarded);
+  assert.equal(target.origin,'https://crm.nexuscore.app.br');
+  assert.equal(target.pathname,'/site-captacao');
+  assert.equal(target.searchParams.get('utm_campaign'),'nexus_crm_lancamento');
+  assert.equal(target.searchParams.get('fbclid'),'ref123');
+  assert.equal(target.hash,'#planos');
+});
+
+test('SST landing and checkout remain in original product application',()=>{
   assert.match(sstRoute,/url=\/apps\/site-captacao\//);
   assert.match(sstRoute,/name="robots" content="noindex,follow"/);
   assert.match(sst,/id="checkoutForm"/);
@@ -42,9 +61,10 @@ test('SST landing checkout remains in its original place with a stable product a
   assert.match(sst,/href="\/"/);
 });
 
-test('Cloudflare and sitemap ship all new public assets while preserving existing apps',()=>{
+test('Cloudflare assets and sitemap exclude redirect-only CRM alias',()=>{
   for(const path of ["'site.css'","'sst-controle'","'crm'","'apps/site-captacao'","'apps/portal-cliente'"])
     assert.ok(build.includes(path),'Cloudflare missing '+path);
-  for(const url of ['https://nexuscore.app.br/','https://nexuscore.app.br/crm/','https://nexuscore.app.br/apps/site-captacao/'])
+  for(const url of ['https://nexuscore.app.br/','https://nexuscore.app.br/apps/site-captacao/'])
     assert.ok(sitemap.includes('<loc>'+url+'</loc>'),'Sitemap missing '+url);
+  assert.doesNotMatch(sitemap,/<loc>https:\/\/nexuscore\.app\.br\/crm\/<\/loc>/);
 });

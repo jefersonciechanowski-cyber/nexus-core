@@ -40,25 +40,16 @@ test('enquiry rejects invalid phone, no privacy agreement, extra plan, and malfo
  assert.equal(normalizeCrmInterest({...sample,website:'bot-spam'}).spam,true);
  assert.ok(normalizeCrmInterest(null).error);
 });
-test('ad form has consent, mobile-friendly inputs, fallback and attribution',()=>{
- assert.match(html,/id="contato"/);
- assert.match(html,/id="crmInterestForm"/);
- assert.match(html,/id="interestFeedback"/);
- assert.match(html,/id="interestPhone".*required/);
- assert.match(html,/name="acceptedContact" type="checkbox" required/);
- assert.match(html,/Política de Privacidade/);
- assert.match(html,/name="website" tabindex="-1" autocomplete="off"/);
- assert.match(html,/utm_source/);
- assert.match(html,/utm_campaign/);
- assert.match(html,/utm_content/);
- assert.match(html,/data-plan="start"/);
- assert.match(html,/data-plan="pro"/);
- assert.match(html,/data-plan="gestao"/);
- assert.match(html,/role="status" aria-live="polite"/);
- assert.match(html,/mailto:suporte@nexuscore\.app\.br/);
- assert.doesNotMatch(html,/Mais escolhido/);
- assert.match(html,/os percentuais são exemplos visuais/);
+test('approved CRM capture is linked without duplicating lead forms or payment services',()=>{
+ assert.match(html,/<link rel="canonical" href="https:\/\/crm\.nexuscore\.app\.br\/site-captacao">/);
+ assert.match(html,/src="\/crm\/redirect\.js"/);
+ assert.match(html,/name="robots" content="noindex,follow"/);
+ assert.match(html,/Nexus CRM/);
+ assert.doesNotMatch(html,/id="crmInterestForm"/);
+ assert.doesNotMatch(html,/id="contato"/);
+ assert.doesNotMatch(html,/stripe\.checkout|asaas\.com\/v3\/paymentLinks/);
 });
+
 test('API enforces origin, caps payloads and prevents anonymous financial operations',()=>{
  assert.match(api,/PUBLIC_ORIGIN='https:\/\/nexuscore\.app\.br'/);
  assert.match(api,/origin!==PUBLIC_ORIGIN/);
