@@ -41,6 +41,9 @@ jobs:
       - name: Verify SST and Nexus Central tenant, payment, Storage and expiry security guards
         run: node --test tests/sst-central-security-boundaries.test.mjs
 
+      - name: Validate Nexus Admin pilot tier, stable sidebar and CSP navigation
+        run: node --test tests/nexus-admin-pilot-plan-ux.test.mjs
+
       - name: Verify Nexus Admin session continuity and MFA across tabs
         run: node --test tests/nexus-admin-login-session.test.mjs
 
