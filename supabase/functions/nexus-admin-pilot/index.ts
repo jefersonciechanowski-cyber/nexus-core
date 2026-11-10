@@ -161,7 +161,7 @@ Deno.serve(async request => {
   const responsibleName = clean(body.responsibleName, 160);
   const email = clean(body.email, 255).toLowerCase();
   const phone = digits(body.phone).slice(0, 15);
-  const days = Math.trunc(Number(body.days || 30));
+  const days = Math.trunc(Number(body.days ?? 15));
 
   if (companyName.length < 2) return json({ error: 'Informe o nome da empresa.' }, 400);
   if (responsibleName.length < 2) return json({ error: 'Informe o nome do responsável.' }, 400);

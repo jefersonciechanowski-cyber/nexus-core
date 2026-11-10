@@ -199,6 +199,12 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_production_settlement_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261107233000_crm_asaas_production_renewal.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_asaas_production_renewal_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_asaas_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109160000_sst_asaas_pilot_conversion.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109163000_sst_asaas_overdue_suspension.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261109230000_sst_asaas_release_controls.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_asaas_release_controls_assertions.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/sst_asaas_assertions.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261110000500_crm_trial_to_paid_same_tenant.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/crm_trial_paid_upgrade_assertions.sql
