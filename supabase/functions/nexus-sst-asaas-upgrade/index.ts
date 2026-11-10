@@ -2,9 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 
 // Dedicated SST pilot -> Asaas checkout. NOT used by the CRM or anonymous site.
 const ALLOWED_ORIGINS = new Set(['https://nexuscore.app.br','https://www.nexuscore.app.br']);
-const RELEASED = Deno.env.get('NEXUS_SST_ASAAS_PROD_RELEASE_APPROVED') === 'true';
-const CHECKOUT_ENABLED = Deno.env.get('NEXUS_SST_ASAAS_PROD_CHECKOUT_ENABLED') === 'true';
-const SETTLEMENT_READY = Deno.env.get('NEXUS_SST_ASAAS_PROD_SETTLEMENT_READY') === 'true';
+// Financial release controls are service-role-only in Postgres. Fail closed until verified.
 const clean = (x: unknown, max = 240) => String(x ?? '').trim().slice(0,max);
 const reply = (body: unknown, status = 200, origin = '') => new Response(JSON.stringify(body),{
   status, headers: {
@@ -68,6 +66,26 @@ async function getContext(admin:any,req:Request){
   if(countError)throw new Error('employee_count_unavailable');
   return {user,profile,org,pilot,employeeCount:Number(count||0)};
 }
+async function isSstFinancialReleaseReady(admin:any){
+  const {data:state,error}=await admin.from('nexus_sst_asaas_release_controls')
+    .select('checkout_enabled,reconciliation_enabled,asaas_connection_verified_at,webhook_secret_present_at,worker_heartbeat_at')
+    .eq('id','production').maybeSingle();
+  if(error||!state)return false;
+  const hoursSince=(date:unknown)=>typeof date==='string'&&Number.isFinite(Date.parse(date))
+    ? (Date.now()-Date.parse(date))/3600000 : Infinity;
+  const key=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
+  const token=Deno.env.get('NEXUS_SST_ASAAS_PROD_EVENTS_TOKEN')||'';
+  return state.checkout_enabled===true&&state.reconciliation_enabled===true
+    &&hoursSince(state.asaas_connection_verified_at)>=0
+    &&hoursSince(state.asaas_connection_verified_at)<24
+    &&hoursSince(state.webhook_secret_present_at)>=0
+    &&hoursSince(state.webhook_secret_present_at)<24
+    &&hoursSince(state.worker_heartbeat_at)>=0
+    &&hoursSince(state.worker_heartbeat_at)<24
+    &&key.startsWith('$aact_prod_')&&key.length>=32
+    &&token.length>=32
+    &&Deno.env.get('NEXUS_SST_ASAAS_PROD_WEBHOOK_ENABLED')==='true';
+}
 Deno.serve(async req=>{
   const origin=clean(req.headers.get('origin'),200);
   if(req.method==='OPTIONS')return ALLOWED_ORIGINS.has(origin)?reply({},200,origin):reply({error:'Origem inválida.'},403);
@@ -87,14 +105,15 @@ Deno.serve(async req=>{
   const options=plans.filter((p:any)=>p.currency==='BRL'&&p.billing_interval_months===1
     &&p.price_cents>0&&(!p.employee_limit||context.employeeCount<=p.employee_limit))
     .map((p:any)=>({code:p.code,name:p.name,priceCents:p.price_cents,employeeLimit:p.employee_limit}));
+  const financialReady=await isSstFinancialReleaseReady(admin);
   if(req.method==='GET')return reply({
     plans:options, employeeCount:context.employeeCount,
     companyName:context.org.name,
     registrationNumber:context.org.registration_number||'',
-    ready:RELEASED&&CHECKOUT_ENABLED&&SETTLEMENT_READY
+    ready:financialReady
   },200,origin);
 
-  if(!RELEASED||!CHECKOUT_ENABLED||!SETTLEMENT_READY)
+  if(!financialReady)
     return reply({error:'Contratação Asaas SST em homologação. Seus dados do piloto estão preservados.'},503,origin);
   const asaasKey=Deno.env.get('ASAAS_PRODUCTION_API_KEY')||'';
   if(!asaasKey.startsWith('$aact_prod_')||asaasKey.length<32)
