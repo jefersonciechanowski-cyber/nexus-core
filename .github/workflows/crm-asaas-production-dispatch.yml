@@ -7,6 +7,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/crm-asaas-production-dispatch.yml'
+      # Reverify public billing safety after improving paid CRM delivery.
+      - '.github/workflows/crm-paid-first-access-reconcile.yml'
   schedule:
     - cron: '37 */6 * * *' # diagnóstico barato, independente da liberação
     - cron: '*/5 * * * *' # processamento apenas após habilitação explícita
