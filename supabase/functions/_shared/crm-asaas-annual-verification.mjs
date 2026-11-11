@@ -61,9 +61,11 @@ export async function verifyProductionCrmAsaasAnnual({
     ||cents(payment.value)!==offer.annualAmountCents
     ||cents(link.value)!==offer.annualAmountCents)
     return reject('annual_payment_amount_method_mismatch');
+  const payerDocument = String(customer?.cpfCnpj || '').replace(/\D/g, '');
+  const saleDocument = String(sale.registration_number || '').replace(/\D/g, '');
   if(customer?.id!==payment.customer
-    ||String(customer.cpfCnpj||'').replace(/\D/g,'')
-       !==String(sale.registration_number||'').replace(/\D/g,''))
+    || ![11, 14].includes(payerDocument.length)
+    || payerDocument !== saleDocument)
     return reject('payer_document_mismatch');
   return Object.freeze({
     decision:'verified_for_settlement',
