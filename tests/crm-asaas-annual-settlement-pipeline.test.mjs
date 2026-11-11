@@ -138,3 +138,12 @@ test('annual expiry job is scheduled, OIDC-protected and gated by backend releas
   assert.match(yaml,/data\['suspended'\] == data\['synced'\]/);
   assert.doesNotMatch(yaml,/secrets\.|ASAAS_PRODUCTION_API_KEY|STRIPE_SECRET/);
 });
+
+test('annual settlement requires a payer document on both records',async()=>{
+  for(const document of ['', '123']) {
+    const customer = {...resources['/customers/cus_1234567890'], cpfCnpj:document};
+    const result = await run({sale:{...sale,registration_number:document},
+      resources:{'/customers/cus_1234567890':customer}});
+    assert.equal(result.reason,'payer_document_mismatch');
+  }
+});
