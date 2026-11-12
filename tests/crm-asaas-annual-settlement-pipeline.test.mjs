@@ -147,3 +147,22 @@ test('annual settlement requires a payer document on both records',async()=>{
     assert.equal(result.reason,'payer_document_mismatch');
   }
 });
+
+test('annual card schedule separates contract total from received funds',async()=>{
+  const path = '/installments/fixture-installment/payments';
+  const first = {...resources['/payments/'+paymentId], installment:'fixture-installment', billingType:'CREDIT_CARD', value:119};
+  const rows = Array.from({length:10}, (_,i)=>({...first, id:i===0?paymentId:'pay_fixture'+i, status:i===0?'RECEIVED':'CONFIRMED'}));
+  const check = data=>run({resources:{
+    ['/payments/'+paymentId]:first,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink], billingType:'CREDIT_CARD', chargeType:'INSTALLMENT', limit:1, maxInstallmentCount:10},
+    [path]:{data, hasMore:false, totalCount:data.length}
+  }});
+  const result = await check(rows);
+  assert.equal(result.totalCents,119000);
+  assert.equal(result.receivedCents,11900);
+  assert.equal(result.canActivateCrm,false);
+  for(const change of [{id:paymentId},{value:118},{customer:'cus_other123'},{status:'REFUNDED'}]){
+    const invalid = rows.map((row,i)=>i===1?{...row,...change}:row);
+    assert.equal((await check(invalid)).totalCents,undefined);
+  }
+});
