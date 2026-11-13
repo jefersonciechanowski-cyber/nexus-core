@@ -1,3 +1,4 @@
+import {buildCrmAsaasBlackFridayAnnualLink} from "../supabase/functions/_shared/crm-asaas-black-friday-annual-contract.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
@@ -21,8 +22,14 @@ test("Annual checkout is prepaid 12 months, price computed server side",()=>{
  assert.match(annual,/buildCrmAsaasBlackFridayAnnualLink/);
  assert.match(annual,/verifyCheckoutBridgeSignature/);
  assert.match(annual,/preflight_nexus_crm_public_identity/);
- const annualLink = readFileSync(new URL("../supabase/functions/_shared/crm-asaas-black-friday-annual-contract.mjs",import.meta.url),"utf8");
- assert.match(annualLink,/chargeType: 'DETACHED'/);
+ const plan = {code:'pro',status:'active',public_visible:true,currency:'BRL',billing_interval_months:1,price_cents:11900};
+ for (const method of ['PIX','BOLETO','CREDIT_CARD']) {
+   const link = buildCrmAsaasBlackFridayAnnualLink({plan,method,saleId:'00000000-0000-4000-8000-000000000001'});
+   assert.equal(link.chargeType, method === 'CREDIT_CARD' ? 'INSTALLMENT' : 'DETACHED');
+   assert.equal(link.maxInstallmentCount, method === 'CREDIT_CARD' ? 10 : undefined);
+   assert.equal(link.value,1190);
+   assert.equal(link.subscriptionCycle,undefined);
+ }
  assert.match(annual,/return reply\(\{ link, checkoutId: linkId, annualPrepaid: true, months: 12/);
  assert.match(annual,/if \(recent\?\.id\)/);
  assert.match(annual,/sale_status: 'checkout_created'/);
