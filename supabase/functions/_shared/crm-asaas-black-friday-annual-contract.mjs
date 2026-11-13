@@ -3,7 +3,7 @@
 // The Asaas annual campaign requires a SEPARATE verified, prepaid settlement
 // worker; the existing monthly recurring worker must NEVER process this sale.
 const PLANS = new Set(['start','pro','gestao']);
-const METHODS = new Set(['PIX','BOLETO']);
+const METHODS = new Set(['PIX','BOLETO','CREDIT_CARD']);
 const uuid = value => typeof value === 'string'
   && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 
@@ -37,7 +37,8 @@ export function buildCrmAsaasBlackFridayAnnualLink({ plan, method, saleId }) {
     description: 'Pagamento único antecipado. Acesso por 12 meses, sem renovação automática.',
     value: quote.annualAmountCents / 100,
     billingType: method,
-    chargeType: 'DETACHED',
+    chargeType: method === 'CREDIT_CARD' ? 'INSTALLMENT' : 'DETACHED',
+    ...(method === 'CREDIT_CARD' ? { maxInstallmentCount: 10 } : {}),
     externalReference: 'nexus-crm-bf-annual-' + saleId,
     notificationEnabled: true,
     isAddressRequired: true,

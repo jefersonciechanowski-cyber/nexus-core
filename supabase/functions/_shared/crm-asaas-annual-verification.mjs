@@ -49,9 +49,55 @@ export async function verifyProductionCrmAsaasAnnual({
   // Conversely, an ACTIVE link alone is NEVER proof of a paid invoice.
   if(payment?.id!==paymentId || payment?.paymentLink!==sale.asaas_checkout_id
     ||payment?.subscription != null ||link?.id!==sale.asaas_checkout_id
-    ||link.chargeType!=='DETACHED'
     ||link.externalReference!=='nexus-crm-bf-annual-'+sale.id)
     return reject('not_verified_annual_detached_payment');
+  const payerDocument = String(customer?.cpfCnpj || '').replace(/\D/g, '');
+  const saleDocument = String(sale.registration_number || '').replace(/\D/g, '');
+  if(customer?.id!==payment.customer
+    || ![11, 14].includes(payerDocument.length)
+    || payerDocument !== saleDocument)
+    return reject('payer_document_mismatch');
+  if (payment.billingType === 'CREDIT_CARD') {
+    if (link.billingType !== 'CREDIT_CARD' || link.chargeType !== 'INSTALLMENT'
+      || link.limit !== 1 || link.maxInstallmentCount !== 10
+      || cents(link.value) !== offer.annualAmountCents
+      || !/^[A-Za-z0-9_-]{4,120}$/.test(payment.installment ?? '')
+      || typeof payment.installment !== 'string')
+      return reject('annual_installment_link_mismatch');
+    let schedule;
+    try {
+      schedule = await fetchResource('/installments/' + payment.installment + '/payments');
+    } catch {
+      return reject('installment_lookup_failed', 'retry');
+    }
+    const rows = schedule?.data;
+    if (!Array.isArray(rows) || rows.length < 1 || rows.length > 10
+      || schedule.hasMore !== false || schedule.totalCount !== rows.length)
+      return reject('annual_installment_schedule_incomplete');
+    const ids = new Set();
+    let receivedCents = 0;
+    let totalCents = 0;
+    for (const row of rows) {
+      const amount = cents(row?.value);
+      if (!validId(row?.id,'pay') || ids.has(row.id) || !amount
+        || row.customer !== payment.customer || row.installment !== payment.installment
+        || row.subscription != null || row.billingType !== 'CREDIT_CARD'
+        || row.deleted === true || !['CONFIRMED','RECEIVED'].includes(row.status))
+        return reject('annual_installment_unverified');
+      ids.add(row.id);
+      totalCents += amount;
+      if (row.status === 'RECEIVED') receivedCents += amount;
+    }
+    const current = rows.find(row => row.id === payment.id);
+    if (!current || current.status !== payment.status || cents(current.value) !== cents(payment.value)
+      || totalCents !== offer.annualAmountCents)
+      return reject('annual_installment_total_mismatch');
+    // The existing settlement writer records a single received payment. Never
+    // pass it a card contract total as if the whole amount had settled.
+    return Object.freeze({...reject('annual_installment_requires_ledger'),
+      installmentId:payment.installment, installmentCount:rows.length, totalCents, receivedCents});
+  }
+  if (link.chargeType !== 'DETACHED') return reject('not_verified_annual_detached_payment');
   // The prepaid expiry RPC requires a durable RECEIVED receipt. A merely
   // CONFIRMED payment must be retried later, never granted 12 months early.
   if(payment.status==='CONFIRMED')return reject('await_provider_receipt','retry');
@@ -61,10 +107,6 @@ export async function verifyProductionCrmAsaasAnnual({
     ||cents(payment.value)!==offer.annualAmountCents
     ||cents(link.value)!==offer.annualAmountCents)
     return reject('annual_payment_amount_method_mismatch');
-  if(customer?.id!==payment.customer
-    ||String(customer.cpfCnpj||'').replace(/\D/g,'')
-       !==String(sale.registration_number||'').replace(/\D/g,''))
-    return reject('payer_document_mismatch');
   return Object.freeze({
     decision:'verified_for_settlement',
     saleId:sale.id,eventId:eventRow.provider_event_id,paymentId:payment.id,

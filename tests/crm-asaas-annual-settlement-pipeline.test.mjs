@@ -138,3 +138,31 @@ test('annual expiry job is scheduled, OIDC-protected and gated by backend releas
   assert.match(yaml,/data\['suspended'\] == data\['synced'\]/);
   assert.doesNotMatch(yaml,/secrets\.|ASAAS_PRODUCTION_API_KEY|STRIPE_SECRET/);
 });
+
+test('annual settlement requires a payer document on both records',async()=>{
+  for(const document of ['', '123']) {
+    const customer = {...resources['/customers/cus_1234567890'], cpfCnpj:document};
+    const result = await run({sale:{...sale,registration_number:document},
+      resources:{'/customers/cus_1234567890':customer}});
+    assert.equal(result.reason,'payer_document_mismatch');
+  }
+});
+
+test('annual card schedule separates contract total from received funds',async()=>{
+  const path = '/installments/fixture-installment/payments';
+  const first = {...resources['/payments/'+paymentId], installment:'fixture-installment', billingType:'CREDIT_CARD', value:119};
+  const rows = Array.from({length:10}, (_,i)=>({...first, id:i===0?paymentId:'pay_fixture'+i, status:i===0?'RECEIVED':'CONFIRMED'}));
+  const check = data=>run({resources:{
+    ['/payments/'+paymentId]:first,
+    ['/paymentLinks/'+plink]:{...resources['/paymentLinks/'+plink], billingType:'CREDIT_CARD', chargeType:'INSTALLMENT', limit:1, maxInstallmentCount:10},
+    [path]:{data, hasMore:false, totalCount:data.length}
+  }});
+  const result = await check(rows);
+  assert.equal(result.totalCents,119000);
+  assert.equal(result.receivedCents,11900);
+  assert.equal(result.canActivateCrm,false);
+  for(const change of [{id:paymentId},{value:118},{customer:'cus_other123'},{status:'REFUNDED'}]){
+    const invalid = rows.map((row,i)=>i===1?{...row,...change}:row);
+    assert.equal((await check(invalid)).totalCents,undefined);
+  }
+});
