@@ -5,6 +5,7 @@ on:
     branches: [test/nexus-institutional-live-e2e-20261120]
     paths:
       - .github/workflows/nexus-institutional-live-e2e.yml
+      - tests/nexus-institutional-live-e2e.cjs
   workflow_dispatch:
 
 permissions:
