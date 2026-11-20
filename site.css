@@ -12,3 +12,10 @@
 .privacy-choice{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
 .privacy-choice:hover,.privacy-choice:focus-visible{text-decoration:underline}
 @media(max-width:660px){.nexus-consent{left:10px;right:10px;bottom:10px}.nexus-consent-body{display:block;padding:14px}.nexus-consent-actions{margin-top:12px;justify-content:stretch}.nexus-consent-actions button{flex:1;min-width:0}}
+
+/* Site privacy disclosure — clean reading layout. */
+.nexus-privacy-page{padding:72px 0 94px;max-width:850px}
+.nexus-privacy-page h1{font-size:clamp(32px,5vw,46px);line-height:1.12;margin:14px 0 24px;letter-spacing:-.03em}
+.nexus-privacy-page h2{font-size:22px;color:#f0d78f;margin:36px 0 12px}
+.nexus-privacy-page p{font-size:15px;color:#c4d0d0;line-height:1.85}
+.nexus-privacy-page a{color:#f0d78f;text-decoration:underline;text-underline-offset:3px}
