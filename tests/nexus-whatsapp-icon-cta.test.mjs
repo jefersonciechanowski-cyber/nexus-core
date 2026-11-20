@@ -74,6 +74,7 @@ test("floating WhatsApp CTA has no visible text, clear white glyph and proper ac
 test("mobile WhatsApp CTA moves above the consent notice and returns after dismissing", () => {
   const page = render({ mobile: true, consentOpen: true });
   assert.ok(parseInt(page.link.style.bottom, 10) > 170);
+  assert.match(script, /new MutationObserver\(avoidConsentOverlap\)/);
   page.setNotice(false);
   assert.equal(page.link.style.bottom, "");
   page.resize();
