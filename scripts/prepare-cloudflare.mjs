@@ -83,6 +83,7 @@ await mkdir(distRoot, { recursive: true });
 
 await Promise.all([
   copyOptionalFile('index.html'),
+  copyOptionalFile('privacidade.html'),
   copyOptionalFile('site.css'),
   copyOptionalFile('404.html'),
   copyOptionalFile('.nojekyll'),
