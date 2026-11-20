@@ -62,6 +62,16 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
     const ctaResponse = page.waitForResponse(matchEvent("cta_click"), { timeout: 25000 });
     await page.locator('a[data-nexus-action="nexus_crm_public_site"]').first().dispatchEvent("click");
     const cta = await ctaResponse;
+    if (cta.status() !== 202) {
+      console.error("CTA_RESPONSE_DEBUG", JSON.stringify({
+        status: cta.status(),
+        message: await cta.text(),
+        event: cta.request().postDataJSON()?.event_type,
+        site: cta.request().postDataJSON()?.site_id,
+        session: cta.request().postDataJSON()?.session_id,
+        eventId: cta.request().postDataJSON()?.event_id,
+      }));
+    }
     assert.equal(cta.status(), 202);
     const ctaPayload = cta.request().postDataJSON();
     assert.equal(ctaPayload.target_key, "nexus_crm_public_site");
