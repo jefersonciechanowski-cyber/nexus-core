@@ -15,7 +15,7 @@ jobs:
   live_nexus_tracking:
     name: Consent, visit and CTA through real browser (production)
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
       - name: Install isolated browser-driver test dependencies
@@ -26,8 +26,26 @@ jobs:
           cp tests/nexus-institutional-live-e2e.cjs /tmp/nexus-smoke/test.cjs
           npm install --prefix /tmp/nexus-smoke --no-audit --no-fund --no-save playwright-core@1.56.1
           google-chrome --version
-      - name: Read-only public page plus real Chrome consent and event POST test
-        run: node /tmp/nexus-smoke/test.cjs
+      - name: Verify JSON event payloads are independently accepted by production API
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import uuid,json,subprocess
+          for kind,label in [('page_view',None),('cta_click','nexus_crm_public_site'),('whatsapp_click','whatsapp_click')]:
+            payload={'site_id':'15dd3a2e-422f-440b-b074-c4b7c8f2a489',
+              'session_id':'fbf9f93f-3819-468a-8f13-e3d65d9125fd','event_id':str(uuid.uuid4()),
+              'event_type':kind,'page_path':'/','landing_path':'/','target_key':label,
+              'utm_source':'nexus_homologacao','utm_campaign':'nexus_e2e_smoke_20261120'}
+            result=subprocess.run(['curl','-sS','--max-time','14','-H','Origin: https://nexuscore.app.br',
+              '-H','Content-Type: application/json','-X','POST',
+              '--data-binary',json.dumps(payload),'https://crm.nexuscore.app.br/api/public/site-events',
+              '-w','\n%{http_code}'],capture_output=True,text=True,timeout=22)
+            body,code=result.stdout.rsplit('\n',1)
+            print(f'API smoke: {kind} HTTP {code}, response: {body[:150]}')
+            if result.returncode!=0 or code!='202': raise SystemExit(f'API smoke failed: {kind}')
+          PY
+      - name: Real Chrome consent, visit and CTA tests
+        run: timeout 85s node /tmp/nexus-smoke/test.cjs
       - name: Reject events from unauthorized website origin
         shell: bash
         run: |
