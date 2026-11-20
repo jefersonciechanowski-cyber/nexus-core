@@ -66,6 +66,17 @@ test("institutional page loads first-party tracker with registered site and no a
   assert.match(tracker,/if \(window\.nexusTrackingConsent === true/);
 });
 
+test("standard cookie banner is concise, opt-in and has clear buttons",()=>{
+  assert.match(consent, /<strong>Cookies e privacidade<\/strong>/);
+  assert.match(consent, /class="nexus-consent-allow">Aceitar cookies<\/button>/);
+  assert.match(consent, /class="nexus-consent-reject">Recusar<\/button>/);
+  assert.match(consent, /A medição só começa com sua autorização/);
+  assert.match(home, /id="nexus-metrics-preferences"[^>]*>Preferências de cookies/);
+  const layout = readFileSync(new URL("../site.css", import.meta.url), "utf8");
+  assert.match(layout, /max-width:700px/);
+  assert.match(layout, /transform:translateX\(-50%\)/);
+});
+
 test("consent defaults to OFF, and refusals never start analytics",()=>{
   const x=browser();
   assert.equal(x.win.nexusTrackingConsent,undefined);
