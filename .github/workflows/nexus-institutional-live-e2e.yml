@@ -1,10 +1,9 @@
-name: Nexus institutional live test (synthetic / one-time)
+name: Nexus live API validation diagnostic (synthetic only)
 
 on:
   push:
     branches: [test/nexus-institutional-live-e2e-20261120]
     paths:
-      - tests/nexus-institutional-live-e2e.cjs
       - .github/workflows/nexus-institutional-live-e2e.yml
   workflow_dispatch:
 
@@ -12,48 +11,44 @@ permissions:
   contents: read
 
 jobs:
-  live_nexus_tracking:
-    name: Consent, visit and CTA through real browser (production)
+  api_diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
-      - name: Install isolated browser-driver test dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/nexus-smoke
-          cp tests/nexus-institutional-live-e2e.cjs /tmp/nexus-smoke/test.cjs
-          npm install --prefix /tmp/nexus-smoke --no-audit --no-fund --no-save playwright-core@1.56.1
-          google-chrome --version
-      - name: Verify JSON event payloads are independently accepted by production API
+      - name: Check UUID and event parsing against production with 12 safe synthetic requests
         shell: bash
         run: |
           python3 - <<'PY'
-          import uuid,json,subprocess
-          for kind,label in [('page_view',None),('cta_click','nexus_crm_public_site'),('whatsapp_click','whatsapp_click')]:
-            payload={'site_id':'15dd3a2e-422f-440b-b074-c4b7c8f2a489',
-              'session_id':'fbf9f93f-3819-468a-8f13-e3d65d9125fd','event_id':str(uuid.uuid4()),
-              'event_type':kind,'page_path':'/','landing_path':'/','target_key':label,
-              'utm_source':'nexus_homologacao','utm_campaign':'nexus_e2e_smoke_20261120'}
-            result=subprocess.run(['curl','-sS','--max-time','14','-H','Origin: https://nexuscore.app.br',
-              '-H','Content-Type: application/json','-X','POST',
-              '--data-binary',json.dumps(payload),'https://crm.nexuscore.app.br/api/public/site-events',
-              '-w','\n%{http_code}'],capture_output=True,text=True,timeout=22)
-            body,code=result.stdout.rsplit('\n',1)
-            print(f'API smoke: {kind} HTTP {code}, response: {body[:150]}')
-            if result.returncode!=0 or code!='202': raise SystemExit(f'API smoke failed: {kind}')
+          import uuid,json,re,subprocess
+          types=['page_view','cta_click','whatsapp_click','performance_sample']
+          valid=re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', re.I)
+          site='15dd3a2e-422f-440b-b074-c4b7c8f2a489'
+          session='b33e324e-2875-4e0c-9d2d-fb2e2799e664'
+          fails=[]
+          for index in range(12):
+            kind=types[index%len(types)]
+            payload={
+              'site_id':site,'session_id':session,'event_id':str(uuid.uuid4()),
+              'event_type':kind,'page_path':'/','landing_path':'/',
+              'utm_source':'nexus_homologacao',
+              'utm_campaign':'nexus_e2e_smoke_20261120',
+            }
+            if kind=='cta_click': payload['target_key']='nexus_crm_public_site'
+            if kind=='whatsapp_click': payload['target_key']='whatsapp_click'
+            if kind=='performance_sample':
+              payload['metric_name']='ttfb'
+              payload['metric_value']=210
+            assert all(valid.fullmatch(payload[n]) for n in ('site_id','session_id','event_id')),payload
+            raw=json.dumps(payload,separators=(',',':'))
+            result=subprocess.run(['curl','-sS','--max-time','12','-H','Origin: https://nexuscore.app.br',
+              '-H','Content-Type: application/json','-X','POST','--data-binary',raw,
+              'https://crm.nexuscore.app.br/api/public/site-events','-w','\n%{http_code}'],
+              capture_output=True,text=True,timeout=16)
+            try: body,code=result.stdout.rsplit('\n',1)
+            except ValueError: body,code=result.stdout,'missing-status'
+            ok=result.returncode==0 and code=='202'
+            print(f'{index+1:02d} {kind:19} {code}: {body[:180]} (uuid_valid={bool(valid.fullmatch(payload["event_id"]))})',flush=True)
+            if not ok: fails.append({'type':kind,'status':code,'body':body[:180],'event_id':payload['event_id']})
+          print('SUMMARY',json.dumps({'requests':12,'failures':fails},ensure_ascii=False),flush=True)
+          if fails: raise SystemExit('Production API intermittently rejected locally validated event payloads.')
           PY
-      - name: Real Chrome consent, visit and CTA tests
-        run: timeout 85s node /tmp/nexus-smoke/test.cjs
-      - name: Reject events from unauthorized website origin
-        shell: bash
-        run: |
-          set -euo pipefail
-          CODE="$(curl --silent --show-error --max-time 15 --output /tmp/nexus-rejected-origin.json --write-out '%{http_code}' \
-            -X POST -H 'Origin: https://invalido.example.org' -H 'Content-Type: application/json' \
-            -d '{"site_id":"15dd3a2e-422f-440b-b074-c4b7c8f2a489","session_id":"fbf9f93f-3819-468a-8f13-e3d65d9125fd","event_id":"6dd3e46f-f9bf-4d79-a5bd-9b08b821c574","event_type":"page_view","page_path":"/"}' \
-            'https://crm.nexuscore.app.br/api/public/site-events')"
-          echo "Unauthorized origin HTTP status: $CODE"
-          test "$CODE" = "403"
-          echo 'PASS: unauthorized domain was rejected; no private actions or leads'
