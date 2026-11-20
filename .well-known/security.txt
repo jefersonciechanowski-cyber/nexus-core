@@ -1,0 +1,6 @@
+Contact: mailto:suporte@nexuscore.app.br
+Expires: 2027-11-20T23:59:59Z
+Preferred-Languages: pt-BR, en
+Canonical: https://nexuscore.app.br/.well-known/security.txt
+# Envie relatos de vulnerabilidade ao canal de contato acima.
+# Não acesse dados de terceiros nem interrompa os serviços durante verificações.

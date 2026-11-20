@@ -61,6 +61,14 @@ test('SST landing and checkout remain in original product application',()=>{
   assert.match(sst,/href="\/"/);
 });
 
+test('Responsible disclosure file is deployed with static assets',()=>{
+  const security=read('.well-known/security.txt');
+  assert.match(security,/Contact: mailto:suporte@nexuscore\.app\.br/);
+  assert.match(security,/Canonical: https:\/\/nexuscore\.app\.br\/\.well-known\/security\.txt/);
+  assert.ok(build.includes("' .well-known'".trim()), 'Cloudflare package must include .well-known');
+  assert.ok(build.includes("'.txt'"), 'Cloudflare package must support text files');
+});
+
 test('Cloudflare assets and sitemap exclude redirect-only CRM alias',()=>{
   assert.ok(build.includes("'whatsapp-contact.js'"), 'Cloudflare must include the public WhatsApp contact module');
   for(const path of ["'site.css'","'sst-controle'","'crm'","'apps/site-captacao'","'apps/portal-cliente'"])

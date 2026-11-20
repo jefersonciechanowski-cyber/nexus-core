@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const distRoot = join(projectRoot, 'dist');
 const publicDirectories = [
+  '.well-known',
   'apps/site-captacao',
   'apps/sst-controle',
   'apps/nexus-admin',
@@ -14,7 +15,7 @@ const publicDirectories = [
 ];
 const publicExtensions = new Set([
   '.avif', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.map',
-  '.png', '.svg', '.webmanifest', '.webp', '.woff', '.woff2', '.ttf', '.otf',
+  '.png', '.svg', '.txt', '.webmanifest', '.webp', '.woff', '.woff2', '.ttf', '.otf',
 ]);
 const excludedDirectoryNames = new Set(['.git', 'node_modules']);
 
