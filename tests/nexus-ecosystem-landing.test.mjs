@@ -62,6 +62,7 @@ test('SST landing and checkout remain in original product application',()=>{
 });
 
 test('Cloudflare assets and sitemap exclude redirect-only CRM alias',()=>{
+  assert.ok(build.includes("'whatsapp-contact.js'"), 'Cloudflare must include the public WhatsApp contact module');
   for(const path of ["'site.css'","'sst-controle'","'crm'","'apps/site-captacao'","'apps/portal-cliente'"])
     assert.ok(build.includes(path),'Cloudflare missing '+path);
   for(const url of ['https://nexuscore.app.br/','https://nexuscore.app.br/apps/site-captacao/'])
