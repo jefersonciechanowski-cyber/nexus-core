@@ -18,6 +18,7 @@
   }
 
   async function send() {
+    if (button.disabled) return;
     const value = email.value.trim().toLowerCase();
     show('');
     if (!value || !value.includes('@')) {
