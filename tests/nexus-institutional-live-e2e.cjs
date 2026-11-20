@@ -21,7 +21,12 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
 
     const page = await context.newPage();
     const outbound = [];
+    const submitted = [];
     const failed = [];
+    page.on("request", request => {
+      if (request.url().startsWith(endpoint) && request.method() === "POST")
+        submitted.push(request.postDataJSON()?.event_type);
+    });
     page.on("response", async response => {
       if (!response.url().startsWith(endpoint)) return;
       const req = response.request();
@@ -132,10 +137,13 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
     await page.locator(".nexus-consent-reject").click();
     assert.equal(await page.evaluate(() => window.NexusTracking?.getSessionId?.()), null,
       "consent revocation must stop the tracker");
-    const savedCount = outbound.length;
+    // In-flight responses to events sent before revocation may finish later.
+    // Count newly initiated POST requests instead of response arrivals.
+    await page.waitForTimeout(400);
+    const savedCount = submitted.length;
     await page.locator('a[data-nexus-action="nexus_crm_public_site"]').first().dispatchEvent("click");
     await page.waitForTimeout(700);
-    assert.equal(outbound.length, savedCount, "no new events permitted after withdrawal");
+    assert.equal(submitted.length, savedCount, "no new POST events after withdrawal");
     console.log("PASS: revocation stops tracking");
 
     const deniedContext = await browser.newContext({ viewport: { width: 390, height: 780 }, locale: "pt-BR" });
