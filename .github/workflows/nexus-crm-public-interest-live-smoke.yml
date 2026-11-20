@@ -1,0 +1,43 @@
+name: Nexus CRM public form safe live smoke
+
+on:
+  push:
+    branches:
+      - test/crm-public-forms-live-smoke-20261120
+    paths:
+      - .github/workflows/nexus-crm-public-interest-live-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public_form_contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verify commercial landing page and safety of the Nexus form endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://crm.nexuscore.app.br/api/public/crm-interest'
+          SITE='https://crm.nexuscore.app.br/site-captacao'
+          CODE="$(curl --silent --show-error --location --max-time 20             --output /tmp/nexus-crm-public.html --write-out '%{http_code}' "$SITE")"
+          echo "Public CRM landing page HTTP: $CODE"
+          test "$CODE" = "200"
+          grep -q "Nexus CRM" /tmp/nexus-crm-public.html
+
+          CODE="$(curl --silent --show-error --max-time 20             -X POST -H 'Origin: https://falso.example.org'             -H 'Content-Type: application/json'             --data-binary '{}' --output /tmp/crm-wrong-origin.json             --write-out '%{http_code}' "$URL")"
+          echo "Unauthorized origin HTTP: $CODE"
+          test "$CODE" = "403"
+          grep -q 'Origem não autorizada' /tmp/crm-wrong-origin.json
+
+          CODE="$(curl --silent --show-error --max-time 20             -X POST -H 'Origin: https://crm.nexuscore.app.br'             -H 'Content-Type: text/plain'             --data-binary 'invalid' --output /tmp/crm-invalid-type.json             --write-out '%{http_code}' "$URL")"
+          echo "Invalid content type HTTP: $CODE"
+          test "$CODE" = "415"
+
+          CODE="$(curl --silent --show-error --max-time 20             -X POST -H 'Origin: https://crm.nexuscore.app.br'             -H 'Content-Type: application/json'             --data-binary '{}' --output /tmp/crm-invalid-fields.json             --write-out '%{http_code}' "$URL")"
+          echo "Missing lead details HTTP: $CODE"
+          test "$CODE" = "422"
+
+          echo 'PASS: Official page online; unauthorized, non-JSON and incomplete requests blocked. No lead or payment submitted.'
