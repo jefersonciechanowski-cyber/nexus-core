@@ -1,0 +1,41 @@
+name: Nexus institutional live test (synthetic / one-time)
+
+on:
+  push:
+    branches: [test/nexus-institutional-live-e2e-20261120]
+    paths:
+      - tests/nexus-institutional-live-e2e.cjs
+      - .github/workflows/nexus-institutional-live-e2e.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live_nexus_tracking:
+    name: Consent, visit and CTA through real browser (production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install isolated browser-driver test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/nexus-smoke
+          cp tests/nexus-institutional-live-e2e.cjs /tmp/nexus-smoke/test.cjs
+          npm install --prefix /tmp/nexus-smoke --no-audit --no-fund --no-save playwright-core@1.56.1
+          google-chrome --version
+      - name: Read-only public page plus real Chrome consent and event POST test
+        run: node /tmp/nexus-smoke/test.cjs
+      - name: Reject events from unauthorized website origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          CODE="$(curl --silent --show-error --max-time 15 --output /tmp/nexus-rejected-origin.json --write-out '%{http_code}' \
+            -X POST -H 'Origin: https://invalido.example.org' -H 'Content-Type: application/json' \
+            -d '{"site_id":"15dd3a2e-422f-440b-b074-c4b7c8f2a489","session_id":"fbf9f93f-3819-468a-8f13-e3d65d9125fd","event_id":"6dd3e46f-f9bf-4d79-a5bd-9b08b821c574","event_type":"page_view","page_path":"/"}' \
+            'https://crm.nexuscore.app.br/api/public/site-events')"
+          echo "Unauthorized origin HTTP status: $CODE"
+          test "$CODE" = "403"
+          echo 'PASS: unauthorized domain was rejected; no private actions or leads'
