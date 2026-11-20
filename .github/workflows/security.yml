@@ -44,6 +44,9 @@ jobs:
       - name: Validate Nexus Admin pilot tier, stable sidebar and CSP navigation
         run: node --test tests/nexus-admin-pilot-plan-ux.test.mjs
 
+      - name: Verify institutional Nexus tracking stays consent-only and revocable
+        run: node --test tests/nexus-institutional-consent.test.mjs
+
       - name: Validate unified Nexus site and direct CRM ad destination (no payments)
         run: node --test tests/nexus-ecosystem-landing.test.mjs
 
