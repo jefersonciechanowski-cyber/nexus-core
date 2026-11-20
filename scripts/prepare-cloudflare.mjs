@@ -85,6 +85,7 @@ await Promise.all([
   copyOptionalFile('index.html'),
   copyOptionalFile('privacidade.html'),
   copyOptionalFile('site.css'),
+  copyOptionalFile('whatsapp-contact.js'),
   copyOptionalFile('404.html'),
   copyOptionalFile('.nojekyll'),
   copyOptionalFile('_headers'),
