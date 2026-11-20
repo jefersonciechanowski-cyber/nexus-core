@@ -6,6 +6,7 @@ on:
     paths:
       - index.html
       - site.css
+      - whatsapp-contact.js
       - crm/**
       - apps/site-captacao/index.html
       - sst-controle/**
@@ -37,14 +38,20 @@ jobs:
             CONSENT="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-consent.js --write-out '%{http_code}' "${ORIGIN}/crm/nexus-consent.js" || true)"
             TRACKER="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-tracker.js --write-out '%{http_code}' "${ORIGIN}/crm/nexus-tracker.js" || true)"
             PRIVACY="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-privacy.html --write-out '%{http_code}' "${ORIGIN}/privacidade.html" || true)"
-            echo "HTTP: home=${HOME} crmAlias=${CRM} redirectJs=${SCRIPT} originalCrm=${ORIGINAL} sst=${SST} consent=${CONSENT} tracker=${TRACKER} privacy=${PRIVACY}"
-            if [[ "${HOME}" == "200" && "${CRM}" == "200" && "${SCRIPT}" == "200" && "${ORIGINAL}" == "200" && "${SST}" == "200" && "${CONSENT}" == "200" && "${TRACKER}" == "200" && "${PRIVACY}" == "200" ]] &&
+            WHATSAPP="$(curl --silent --show-error --location --max-time 14 --output /tmp/nexus-whatsapp.js --write-out '%{http_code}' "${ORIGIN}/whatsapp-contact.js" || true)"
+            echo "HTTP: home=${HOME} crmAlias=${CRM} redirectJs=${SCRIPT} originalCrm=${ORIGINAL} sst=${SST} consent=${CONSENT} tracker=${TRACKER} privacy=${PRIVACY} whatsapp=${WHATSAPP}"
+            if [[ "${HOME}" == "200" && "${CRM}" == "200" && "${SCRIPT}" == "200" && "${ORIGINAL}" == "200" && "${SST}" == "200" && "${CONSENT}" == "200" && "${TRACKER}" == "200" && "${PRIVACY}" == "200" && "${WHATSAPP}" == "200" ]] &&
                grep -q 'Nexus Core Industrial Trust' /tmp/nexus-home.html &&
                grep -q 'data-nexus-site="15dd3a2e-422f-440b-b074-c4b7c8f2a489"' /tmp/nexus-home.html &&
                grep -q 'src="/crm/nexus-consent.js"' /tmp/nexus-home.html &&
                grep -q 'nexus:institutional:analytics-consent:v1' /tmp/nexus-consent.js &&
                grep -q 'data-nexus-api' /tmp/nexus-tracker.js &&
                grep -q 'Privacidade no site institucional' /tmp/nexus-privacy.html &&
+               grep -q 'width:56px;height:56px' /tmp/nexus-whatsapp.js &&
+               grep -q 'width:52px;height:52px' /tmp/nexus-whatsapp.js &&
+               grep -q 'new MutationObserver(avoidConsentOverlap)' /tmp/nexus-whatsapp.js &&
+               grep -q 'class="nexus-whatsapp-contact-icon"' /tmp/nexus-whatsapp.js &&
+               ! grep -q '<span>WhatsApp</span>' /tmp/nexus-whatsapp.js &&
                grep -q 'href="https://crm.nexuscore.app.br/site-captacao"' /tmp/nexus-home.html &&
                grep -q 'src="/crm/redirect.js"' /tmp/nexus-crm.html &&
                grep -q 'new URL(.*crm.nexuscore.app.br/site-captacao' /tmp/nexus-crm-redirect.js &&
@@ -60,4 +67,4 @@ jobs:
             echo "::error::Nexus CRM approved original capture not yet reachable from official marketing routes."
             exit 1
           fi
-          echo 'PASS: Nexus institutional tracking + consent + privacy and CRM/SST public routes are live. Zero lead/payment writes.'
+          echo 'PASS: Nexus WhatsApp icon-only CTA + consent and CRM/SST public routes are live. Zero lead/payment writes.'
