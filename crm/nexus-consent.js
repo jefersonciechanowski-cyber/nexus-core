@@ -36,7 +36,7 @@
         window.dispatchEvent(new Event("nexus:consent-revoked"));
       }
       closeNotice();
-      if (preferences) preferences.setAttribute("aria-label", "Revisar escolha de métricas do site");
+      if (preferences) preferences.setAttribute("aria-label", "Revisar preferências de cookies e privacidade");
     }
 
     function showNotice() {
@@ -44,18 +44,18 @@
       notice = document.createElement("aside");
       notice.className = "nexus-consent";
       notice.setAttribute("role", "region");
-      notice.setAttribute("aria-label", "Preferências de privacidade");
+      notice.setAttribute("aria-label", "Cookies e privacidade");
       notice.innerHTML = `
         <div class="nexus-consent-body">
           <div>
-            <strong>Privacidade e experiência</strong>
-            <p>Podemos medir velocidade, páginas visitadas e cliques para melhorar o site.
-              Não coletamos o que você digita nos formulários pela tag.
+            <strong>Cookies e privacidade</strong>
+            <p>Usamos tecnologias semelhantes a cookies para entender como o site é utilizado
+              e melhorar sua experiência. A medição só começa com sua autorização.
               <a href="/privacidade.html">Saiba mais</a>.</p>
           </div>
           <div class="nexus-consent-actions">
-            <button type="button" class="nexus-consent-reject">Agora não</button>
-            <button type="button" class="nexus-consent-allow">Permitir métricas</button>
+            <button type="button" class="nexus-consent-reject">Recusar</button>
+            <button type="button" class="nexus-consent-allow">Aceitar cookies</button>
           </div>
         </div>`;
       notice.querySelector(".nexus-consent-allow").addEventListener("click", () => updateChoice(true));
