@@ -1,10 +1,10 @@
 (() => {
   "use strict";
 
-  // Public commercial contact. Leave blank until the team confirms its official
+  // Public commercial contact. Configured after the owner confirmed the official
   // WhatsApp Business number (Brazilian country code + DDD + number).
   // Never fall back to a private user's phone or to an unrelated CRM channel.
-  const officialSalesPhone = "";
+  const officialSalesPhone = "5546999089058";
   const phone = officialSalesPhone.replace(/\D/g, "");
   if (!/^55\d{10,11}$/.test(phone)) return;
 
@@ -37,7 +37,7 @@
     link.setAttribute("aria-label", context === "sst"
       ? "Falar com a equipe do SST Controle pelo WhatsApp"
       : "Falar com a Nexus Core pelo WhatsApp");
-    link.innerHTML = '<span class="nexus-whatsapp-contact-icon" aria-hidden="true">✆</span><span>WhatsApp</span>';
+    link.innerHTML = '<span class="nexus-whatsapp-contact-icon" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5a9.5 9.5 0 0 0-8.2 14.3L3 21l4.3-1.2A9.5 9.5 0 1 0 12 2.5Z"/><path d="m8.5 7.8 1.4-.8 1.3 2.7-1.1 1c.8 1.5 2.1 2.7 3.6 3.3l.9-1.1 2.7 1.3-.8 1.5c-1.4 1.7-4.7.1-6.8-2-2.4-2.4-3.2-4.7-1.2-5.9Z"/></svg></span><span>WhatsApp</span>';
     document.body.appendChild(link);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount, { once: true });
