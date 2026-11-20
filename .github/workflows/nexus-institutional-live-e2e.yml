@@ -13,7 +13,7 @@ permissions:
 jobs:
   api_diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
       - name: Check UUID and event parsing against production with 12 safe synthetic requests
         shell: bash
@@ -52,3 +52,24 @@ jobs:
           print('SUMMARY',json.dumps({'requests':12,'failures':fails},ensure_ascii=False),flush=True)
           if fails: raise SystemExit('Production API intermittently rejected locally validated event payloads.')
           PY
+
+      - uses: actions/checkout@v4
+      - name: Install lightweight browser driver and use runner Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/nexus-smoke
+          cp tests/nexus-institutional-live-e2e.cjs /tmp/nexus-smoke/test.cjs
+          npm install --prefix /tmp/nexus-smoke --no-audit --no-fund --no-save playwright-core@1.56.1
+          google-chrome --version
+      - name: Validate real Chrome consent, website click attribution and privacy
+        run: timeout 80s node /tmp/nexus-smoke/test.cjs
+      - name: Verify another domain cannot send traffic to this site
+        shell: bash
+        run: |
+          CODE="$(curl --silent --show-error --max-time 15 --output /tmp/nexus-rejected-origin.json --write-out '%{http_code}' \
+            -X POST -H 'Origin: https://invalido.example.org' -H 'Content-Type: application/json' \
+            -d '{"site_id":"15dd3a2e-422f-440b-b074-c4b7c8f2a489","session_id":"fbf9f93f-3819-468a-8f13-e3d65d9125fd","event_id":"6dd3e46f-f9bf-4d79-a5bd-9b08b821c574","event_type":"page_view","page_path":"/"}' \
+            'https://crm.nexuscore.app.br/api/public/site-events')"
+          test "$CODE" = "403"
+          echo 'PASS: foreign domain blocked (403), no lead or billing operations'
