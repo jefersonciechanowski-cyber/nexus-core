@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm';
 const source = readFileSync(new URL('../apps/sst-controle/supabase-auth.js', import.meta.url), 'utf8');
 
 function makeContext({ authError = null, authThrows = false, profileError = null,
-  entitlementError = null, active = true, entitlementActive = true } = {}) {
+  entitlementError = null, loginError = null, active = true, entitlementActive = true } = {}) {
   const saved = { userId: 'user-1', organizationId: 'org-1', role: 'org_admin', provider: 'supabase' };
   const storage = new Map([['nexus_demo_session', JSON.stringify(saved)]]);
   const listeners = {};
@@ -32,6 +32,9 @@ function makeContext({ authError = null, authThrows = false, profileError = null
   };
   const client = {
     auth: {
+      async signInWithPassword() {
+        return { data: { user: null }, error: loginError ?? { status: 400, code: 'invalid_credentials', message: 'Invalid login credentials' } };
+      },
       async getUser() {
         if (authThrows) throw new TypeError('Failed to fetch');
         return authError
@@ -132,4 +135,28 @@ test('Valid session still restores the authenticated company context', async () 
   assert.equal(session.role, 'org_admin');
   assert.equal(session.organizationId, 'org-1');
   assert.equal(JSON.parse(ctx.storage.get('nexus_demo_session')).userId, 'user-1');
+});
+
+test('Password login preserves Supabase HTTP 429 as a temporary cooldown', async () => {
+  const ctx = makeContext({ loginError: { status: 429, code: 'over_request_rate_limit', message: 'Rate limit exceeded' } });
+  await assert.rejects(ctx.auth.login('test@example.com', 'wrong-password'), (error) => {
+    assert.equal(error.code, 'NEXUS_TEMPORARY_AUTH_FAILURE');
+    assert.match(error.message, /Muitas tentativas de entrada/);
+    assert.doesNotMatch(error.message, /senha inválidos/);
+    return true;
+  });
+});
+
+test('Password login treats temporary Supabase failure as outage, not bad password', async () => {
+  const ctx = makeContext({ loginError: { status: 503, message: 'Temporarily unavailable' } });
+  await assert.rejects(ctx.auth.login('test@example.com', 'wrong-password'), (error) => {
+    assert.equal(error.code, 'NEXUS_TEMPORARY_AUTH_FAILURE');
+    assert.match(error.message, /temporariamente indisponível/);
+    return true;
+  });
+});
+
+test('Real invalid credentials retain generic non-enumerating message', async () => {
+  const ctx = makeContext({ loginError: { status: 400, code: 'invalid_credentials', message: 'Invalid login credentials' } });
+  await assert.rejects(ctx.auth.login('test@example.com', 'wrong-password'), /E-mail ou senha inválidos/);
 });

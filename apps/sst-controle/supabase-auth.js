@@ -141,6 +141,12 @@
         options: { captchaToken }
       });
       if (error || !data.user) {
+        if (Number(error?.status) === 429 || error?.code === 'over_request_rate_limit') {
+          throw temporaryAuthFailure('Muitas tentativas de entrada. Aguarde antes de tentar novamente.', error);
+        }
+        if (error && isTemporaryAuthFailure(error)) {
+          throw temporaryAuthFailure('O serviço de acesso está temporariamente indisponível. Tente novamente em instantes.', error);
+        }
         const captchaError = `${error?.code || ''} ${error?.message || ''}`.toLowerCase().includes('captcha');
         throw new Error(captchaError
           ? 'A verificação de segurança expirou ou não foi aceita. Tente novamente.'
