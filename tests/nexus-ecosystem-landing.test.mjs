@@ -65,7 +65,7 @@ test('Responsible disclosure file is deployed with static assets',()=>{
   const security=read('.well-known/security.txt');
   assert.match(security,/Contact: mailto:suporte@nexuscore\.app\.br/);
   assert.match(security,/Canonical: https:\/\/nexuscore\.app\.br\/\.well-known\/security\.txt/);
-  assert.ok(build.includes("' .well-known'".trim()), 'Cloudflare package must include .well-known');
+  assert.ok(build.includes("'.well-known'"), 'Cloudflare package must include .well-known');
   assert.ok(build.includes("'.txt'"), 'Cloudflare package must support text files');
 });
 
