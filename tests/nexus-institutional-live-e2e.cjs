@@ -54,7 +54,8 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
       const payload = view.request().postDataJSON();
       console.error("PAGE_VIEW_RESPONSE_DEBUG", JSON.stringify({
         status: view.status(),
-        message: await view.text(),
+        bodyReadable: "not-attempted",
+        contentType: view.headers()?.["content-type"],
         payload: {
           event_type: payload?.event_type,
           site_id: payload?.site_id,
@@ -85,7 +86,8 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
     if (cta.status() !== 202) {
       console.error("CTA_RESPONSE_DEBUG", JSON.stringify({
         status: cta.status(),
-        message: await cta.text(),
+        bodyReadable: "not-attempted",
+        contentType: cta.headers()?.["content-type"],
         event: cta.request().postDataJSON()?.event_type,
         site: cta.request().postDataJSON()?.site_id,
         session: cta.request().postDataJSON()?.session_id,
@@ -107,7 +109,8 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
         console.error("REPEATED_CTA_FAILURE", JSON.stringify({
           attempt,
           status: response.status(),
-          message: await response.text(),
+          bodyReadable: "not-attempted",
+          contentType: response.headers()?.["content-type"],
           event: response.request().postDataJSON()?.event_type,
         }));
       }
