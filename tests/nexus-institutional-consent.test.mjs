@@ -29,7 +29,7 @@ function browser(initialConsent = null, gpc = false) {
         remove(){this.removed=true;},
         querySelector(sel) {
           if (!children.has(sel)) children.set(sel,{
-            addEventListener(name, fn){ this[name]=fn; },
+            addEventListener(name, fn){ this[name+"Handler"]=fn; },
             click(){this.clickHandler?.();},
           });
           return children.get(sel);
