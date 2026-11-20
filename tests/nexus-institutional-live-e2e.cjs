@@ -78,6 +78,23 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
     assert.equal(ctaPayload.utm_campaign, campaign);
     console.log("PASS: product CTA identified and recorded (HTTP 202)");
 
+    // Repeat three times to catch intermittent API rejection during live production load.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const nextClick = page.waitForResponse(matchEvent("cta_click"), { timeout: 25000 });
+      await page.locator('a[data-nexus-action="nexus_crm_public_site"]').first().dispatchEvent("click");
+      const response = await nextClick;
+      if (response.status() !== 202) {
+        console.error("REPEATED_CTA_FAILURE", JSON.stringify({
+          attempt,
+          status: response.status(),
+          message: await response.text(),
+          event: response.request().postDataJSON()?.event_type,
+        }));
+      }
+      assert.equal(response.status(), 202, "repeated CTA should be reliably accepted");
+    }
+    console.log("PASS: four successive product CTA events accepted by production");
+
     const whatsappButton = page.locator("a.nexus-whatsapp-contact");
     await whatsappButton.waitFor({ timeout: 18000 });
     const whatsappResponse = page.waitForResponse(matchEvent("whatsapp_click"), { timeout: 25000 });
