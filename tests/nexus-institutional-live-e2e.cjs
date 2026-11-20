@@ -49,7 +49,27 @@ const endpoint = "https://crm.nexuscore.app.br/api/public/site-events";
 
     const viewResponse = page.waitForResponse(matchEvent("page_view"), { timeout: 25000 });
     await page.locator(".nexus-consent-allow").click();
-    assert.equal((await viewResponse).status(), 202, "page view must reach CRM API after consent");
+    const view = await viewResponse;
+    if (view.status() !== 202) {
+      const payload = view.request().postDataJSON();
+      console.error("PAGE_VIEW_RESPONSE_DEBUG", JSON.stringify({
+        status: view.status(),
+        message: await view.text(),
+        payload: {
+          event_type: payload?.event_type,
+          site_id: payload?.site_id,
+          session_id: payload?.session_id,
+          event_id: payload?.event_id,
+          page_path: payload?.page_path,
+          device_type: payload?.device_type,
+          utm_source: payload?.utm_source,
+          utm_campaign: payload?.utm_campaign,
+          metric_name: payload?.metric_name,
+        },
+        contentType: view.headers()?.["content-type"],
+      }));
+    }
+    assert.equal(view.status(), 202, "page view must reach CRM API after consent");
     assert.equal(await page.evaluate(() => window.NexusTracking?.getSessionId?.()), testSession);
     console.log("PASS: opt-in creates recorded Nexus page_view (HTTP 202)");
 
