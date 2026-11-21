@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/central-real-restore-drill.yml'
       - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-integrity-safe-diagnostics.py'
       - 'scripts/central-restore-security-fingerprint.sql'
       - 'scripts/central-restore-sequence-acl.sql'
       - 'scripts/central-security-category-diagnostics.py'
