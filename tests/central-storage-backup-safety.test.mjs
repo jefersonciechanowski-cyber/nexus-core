@@ -69,6 +69,7 @@ test('private backup verifies exact object bytes and metadata; corruption fails 
     writeFileSync(join(dir,'storage','blobs',blob), Buffer.from('altered data same format'));
     result = check();
     assert.equal(result.status, 1, 'tampering must fail');
+    assert.match(result.stdout, /storage_failure_phase=restore_bytes/);
     assert.ok(!result.stdout.includes(name));
     writeFileSync(join(dir,'storage','blobs',blob), content);
     writeFileSync(restored,JSON.stringify({...inventory,objects:[{...metadata,bytes:content.length+1}]}));
