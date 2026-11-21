@@ -13,12 +13,18 @@ from pathlib import Path
 import sys
 import urllib.parse
 import urllib.request
+import urllib.error
 
 BUCKET = "sst-documents"
 FUNCTION = "https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-central-storage-backup"
 MAX_FILES = 1000
 MAX_BYTES = 256 * 1024 * 1024
 MAX_FILE = 64 * 1024 * 1024
+PHASE = "initialization"
+
+def phase(value):
+    global PHASE
+    PHASE = value
 
 def valid_path(value):
     return isinstance(value, str) and 0 < len(value) <= 800 and all(
@@ -69,6 +75,7 @@ def blob_key(name):
     return hashlib.sha256((BUCKET + "\0" + name).encode("utf-8")).hexdigest()
 
 def export(inventory, folder):
+    phase("inventory")
     objects, total = load_inventory(inventory)
     base = Path(folder)
     blobs = base / "blobs"
@@ -79,10 +86,13 @@ def export(inventory, folder):
         key = blob_key(name)
         target = blobs / key
         body = json.dumps({"bucket": BUCKET, "name": name}).encode("utf-8")
+        phase("github_oidc")
+        token = oidc_token()
         request = urllib.request.Request(FUNCTION, method="POST", data=body, headers={
-            "Authorization": "Bearer " + oidc_token(),
+            "Authorization": "Bearer " + token,
             "Content-Type": "application/json", "Accept": "application/octet-stream"
         })
+        phase("storage_download")
         with urllib.request.urlopen(request, timeout=45) as response:
             if response.status != 200:
                 raise ValueError("Storage download rejected")
@@ -97,6 +107,7 @@ def export(inventory, folder):
                         raise ValueError("Storage bytes exceed metadata")
                     stream.write(chunk)
                     digest.update(chunk)
+        phase("storage_bytes")
         if size != meta["bytes"]:
             raise ValueError("Storage size changed during backup")
         manifest["objects"].append({
@@ -106,16 +117,19 @@ def export(inventory, folder):
             "blob": key,
             "sha256": digest.hexdigest()
         })
+    phase("manifest")
     (base / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     print("PASS: private Storage object bytes downloaded and hashed without public links")
     print("storage_objects=" + str(len(objects)))
     print("storage_total_bytes=" + str(total))
 
 def verify(source_inventory, restored_inventory, folder):
+    phase("restore_inventory")
     original, original_bytes = load_inventory(source_inventory)
     restored, restored_bytes = load_inventory(restored_inventory)
     if original != restored or original_bytes != restored_bytes:
         raise ValueError("Storage metadata differs in restored PostgreSQL")
+    phase("restore_manifest")
     base = Path(folder)
     data = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
     if not isinstance(data, dict) or data.get("version") != 1 or data.get("bucket") != BUCKET or (
@@ -123,6 +137,7 @@ def verify(source_inventory, restored_inventory, folder):
         or len(data["objects"]) != len(original)
     ):
         raise ValueError("invalid stored Storage manifest")
+    phase("restore_bytes")
     expected_blobs = set()
     for metadata, entry in zip(original, data["objects"]):
         if not isinstance(entry, dict) or any(entry.get(k) != metadata.get(k) for k in ("name", "bytes", "updated_at")):
@@ -156,9 +171,15 @@ def main():
             verify(sys.argv[2], sys.argv[3], sys.argv[4])
         else:
             raise ValueError("invalid command")
-    except Exception:
-        # Never include filenames, HTTP bodies, paths, tokens or object contents in logs.
+    except Exception as error:
+        # Fixed safe vocabulary only. No object names, URL, SQL, token or HTTP response body.
+        allowed = {"initialization", "inventory", "github_oidc", "storage_download",
+                   "storage_bytes", "manifest", "restore_inventory",
+                   "restore_manifest", "restore_bytes"}
         print("FAIL: private Storage backup or validation failed; details suppressed")
+        print("storage_failure_phase=" + (PHASE if PHASE in allowed else "unknown"))
+        if isinstance(error, urllib.error.HTTPError):
+            print("storage_http_status=" + str(error.code if 400 <= error.code < 600 else 0))
         raise SystemExit(1)
 
 if __name__ == "__main__":
