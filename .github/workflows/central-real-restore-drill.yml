@@ -1,0 +1,149 @@
+name: Central real backup restore drill (GitHub only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-real-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore_real_central:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CENTRAL_SOURCE_DATABASE_URL: ${{ secrets.CENTRAL_SOURCE_DATABASE_URL }}
+    steps:
+      - name: Checkout reviewed SQL only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Restore actual Central logical snapshot in network-isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          test -n "${CENTRAL_SOURCE_DATABASE_URL:-}" || { echo 'BLOCKED: CENTRAL_SOURCE_DATABASE_URL secret is not configured'; exit 1; }
+
+          work="$(mktemp -d)"
+          name="central-real-restore-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker rm -f "$name" >/dev/null 2>&1 || true
+            rm -rf "$work"
+          }
+          trap cleanup EXIT
+
+          # Parse the secret locally without printing or passing a URI as a process argument.
+          python3 - "$work/pg.env" <<'PY'
+          import os, sys, shlex
+          from urllib.parse import urlsplit, unquote
+          u = urlsplit(os.environ['CENTRAL_SOURCE_DATABASE_URL'])
+          project = 'svphwbccqeoakpmcpvhy'
+          host = (u.hostname or '').lower()
+          user = unquote(u.username or '')
+          if u.scheme not in ('postgres', 'postgresql') or not u.password:
+              raise SystemExit('BLOCKED: invalid secret format')
+          if host != f'db.{project}.supabase.co' and not (
+              host.endswith('.pooler.supabase.com') and project in user
+          ):
+              raise SystemExit('BLOCKED: source is not the approved Central Supabase project')
+          fields = {
+              'PGHOST': host, 'PGPORT': str(u.port or 5432),
+              'PGUSER': user, 'PGPASSWORD': unquote(u.password),
+              'PGDATABASE': unquote(u.path.lstrip('/')),
+              'PGSSLMODE': 'require',
+              'PGOPTIONS': '-c default_transaction_read_only=on',
+          }
+          if not fields['PGDATABASE']:
+              raise SystemExit('BLOCKED: database name is missing')
+          with open(sys.argv[1], 'w', encoding='utf-8') as fp:
+              for k, v in fields.items():
+                  fp.write('export ' + k + '=' + shlex.quote(v) + '\n')
+          PY
+          source "$work/pg.env"
+          unset CENTRAL_SOURCE_DATABASE_URL
+
+          # Source access uses read-only pg_dump and SELECT statements.
+          # Credentials are forwarded through environment variable names, not CLI arguments.
+          source_pg=(--env PGHOST --env PGPORT --env PGUSER --env PGPASSWORD
+                     --env PGDATABASE --env PGSSLMODE --env PGOPTIONS)
+          source_sql() {
+            docker run --rm "${source_pg[@]}" -v "$PWD/scripts:/sql:ro" postgres:17 \
+              psql -X -A -t -q -v ON_ERROR_STOP=1 -f "/sql/$1"
+          }
+          started="$(date +%s)"
+          security_before="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
+          [[ "$security_before" =~ ^[0-9a-f]{32}$ ]] || { echo 'FAIL: missing source security digest'; exit 1; }
+          source_sql central-restore-integrity.sql > "$work/source-integrity.csv"
+
+          docker run --rm "${source_pg[@]}" -v "$work:/backup" postgres:17 \
+            pg_dump --format=custom --schema=public --schema=auth --schema=storage \
+            --file=/backup/central.dump
+          test -s "$work/central.dump"
+          head -c 5 "$work/central.dump" | grep -aq '^PGDMP$' || { echo 'FAIL: invalid pg_dump header'; exit 1; }
+
+          security_after="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
+          [[ "$security_after" == "$security_before" ]] || { echo 'FAIL: source security changed during snapshot'; exit 1; }
+          source_sql central-restore-integrity.sql > "$work/source-integrity-after.csv"
+          cmp -s "$work/source-integrity.csv" "$work/source-integrity-after.csv" || {
+            echo 'FAIL: source operational aggregates changed during snapshot'; exit 1;
+          }
+
+          # No network, host port or external integrations are available in the target.
+          docker run -d --rm --network none --name "$name" \
+            -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=central_restore postgres:17 >/dev/null
+          [[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$name")" == none ]] || exit 1
+          for i in $(seq 1 90); do
+            if docker exec "$name" psql -U postgres -d central_restore -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec "$name" psql -U postgres -d central_restore -Atqc 'SELECT 1' | grep -qx 1
+
+          # Match the Supabase-owned object role names without granting elevated privileges.
+          for role in anon authenticated authenticator service_role supabase_auth_admin \
+                      supabase_storage_admin supabase_admin dashboard_user \
+                      supabase_read_only_user supabase_realtime_admin supabase_replication_admin; do
+            docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+              -c "CREATE ROLE $role NOLOGIN" >/dev/null
+          done
+          docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+            -c 'DROP SCHEMA IF EXISTS public CASCADE' >/dev/null
+          docker cp "$work/central.dump" "$name:/tmp/central.dump"
+          # Never print pg_restore SQL or raw backup bytes in Actions logs.
+          if ! docker exec "$name" pg_restore -U postgres -d central_restore \
+            --single-transaction --exit-on-error /tmp/central.dump > "$work/restore.log" 2>&1; then
+            echo 'FAIL: offline pg_restore failed; raw diagnostics suppressed'
+            exit 1
+          fi
+          docker cp scripts/central-restore-security-fingerprint.sql "$name:/tmp/security.sql"
+          docker cp scripts/central-restore-integrity.sql "$name:/tmp/integrity.sql"
+          security_restored="$(docker exec "$name" psql -U postgres -d central_restore \
+            -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/security.sql | tr -d '\r\n')"
+          [[ "$security_restored" == "$security_before" ]] || {
+            echo 'FAIL: owners, grants, functions or RLS security fingerprint differs'; exit 1;
+          }
+          docker exec "$name" psql -U postgres -d central_restore \
+            -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/integrity.sql > "$work/target-integrity.csv"
+          cmp -s "$work/source-integrity.csv" "$work/target-integrity.csv" || {
+            echo 'FAIL: counts, relationships or access states differ'; exit 1;
+          }
+          if awk -F'|' '$1=="link_integrity" && $3+0>0 {bad=1} END {exit !bad}' "$work/target-integrity.csv"; then
+            echo 'FAIL: broken relationships detected'; exit 1
+          fi
+          elapsed="$(($(date +%s) - started))"
+          metrics="$(grep -c '|' "$work/target-integrity.csv" || true)"
+          digest="$(sha256sum "$work/central.dump" | cut -d' ' -f1)"
+          echo "PASS: isolated real Central dump restored; fingerprint and aggregate integrity match"
+          echo "metrics_checked=$metrics"
+          echo "archive_sha256=$digest"
+          echo "lab_elapsed_seconds=$elapsed"
+          echo "target_network=none"
+          echo "source=central_supabase_read_only"
+          echo "limitations=no functional login/billing checks; Storage object bytes and external secrets not restored; not disaster RTO/RPO"
