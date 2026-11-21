@@ -196,12 +196,13 @@ jobs:
           fi
           docker exec "$name" psql -U postgres -d central_restore \
             -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/integrity.sql > "$work/target-integrity.csv"
-          cmp -s "$work/source-integrity.csv" "$work/target-integrity.csv" || {
+          if ! python3 scripts/central-integrity-safe-diagnostics.py verify \
+              "$work/source-integrity.csv" "$work/target-integrity.csv"; then
             python3 scripts/central-integrity-safe-diagnostics.py \
               "$work/source-integrity.csv" "$work/target-integrity.csv"
             echo 'FAIL: counts, relationships or access states differ'
             exit 1
-          }
+          fi
           if awk -F'|' '$1=="link_integrity" && $3+0>0 {bad=1} END {exit !bad}' "$work/target-integrity.csv"; then
             echo 'FAIL: broken relationships detected'; exit 1
           fi
