@@ -19,6 +19,11 @@ if ([string]::IsNullOrWhiteSpace($SourceDbUrl)) {
 $uri = $null
 try { $uri = [uri]$SourceDbUrl } catch { throw 'Invalid database URI.' }
 if ($uri.Scheme -notin @('postgresql', 'postgres')) { throw 'Expected a PostgreSQL connection URI.' }
+if ($SyntheticFixture) {
+  if ($uri.Host -ne 'host.docker.internal' -or $uri.AbsolutePath -ne '/central_source') {
+    throw 'SyntheticFixture requires the disposable local test database.'
+  }
+}
 if (-not $SyntheticFixture) {
   $expected = 'db.svphwbccqeoakpmcpvhy.supabase.co'
   if (($uri.Host -ne $expected) -and (-not $uri.Host.EndsWith('.pooler.supabase.com'))) {
@@ -29,7 +34,25 @@ if (-not $SyntheticFixture) {
   }
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker Desktop/Engine is required.' }
-$env:CENTRAL_SOURCE_DATABASE_URL = $SourceDbUrl
+# Keep the password out of OS process arguments. libpq resolves PG* environment
+# fields and performs TLS; the source containers are short lived.
+$oldPgVars = @{}
+foreach ($varName in @('PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGOPTIONS')) {
+  $oldPgVars[$varName] = [Environment]::GetEnvironmentVariable($varName, 'Process')
+}
+$userParts = $uri.UserInfo.Split(':', 2)
+if ($userParts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($userParts[0])) {
+  throw 'Database URI must contain user and password.'
+}
+$env:PGHOST = $uri.Host
+$env:PGPORT = if ($uri.Port -gt 0) { [string]$uri.Port } else { '5432' }
+$env:PGUSER = [uri]::UnescapeDataString($userParts[0])
+$env:PGPASSWORD = [uri]::UnescapeDataString($userParts[1])
+$env:PGDATABASE = [uri]::UnescapeDataString($uri.AbsolutePath.TrimStart('/'))
+$env:PGSSLMODE = if ($SyntheticFixture) { 'disable' } else { 'require' }
+$env:PGOPTIONS = '-c default_transaction_read_only=on'
+$sourceConnectionEnv = @('--env','PGHOST','--env','PGPORT','--env','PGUSER',
+  '--env','PGPASSWORD','--env','PGDATABASE','--env','PGSSLMODE','--env','PGOPTIONS')
 $folder = Join-Path ([System.IO.Path]::GetTempPath()) ('central-recovery-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder -Force | Out-Null
 $archive = Join-Path $folder 'central-native-logical.dump'
@@ -53,6 +76,9 @@ SELECT md5(jsonb_build_object(
   'auth_users', (SELECT count(*) FROM auth.users)
 )::text)::text;
 '@
+$securityFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'central-restore-security-fingerprint.sql'
+if (-not (Test-Path -LiteralPath $securityFile)) { throw 'Missing security fingerprint SQL.' }
+$securitySql = Get-Content -LiteralPath $securityFile -Raw
 function Run-Docker([string[]]$Argv) {
   $result = & docker @Argv 2>&1
   if ($LASTEXITCODE -ne 0) {
@@ -62,13 +88,13 @@ function Run-Docker([string[]]$Argv) {
   return ($result | Out-String).Trim()
 }
 function Source-Query([string]$Query) {
-  return (Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL',$PostgresImage,
-    'sh','-c','exec psql "$CENTRAL_SOURCE_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
+  $argv = @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway') + $sourceConnectionEnv +
+    @($PostgresImage,'sh','-c','exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query)
+  return (Run-Docker -Argv $argv)
 }
 function Target-Query([string]$Query) {
   return (Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
-    '-X','-A','-t','-v','ON_ERROR_STOP=1','-c',$Query))
+    '-X','-A','-t','-q','-v','ON_ERROR_STOP=1','-c',$Query))
 }
 
 try {
@@ -77,15 +103,18 @@ try {
   $stage = 'read-only source snapshot'
   $sourceBefore = (Source-Query $compareSql).Trim()
   if ($sourceBefore -notmatch '^[0-9a-f]{32}$') { throw 'Source comparison did not produce an aggregate digest.' }
+  $stage = 'read-only source grants, owners and RLS fingerprint'
+  $securityBefore = (Source-Query $securitySql).Trim()
+  if ($securityBefore -notmatch '^[0-9a-f]{32}$') { throw 'Source security fingerprint is unavailable.' }
   $capturedAt = [DateTimeOffset]::UtcNow
 
   # pg_dump is READ ONLY on source. Docker receives the URL as an environment
   # variable, NEVER as a literal command argument or process log.
   $stage = 'read-only custom-format database dump'
-  Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL','--volume',($folder + ':/backup'),
-    $PostgresImage,'sh','-c',
-    'exec pg_dump --dbname="$CENTRAL_SOURCE_DATABASE_URL" --format=custom --no-owner --no-privileges --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
+  $dumpArgv = @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway') + $sourceConnectionEnv +
+    @('--volume',($folder + ':/backup'),$PostgresImage,'sh','-c',
+      'exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump')
+  Run-Docker -Argv $dumpArgv | Out-Null
 
   if (-not (Test-Path -LiteralPath $archive)) { throw 'No dump was generated.' }
   $fs = [IO.File]::OpenRead($archive)
@@ -101,6 +130,9 @@ try {
   if ($sourceAfter -ne $sourceBefore) {
     throw 'Source changed while backup was taken; cannot certify equality to this aggregate checkpoint.'
   }
+  $stage = 'source security stability'
+  $securityAfter = (Source-Query $securitySql).Trim()
+  if ($securityAfter -ne $securityBefore) { throw 'Source GRANTs, owners, RLS or functions changed during dump.' }
 
   $stage = 'offline restore container startup'
   Run-Docker -Argv @('run','--rm','--detach','--network','none','--name',$restoreName,
@@ -134,12 +166,48 @@ try {
 
   $stage = 'offline pg_restore'
   Run-Docker -Argv @('exec',$restoreName,'pg_restore','--dbname=central_restore','--username=postgres',
-    '--no-owner','--no-privileges','--single-transaction','--exit-on-error',
+    '--single-transaction','--exit-on-error',
     '/tmp/central-native-logical.dump') | Out-Null
 
   $stage = 'offline count and permission integrity check'
   $restoredDigest = (Target-Query $compareSql).Trim()
   if ($restoredDigest -ne $sourceBefore) { throw 'Operational counts, roles or finance state differ in the recovered copy.' }
+  $stage = 'offline owner ACL RLS and security definer verification'
+  if ($SyntheticFixture -and $env:CENTRAL_DR_TEST_REVOKE_ACL -eq '1') {
+    # Negative test: prove that a single missing GRANT makes the procedure fail.
+    Target-Query 'REVOKE SELECT ON public.organizations FROM authenticated;' | Out-Null
+  }
+  $restoredSecurity = (Target-Query $securitySql).Trim()
+  if ($restoredSecurity -ne $securityBefore) {
+    if ($SyntheticFixture) {
+      # Synthetic-only diagnostics: compare categories without printing any SQL
+      # definition or data. Never execute this branch on the real database.
+      $partsSql = $securitySql.Replace('SELECT md5(jsonb_build_object(', 'SELECT jsonb_build_object(').Replace(')::text) AS security_digest;', ')::text AS security_parts;')
+      $beforeParts = (Source-Query $partsSql | ConvertFrom-Json)
+      $afterParts = (Target-Query $partsSql | ConvertFrom-Json)
+      $failedClasses = @()
+      foreach ($category in @('objects','table_grants','policies','functions','function_grants','schema_owners','schema_grants')) {
+        if (($beforeParts.$category | ConvertTo-Json -Depth 70 -Compress) -ne ($afterParts.$category | ConvertTo-Json -Depth 70 -Compress)) {
+          $failedClasses += $category
+        }
+      }
+      [Console]::Error.WriteLine('Synthetic-only mismatched security categories: ' + ($failedClasses -join ', '))
+    }
+    throw 'Restored privileges or owners differ from source: SQL GRANTs, RLS, or SECURITY DEFINER context.'
+  }
+  if ($SyntheticFixture) {
+    $stage = 'cross-tenant RLS denial test'
+    foreach ($tenant in @(
+      '00000000-0000-0000-0000-000000000021',
+      '00000000-0000-0000-0000-000000000022'
+    )) {
+      $sql = "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.organization_id = '$tenant'; SELECT count(*) FROM public.organizations; ROLLBACK;"
+      $visible = (Target-Query $sql).Trim()
+      if ($visible -ne '1') { throw 'Synthetic cross-tenant RLS test failed.' }
+    }
+    $none = (Target-Query "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.organization_id = '00000000-0000-0000-0000-000000000099'; SELECT count(*) FROM public.organizations; ROLLBACK;").Trim()
+    if ($none -ne '0') { throw 'Synthetic organization access leaked across tenants.' }
+  }
   $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
   $integritySql = Join-Path $scriptDir 'central-restore-integrity.sql'
   if (-not (Test-Path -LiteralPath $integritySql)) { throw 'Missing reviewed integrity verification script.' }
@@ -161,6 +229,8 @@ try {
     backup_bytes = (Get-Item -LiteralPath $archive).Length
     backup_sha256 = $checksum
     output_digest_match = ($restoredDigest -eq $sourceBefore)
+    security_digest_match = ($restoredSecurity -eq $securityBefore)
+    tenant_isolation_probe = if ($SyntheticFixture) { 'passed' } else { 'not_tested' }
     checked_integrity_metrics = $entries.Count
     broken_relationships = $badLinks.Count
     recovery_lab_seconds = [math]::Round($restoreStarted.Elapsed.TotalSeconds,2)
@@ -168,13 +238,16 @@ try {
     isolated_network_mode = $network
     external_notifications_and_charges = 0
     stored_backup = [bool]$KeepBackup
-    excludes = 'Storage object bytes, SMTP/provider secrets, production DNS/Edge, real login and billing effects'
+    excludes = 'Storage object bytes, SMTP/provider secrets, production DNS/Edge, cluster role attributes, real login and billing effects'
   }
   # Do not print actual database contents or credential-bearing URLs.
   $summary | ConvertTo-Json -Depth 4
   if ($KeepBackup) { Write-Warning 'Sensitive backup retained locally; store only in an encrypted private location.' }
 } finally {
   $env:CENTRAL_SOURCE_DATABASE_URL = $oldSource
+  foreach ($varName in $oldPgVars.Keys) {
+    [Environment]::SetEnvironmentVariable($varName, $oldPgVars[$varName], 'Process')
+  }
   & docker rm -f $restoreName 2>$null | Out-Null
   if (-not $KeepBackup) {
     if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Force -Recurse -ErrorAction SilentlyContinue }

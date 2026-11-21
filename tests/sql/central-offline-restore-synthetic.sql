@@ -1,10 +1,18 @@
 -- Synthetic-only fixture: no production data or private identifiers.
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE supabase_auth_admin NOLOGIN;
+CREATE ROLE supabase_storage_admin NOLOGIN;
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS storage;
+ALTER SCHEMA auth OWNER TO supabase_auth_admin;
+ALTER SCHEMA storage OWNER TO supabase_storage_admin;
 CREATE TABLE auth.users (
  id uuid PRIMARY KEY,
  email text
 );
+ALTER TABLE auth.users OWNER TO supabase_auth_admin;
+CREATE TABLE storage.synthetic_object (id uuid PRIMARY KEY);
+ALTER TABLE storage.synthetic_object OWNER TO supabase_storage_admin;
 CREATE TABLE public.organizations (
  id uuid PRIMARY KEY,
  status text NOT NULL
@@ -92,4 +100,15 @@ INSERT INTO public.nexus_payment_checkouts(id) VALUES
 INSERT INTO public.nexus_payments(id,access_id,status) VALUES
 ('00000000-0000-0000-0000-000000000071','00000000-0000-0000-0000-000000000051','CONFIRMED');
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY synthetic_logged_in_only ON public.organizations FOR SELECT TO PUBLIC USING (true);
+CREATE POLICY synthetic_tenant_scope ON public.organizations
+  FOR SELECT TO authenticated
+  USING (id = nullif(current_setting('request.jwt.claim.organization_id', true), '')::uuid);
+-- Production's public schema has no implicit PUBLIC usage.
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT ON public.organizations TO authenticated;
+-- Privileged function ownership and EXECUTE grants must survive the restore.
+CREATE FUNCTION public.synthetic_owner_context()
+  RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
+  AS $$ SELECT current_user::text $$;
+GRANT EXECUTE ON FUNCTION public.synthetic_owner_context() TO authenticated;
