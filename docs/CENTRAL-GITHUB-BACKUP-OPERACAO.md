@@ -44,3 +44,16 @@ Numa restauração **offline**, aplique o dump ao banco descartável e depois ap
 
 Este fluxo testa a geração de uma cópia corrente e a recuperação de seus componentes no mesmo ensaio; um desastre real ainda exige recuperar o artefato armazenado, decifrar, restaurar sem depender da origem e validar dependências externas/RTO/RPO.
 
+
+
+## Ensaio independente de recuperação do artefato armazenado (GitHub)
+
+O workflow `.github/workflows/central-stored-artifact-restore.yml` roda depois de um backup **real bem-sucedido**, pode ser acionado manualmente e tem agendamento semanal. Ele baixa o pacote criptografado já guardado no GitHub, confere SHA-256, decifra em diretório temporário do runner, verifica os cinco arquivos esperados, restaura em PostgreSQL 17 sem rede, reaplica as ACLs explícitas das sequências e compara as assinaturas de segurança/integração com as que foram salvas no pacote. Exige também uma negativa de RLS para um usuário fictício sem vínculo.
+
+O ensaio de armazenamento não recebe `CENTRAL_SOURCE_DATABASE_URL`: valida de forma independente a capacidade de restaurar os dados salvos **sem conexão à Central original**. Ele depende apenas da senha de criptografia guardada no GitHub e da disponibilidade do artefato, que expira após 30 dias. Os logs incluem somente tempos, status e resultados agregados.
+
+### Limites e exigências de desastre real
+
+Esse ensaio não demonstra restauração integral do Supabase como serviço: Storage (bytes), SMTP, DNS, provedores de Auth, Edge Functions, segredos externos e outras dependências exigem plano e validação próprios. A duração do ensaio não é automaticamente o RTO num incidente, e a idade do snapshot não comprova por si só o RPO contratado. Precisamos validar o uso real de autenticação multiempresa e faturamento em ambiente seguro e manter cópias externas para evitar dependência exclusiva do GitHub.
+
+Sem resultado `PASS` do ensaio independente, **não homologar** a restauração de artefato armazenado.
