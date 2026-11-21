@@ -18,7 +18,7 @@ concurrency:
 jobs:
   mobile_and_desktop_no_real_write:
     name: Real Chrome mobile/desktop, simulated CRM receipt, intercepted WhatsApp
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - name: Checkout reviewed source (no persistent credentials)
