@@ -39,7 +39,7 @@ jobs:
         run: node --test tests/sst-auth-session-continuity.test.mjs
 
       - name: Verify isolated Central restore checker safeguards (no real backups)
-        run: node --test tests/central-restore-readiness.test.mjs tests/central-github-backup-safety.test.mjs tests/central-restore-failure-classifier.test.mjs tests/central-security-category-diagnostics.test.mjs tests/central-integrity-safe-diagnostics.test.mjs
+        run: node --test tests/central-restore-readiness.test.mjs tests/central-github-backup-safety.test.mjs tests/central-restore-failure-classifier.test.mjs tests/central-security-category-diagnostics.test.mjs tests/central-integrity-safe-diagnostics.test.mjs tests/central-stored-artifact-safety.test.mjs
 
       - name: Verify CRM auth monitoring synthetic thresholds and no personal-data output
         run: node --test tests/crm-auth-alert-synthetic.test.mjs
