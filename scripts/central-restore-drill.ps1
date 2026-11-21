@@ -55,7 +55,10 @@ SELECT md5(jsonb_build_object(
 '@
 function Run-Docker([string[]]$Argv) {
   $result = & docker @Argv 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "Docker failed during [$stage], exit code $LASTEXITCODE. No private output will be logged." }
+  if ($LASTEXITCODE -ne 0) {
+    if ($SyntheticFixture) { throw ("Synthetic fixture diagnostic in [$stage]: " + ($result | Out-String).Trim()) }
+    throw "Docker failed during [$stage], exit code $LASTEXITCODE. No private output will be logged."
+  }
   return ($result | Out-String).Trim()
 }
 function Source-Query([string]$Query) {
