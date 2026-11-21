@@ -222,6 +222,10 @@ jobs:
           # No plaintext customer data is uploaded or exposed in GitHub Actions logs.
           printf '%s' "$CENTRAL_BACKUP_ENCRYPTION_PASSWORD" > "$work/.gpg-passphrase"
           chmod 600 "$work/.gpg-passphrase"
+          # Keep the PostgreSQL secret only in a non-exported shell variable
+          # while fetching Storage files. Restore it for ONE final read-only SQL
+          # inventory query; the Python exporter never receives DB credentials.
+          central_pgpass="$PGPASSWORD"
           unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD PGPASSWORD
           # Obtain all private Storage object bytes using GitHub's short-lived
           # OIDC credential, verified by a bucket-scoped Supabase Edge Function.
@@ -230,7 +234,8 @@ jobs:
           python3 scripts/central-storage-backup.py export \
             "$work/source-storage-inventory.json" "$work/recovery-package/storage"
           # Fail if files changed during retrieval; do not publish a mixed snapshot.
-          source_sql central-storage-inventory.sql > "$work/source-storage-after.json"
+          PGPASSWORD="$central_pgpass" source_sql central-storage-inventory.sql > "$work/source-storage-after.json"
+          unset central_pgpass
           cmp -s "$work/source-storage-inventory.json" "$work/source-storage-after.json" || {
             echo 'FAIL: private Storage metadata changed during encrypted snapshot'
             exit 1
