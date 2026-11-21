@@ -95,7 +95,7 @@ jobs:
           source_sql central-restore-integrity.sql > "$work/source-integrity.csv"
 
           docker run --rm "${source_pg[@]}" -v "$work:/backup" postgres:17 \
-            pg_dump --format=custom --schema=public --schema=auth --schema=storage \
+            pg_dump --format=custom --schema=public --schema=auth --schema=storage --schema=private \
             --file=/backup/central.dump
           test -s "$work/central.dump"
           head -c 5 "$work/central.dump" | grep -aq '^PGDMP$' || { echo 'FAIL: invalid pg_dump header'; exit 1; }
