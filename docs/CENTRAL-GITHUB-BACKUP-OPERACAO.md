@@ -26,7 +26,7 @@ Se não souber a senha do banco, **não redefinir de imediato**. Primeiro verifi
 - Execução real com sucesso após configurar credenciais; registrar link do workflow, data, checksum de *ciphertext*, duração medida e idade do snapshot.
 - Provar que funções privilegiadas, proprietários, ACLs, RLS e dados operacionais têm a mesma assinatura na restauração.
 - Verificação funcional de autorização entre empresas **sem conectar a restauração a integrações externas**.
-- Documentar RTO/RPO reais e o plano para bytes de Storage, Edge Functions, DNS, Auth e provedores externos, que não estão cobertos pelo backup lógico atual.
+- Documentar RTO/RPO reais e o plano de reupload para um novo serviço Storage, além de Edge Functions, DNS, Auth e provedores externos; os bytes dos arquivos já estão no pacote cifrado, mas a aplicação completa ainda não foi reconstruída.
 - Confirmar que um administrador autorizado consegue **obter e decifrar** o artefato sem expor segredo ou dados a terceiros.
 
 **Política de aprovação:** não contar este critério como homologado por existir um workflow, pela passagem da CI sintética ou por ter gerado um arquivo criptografado; deve haver evidência de restauração completa e validação funcional.
@@ -38,7 +38,7 @@ O procedimento histórico local consta de `docs/CENTRAL-OFFLINE-RESTORE-DRILL-20
 
 ## Integridade do pacote lógico
 
-O artefato GPG AES-256 validado contém um pacote `tar.gz` com dois arquivos inseparáveis: `central.dump` (dump PostgreSQL 17) e `sequence-acl.sql` (manifesto com as permissões **explícitas** de sequências `public` que o dump nativo pode não reproduzir integralmente). Ambos são derivados da origem somente-leitura e cifrados juntos.
+O artefato GPG AES-256 validado contém um pacote `tar.gz` que reúne: `central.dump`, `sequence-acl.sql`, `source-integrity.csv`, `security-digest.txt`, `captured-utc.txt`, `source-storage-inventory.json` e a pasta `storage/` com manifesto privado e bytes criptografados dos objetos. Tudo é derivado da origem somente leitura e cifrado num único pacote; o repositório não recebe documentos em claro.
 
 Numa restauração **offline**, aplique o dump ao banco descartável e depois aplique o manifesto de ACL somente nesse ambiente antes de comparar os fingerprints de segurança. O GitHub Actions faz essa verificação e só publica o pacote cifrado após a aprovação. Não execute o manifesto em produção; não divulgue seu conteúdo ou arquivos decifrados.
 
@@ -48,12 +48,25 @@ Este fluxo testa a geração de uma cópia corrente e a recuperação de seus co
 
 ## Ensaio independente de recuperação do artefato armazenado (GitHub)
 
-O workflow `.github/workflows/central-stored-artifact-restore.yml` roda depois de um backup **real bem-sucedido**, pode ser acionado manualmente e tem agendamento semanal. Ele baixa o pacote criptografado já guardado no GitHub, confere SHA-256, decifra em diretório temporário do runner, verifica os cinco arquivos esperados, restaura em PostgreSQL 17 sem rede, reaplica as ACLs explícitas das sequências e compara as assinaturas de segurança/integração com as que foram salvas no pacote. Exige também uma negativa de RLS para um usuário fictício sem vínculo.
+O workflow `.github/workflows/central-stored-artifact-restore.yml` roda depois de um backup **real bem-sucedido**, pode ser acionado manualmente e tem agendamento semanal. Ele baixa o pacote criptografado já guardado no GitHub, confere SHA-256, decifra em diretório temporário do runner, aceita exclusivamente os membros esperados do pacote, restaura em PostgreSQL 17 sem rede, reaplica ACLs das sequências e valida segurança e métricas. Reconstrói cada objeto privado do Storage e compara SHA-256, quantidade, tamanho e metadados com o banco restaurado, sem conexão com a Central original. Exige negativa RLS para um usuário fictício sem vínculo e prova funcional de um org-admin real no banco isolado.
 
 O ensaio de armazenamento não recebe `CENTRAL_SOURCE_DATABASE_URL`: valida de forma independente a capacidade de restaurar os dados salvos **sem conexão à Central original**. Ele depende apenas da senha de criptografia guardada no GitHub e da disponibilidade do artefato, que expira após 30 dias. Os logs incluem somente tempos, status e resultados agregados.
 
 ### Limites e exigências de desastre real
 
-Esse ensaio não demonstra restauração integral do Supabase como serviço: Storage (bytes), SMTP, DNS, provedores de Auth, Edge Functions, segredos externos e outras dependências exigem plano e validação próprios. A duração do ensaio não é automaticamente o RTO num incidente, e a idade do snapshot não comprova por si só o RPO contratado. Precisamos validar o uso real de autenticação multiempresa e faturamento em ambiente seguro e manter cópias externas para evitar dependência exclusiva do GitHub.
+Esse ensaio **já demonstra a recuperação dos bytes privados do Storage** no ambiente isolado (ver execuções 44924143771 e 44924319356), mas não a reimportação via API num novo serviço Storage Supabase. SMTP, DNS, provedores de Auth, Edge Functions, segredos externos e outras dependências exigem plano e validação próprios. A duração do ensaio não é automaticamente o RTO num incidente, e a idade do snapshot não comprova por si só o RPO contratado. Precisamos validar o uso real de autenticação multiempresa e faturamento em ambiente seguro e manter cópias externas para evitar dependência exclusiva do GitHub.
 
 Sem resultado `PASS` do ensaio independente, **não homologar** a restauração de artefato armazenado.
+
+
+### Fluxo confirmado em 21/11/2026
+
+**Backup real aprovado:** https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924143771
+
+**Recuperação independente aprovada:** https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924319356
+
+Total de 3 arquivos privados, 2.378.927 bytes, incluídos no mesmo pacote AES-256 do banco e reconstruídos sem consultar a origem. A recuperação de laboratório durou 13 segundos; não confundir com RTO de incidente. A cópia armazenada no Actions expira em 21/12/2026.
+
+A função `nexus-central-storage-backup` foi implantada na Central com verificação JWT **na própria função**, usando tokens OIDC assinados do GitHub; sua configuração `verify_jwt=false` na camada de gateway é intencional somente porque o emissor dos tokens não é o Supabase. Qualquer outra implantação deve manter a verificação criptográfica RS256, o repositório/ID imutável, a branch e o workflow autorizados. Ela permite apenas GET de um bucket, não gera links públicos, não oferece operações de escrita e nunca requer guardar uma chave `service_role` no GitHub.
+
+**Importante:** a senha de criptografia protegida por GitHub Actions deve também existir em cofre autorizado e recuperável fora do GitHub. Sem um meio independente de recuperar a senha e o arquivo cifrado, o sistema não garante continuidade durante uma indisponibilidade ou perda de acesso ao GitHub.
