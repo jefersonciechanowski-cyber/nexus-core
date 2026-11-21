@@ -43,3 +43,14 @@
 Inspeção adicional de `apps/nexus-admin/pilot.js`: a função `enforceAdminMfaSession()` é chamada antes de montar o formulário de piloto. Ela exige `nexus_admin`, verifica `client.auth.mfa.getAuthenticatorAssuranceLevel()` com `currentLevel === 'aal2'`, confirmação TOTP recente e marcador local, usando limite de 7.200 segundos (2 horas). Se falhar, faz logout local e retorna ao login. **Evidência positiva de defesa na UI; não prova autorização no backend ou em todos os outros fluxos.** A coluna MFA da matriz anterior diz respeito apenas aos arquivos inicialmente examinados.
 
 O último comentário do Cloudflare no PR #239 confirmou outro build com erro para commit `665eff85`. A tentativa de abrir o endereço de preview externamente também não obteve resposta útil. A causa exata ainda requer logs; não modificar build/deploy em produção sem diagnosticar.
+
+## Decisão de produto aprovada — Nexus AI V1 (21/11/2026)
+
+- Preservar visual futurístico da Central Nexus com esfera luminosa e animações **leves**, preferencialmente CSS, sem chamadas de IA durante animação ociosa; respeitar `prefers-reduced-motion` e desempenho mobile.
+- **Primeira entrega funcional:** chat **por texto** utilizando um modelo da NVIDIA via backend, somente após revisão de segurança, validação das condições de uso comercial e aprovação dos custos.
+- **Voz:** fase posterior, condicionada à medição do uso, custo, latência e valor gerado.
+- **Controle financeiro obrigatório:** registrar consumo por agente/modelo, teto mensal configurável, alertas, bloqueio de novas chamadas ao alcançar o limite e sem fallback oneroso inesperado. Definir valor do teto antes de habilitar API real.
+- O protótipo atual permanece demonstrativo, sem API real nem acesso a dados de clientes; nada de integração direta da chave no frontend.
+- **Responsabilidades:** NVIDIA para consulta e respostas no Nexus AI; ChatGPT/desenvolvimento com execução apenas em fluxos autorizados, sem escrita autônoma na V1.
+
+**Status:** decisão funcional registrada; implementação e homologação dessas regras ainda pendentes. Não publicar em produção apenas por esta aprovação de escopo.
