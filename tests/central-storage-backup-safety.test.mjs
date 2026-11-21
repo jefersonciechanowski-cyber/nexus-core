@@ -22,6 +22,9 @@ test('bucket-scoped GitHub OIDC verifies signature, audience, source workflow an
     'claims.exp', 'sst-documents', 'request.method !== "POST"',
     'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")', 'return deny(401)',
   ]) assert.ok(edge.includes(part), 'OIDC gate missing: '+part);
+  assert.ok(edge.includes('claims.repository_id === REPO_ID'), 'signed immutable repository ID must match');
+  assert.ok(edge.includes('claims.workflow_ref === WORKFLOW_REF'), 'signed workflow source must match');
+  assert.ok(edge.includes('claims.ref === REF'), 'signed branch must match');
   assert.ok(edge.includes('method: "GET"'), 'Storage access must be read-only GET');
   assert.ok(edge.includes('central_storage_oidc_denied='), 'safe OIDC rejection category must be logged');
   assert.doesNotMatch(edge, /console\\.(?:log|warn|error)\\([^)]*(?:token|claims|secret|key)\\s*\\)/);
