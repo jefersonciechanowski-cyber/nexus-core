@@ -19,7 +19,7 @@ test('stored artifact is checked, decrypted privately and restored with strict s
   for(const required of [
     /gh run download/, /sha256sum -c/, /gpg --batch --yes/,
     /security-digest\.txt/, /source-integrity\.csv/, /sequence-acl\.sql/,
-    /tarfile\.open/, /getmembers\(\)/, /not m\.isfile\(\)/,
+    /tarfile\.open/, /getmembers\(\)/, /m\.isfile\(\)/,
     /pg_restore -U postgres -d central_restore --single-transaction --exit-on-error/,
     /central-integrity-safe-diagnostics\.py verify/,
     /SET LOCAL ROLE authenticated/, /request\.jwt\.claim\.sub/,
@@ -29,9 +29,11 @@ test('stored artifact is checked, decrypted privately and restored with strict s
 });
 test('produced encrypted package embeds independent source digests and checkpoint time', () => {
   for(const name of ['central.dump', 'sequence-acl.sql', 'source-integrity.csv',
-    'security-digest.txt', 'captured-utc.txt']) {
+    'security-digest.txt', 'captured-utc.txt', 'source-storage-inventory.json']) {
     assert.ok(producer.includes(name), 'missing bundle member ' + name);
   }
+  assert.match(producer, /central-storage-backup\.py export/);
+  assert.match(producer, /source-storage-inventory\.json storage/);
   assert.match(producer, /tar -czf/);
   assert.match(producer, /AES256 --symmetric/);
 });
