@@ -35,3 +35,20 @@ test('produced encrypted package embeds independent source digests and checkpoin
   assert.match(producer, /tar -czf/);
   assert.match(producer, /AES256 --symmetric/);
 });
+
+test('cold recovery exercises real org-admin RLS and payment tenant links without writes', () => {
+  const sql = readFileSync(new URL('../scripts/central-restore-functional-acceptance.sql', import.meta.url), 'utf8');
+  assert.match(workflow, /central-restore-functional-acceptance\.sql/);
+  assert.match(workflow, /PASS: restored actual organization-admin RLS/);
+  assert.match(sql, /BEGIN TRANSACTION READ ONLY/);
+  assert.match(sql, /SET LOCAL ROLE authenticated/);
+  assert.match(sql, /request\.jwt\.claim\.sub/);
+  assert.match(sql, /role::text = 'org_admin'/);
+  assert.match(sql, /visible_foreign <> 0/);
+  assert.match(sql, /nexus_payments/);
+  assert.match(sql, /nexus_payment_checkouts/);
+  assert.match(sql, /organization_product_access/);
+  assert.match(sql, /ROLLBACK/);
+  // No data modifications or secret values are permitted in this test script.
+  assert.doesNotMatch(sql, /^\s*(INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE|GRANT|REVOKE|CALL)\s/mi);
+});
