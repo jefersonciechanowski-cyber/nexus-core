@@ -136,6 +136,17 @@ jobs:
           fi
           [ "$(tr -d '\r\n' < "$work/rls-probe.txt")" = '0' ] || { echo 'FAIL: isolated negative tenant RLS probe leaked organizations'; exit 1; }
 
+          # Functional checks only on the offline, network-disconnected restored DB.
+          # Test one real org-admin in authenticated role and compare billing links.
+          # Outputs and errors remain private in runner temp; no user IDs in logs.
+          docker cp scripts/central-restore-functional-acceptance.sql "$name:/tmp/functional-acceptance.sql" >/dev/null
+          if ! docker exec "$name" psql -U postgres -d central_restore -X -q -v ON_ERROR_STOP=1 \
+            -f /tmp/functional-acceptance.sql > "$work/functional.log" 2>&1; then
+            echo 'FAIL: isolated organization-admin RLS or billing-link acceptance test failed'
+            exit 1
+          fi
+          echo 'PASS: restored actual organization-admin RLS and read-only billing-link checks'
+
           python3 - "$work/recovered/captured-utc.txt" <<'PY'
           from datetime import datetime, timezone
           from pathlib import Path
@@ -155,4 +166,4 @@ jobs:
           echo "isolated_negative_tenant_probe=passed"
           echo "recovery_lab_seconds=$(($(date +%s)-started))"
           echo 'external_notifications_and_charges=0'
-          echo 'limitations=no external Auth login, billing effect, Storage bytes or disaster RTO/RPO certification'
+          echo 'limitations=no external Auth login, live payments, Storage bytes or disaster RTO/RPO certification'
