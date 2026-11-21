@@ -19,6 +19,11 @@ if ([string]::IsNullOrWhiteSpace($SourceDbUrl)) {
 $uri = $null
 try { $uri = [uri]$SourceDbUrl } catch { throw 'Invalid database URI.' }
 if ($uri.Scheme -notin @('postgresql', 'postgres')) { throw 'Expected a PostgreSQL connection URI.' }
+if ($SyntheticFixture) {
+  if ($uri.Host -ne 'host.docker.internal' -or $uri.AbsolutePath -ne '/central_source') {
+    throw 'SyntheticFixture requires the disposable local test database.'
+  }
+}
 if (-not $SyntheticFixture) {
   $expected = 'db.svphwbccqeoakpmcpvhy.supabase.co'
   if (($uri.Host -ne $expected) -and (-not $uri.Host.EndsWith('.pooler.supabase.com'))) {
@@ -53,6 +58,9 @@ SELECT md5(jsonb_build_object(
   'auth_users', (SELECT count(*) FROM auth.users)
 )::text)::text;
 '@
+$securityFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'central-restore-security-fingerprint.sql'
+if (-not (Test-Path -LiteralPath $securityFile)) { throw 'Missing security fingerprint SQL.' }
+$securitySql = Get-Content -LiteralPath $securityFile -Raw
 function Run-Docker([string[]]$Argv) {
   $result = & docker @Argv 2>&1
   if ($LASTEXITCODE -ne 0) {
@@ -63,12 +71,12 @@ function Run-Docker([string[]]$Argv) {
 }
 function Source-Query([string]$Query) {
   return (Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL',$PostgresImage,
-    'sh','-c','exec psql "$CENTRAL_SOURCE_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
+    '--env','CENTRAL_SOURCE_DATABASE_URL','--env','PGOPTIONS=-c default_transaction_read_only=on',$PostgresImage,
+    'sh','-c','export PGDATABASE="$CENTRAL_SOURCE_DATABASE_URL"; unset CENTRAL_SOURCE_DATABASE_URL; exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
 }
 function Target-Query([string]$Query) {
   return (Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
-    '-X','-A','-t','-v','ON_ERROR_STOP=1','-c',$Query))
+    '-X','-A','-t','-q','-v','ON_ERROR_STOP=1','-c',$Query))
 }
 
 try {
@@ -83,9 +91,9 @@ try {
   # variable, NEVER as a literal command argument or process log.
   $stage = 'read-only custom-format database dump'
   Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL','--volume',($folder + ':/backup'),
+    '--env','CENTRAL_SOURCE_DATABASE_URL','--env','PGOPTIONS=-c default_transaction_read_only=on','--volume',($folder + ':/backup'),
     $PostgresImage,'sh','-c',
-    'exec pg_dump --dbname="$CENTRAL_SOURCE_DATABASE_URL" --format=custom --no-owner --no-privileges --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
+    'export PGDATABASE="$CENTRAL_SOURCE_DATABASE_URL"; unset CENTRAL_SOURCE_DATABASE_URL; exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
 
   if (-not (Test-Path -LiteralPath $archive)) { throw 'No dump was generated.' }
   $fs = [IO.File]::OpenRead($archive)
@@ -134,7 +142,7 @@ try {
 
   $stage = 'offline pg_restore'
   Run-Docker -Argv @('exec',$restoreName,'pg_restore','--dbname=central_restore','--username=postgres',
-    '--no-owner','--no-privileges','--single-transaction','--exit-on-error',
+    '--single-transaction','--exit-on-error',
     '/tmp/central-native-logical.dump') | Out-Null
 
   $stage = 'offline count and permission integrity check'
