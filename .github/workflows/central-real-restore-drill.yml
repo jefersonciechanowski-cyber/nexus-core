@@ -1,0 +1,196 @@
+name: Central encrypted backup & isolated real restore (GitHub only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/central-real-restore-drill.yml'
+      - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-restore-security-fingerprint.sql'
+  schedule:
+    - cron: '30 7 * * *' # Daily 07:30 UTC; no local computer
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-backup-and-restore
+  cancel-in-progress: false
+
+jobs:
+  restore_real_central:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CENTRAL_SOURCE_DATABASE_URL: ${{ secrets.CENTRAL_SOURCE_DATABASE_URL }}
+      CENTRAL_BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.CENTRAL_BACKUP_ENCRYPTION_PASSWORD }}
+    steps:
+      - name: Checkout reviewed SQL only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Restore actual Central logical snapshot in network-isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          test -n "${CENTRAL_SOURCE_DATABASE_URL:-}" || { echo 'BLOCKED: CENTRAL_SOURCE_DATABASE_URL secret is not configured'; exit 1; }
+          test -n "${CENTRAL_BACKUP_ENCRYPTION_PASSWORD:-}" || { echo 'BLOCKED: CENTRAL_BACKUP_ENCRYPTION_PASSWORD secret is not configured'; exit 1; }
+          test "${#CENTRAL_BACKUP_ENCRYPTION_PASSWORD}" -ge 24 || { echo 'BLOCKED: backup encryption secret does not meet the minimum length policy'; exit 1; }
+
+          work="$(mktemp -d)"
+          name="central-real-restore-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker rm -f "$name" >/dev/null 2>&1 || true
+            rm -rf "$work"
+          }
+          trap cleanup EXIT
+
+          # Parse the secret locally without printing or passing a URI as a process argument.
+          python3 - "$work/pg.env" <<'PY'
+          import os, sys, shlex
+          from urllib.parse import urlsplit, unquote
+          u = urlsplit(os.environ['CENTRAL_SOURCE_DATABASE_URL'])
+          project = 'svphwbccqeoakpmcpvhy'
+          host = (u.hostname or '').lower()
+          user = unquote(u.username or '')
+          if u.scheme not in ('postgres', 'postgresql') or not u.password:
+              raise SystemExit('BLOCKED: invalid secret format')
+          if host != f'db.{project}.supabase.co' and not (
+              host.endswith('.pooler.supabase.com') and project in user
+          ):
+              raise SystemExit('BLOCKED: source is not the approved Central Supabase project')
+          fields = {
+              'PGHOST': host, 'PGPORT': str(u.port or 5432),
+              'PGUSER': user, 'PGPASSWORD': unquote(u.password),
+              'PGDATABASE': unquote(u.path.lstrip('/')),
+              'PGSSLMODE': 'require',
+              'PGOPTIONS': '-c default_transaction_read_only=on',
+          }
+          if not fields['PGDATABASE']:
+              raise SystemExit('BLOCKED: database name is missing')
+          with open(sys.argv[1], 'w', encoding='utf-8') as fp:
+              for k, v in fields.items():
+                  fp.write('export ' + k + '=' + shlex.quote(v) + '\n')
+          PY
+          source "$work/pg.env"
+          unset CENTRAL_SOURCE_DATABASE_URL
+
+          # Source access uses read-only pg_dump and SELECT statements.
+          # Credentials are forwarded through environment variable names, not CLI arguments.
+          source_pg=(--env PGHOST --env PGPORT --env PGUSER --env PGPASSWORD
+                     --env PGDATABASE --env PGSSLMODE --env PGOPTIONS)
+          source_sql() {
+            docker run --rm "${source_pg[@]}" -v "$PWD/scripts:/sql:ro" postgres:17 \
+              psql -X -A -t -q -v ON_ERROR_STOP=1 -f "/sql/$1"
+          }
+          started="$(date +%s)"
+          mkdir -p "$RUNNER_TEMP/central-validated-encrypted-backup"
+          security_before="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
+          [[ "$security_before" =~ ^[0-9a-f]{32}$ ]] || { echo 'FAIL: missing source security digest'; exit 1; }
+          source_sql central-restore-integrity.sql > "$work/source-integrity.csv"
+
+          docker run --rm "${source_pg[@]}" -v "$work:/backup" postgres:17 \
+            pg_dump --format=custom --schema=public --schema=auth --schema=storage \
+            --file=/backup/central.dump
+          test -s "$work/central.dump"
+          head -c 5 "$work/central.dump" | grep -aq '^PGDMP$' || { echo 'FAIL: invalid pg_dump header'; exit 1; }
+
+          security_after="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
+          [[ "$security_after" == "$security_before" ]] || { echo 'FAIL: source security changed during snapshot'; exit 1; }
+          source_sql central-restore-integrity.sql > "$work/source-integrity-after.csv"
+          cmp -s "$work/source-integrity.csv" "$work/source-integrity-after.csv" || {
+            echo 'FAIL: source operational aggregates changed during snapshot'; exit 1;
+          }
+
+          # No network, host port or external integrations are available in the target.
+          docker run -d --rm --network none --name "$name" \
+            -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=central_restore postgres:17 >/dev/null
+          [[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$name")" == none ]] || exit 1
+          for i in $(seq 1 90); do
+            if docker exec "$name" psql -U postgres -d central_restore -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec "$name" psql -U postgres -d central_restore -Atqc 'SELECT 1' | grep -qx 1
+
+          # Match the Supabase-owned object role names without granting elevated privileges.
+          for role in anon authenticated authenticator service_role supabase_auth_admin \
+                      supabase_storage_admin supabase_admin dashboard_user \
+                      supabase_read_only_user supabase_realtime_admin supabase_replication_admin; do
+            docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+              -c "CREATE ROLE $role NOLOGIN" >/dev/null
+          done
+          docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+            -c 'DROP SCHEMA IF EXISTS public CASCADE' >/dev/null
+          # Source uses pgcrypto and uuid-ossp in extensions schema. Install
+          # compatible built-in PostgreSQL extensions in the disposable DB.
+          docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+            -c 'CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;' >/dev/null
+          docker cp "$work/central.dump" "$name:/tmp/central.dump"
+          # Never print pg_restore SQL or raw backup bytes in Actions logs.
+          if ! docker exec "$name" pg_restore -U postgres -d central_restore \
+            --single-transaction --exit-on-error /tmp/central.dump > "$work/restore.log" 2>&1; then
+            echo 'FAIL: offline pg_restore failed; raw diagnostics suppressed'
+            exit 1
+          fi
+          docker cp scripts/central-restore-security-fingerprint.sql "$name:/tmp/security.sql"
+          docker cp scripts/central-restore-integrity.sql "$name:/tmp/integrity.sql"
+          security_restored="$(docker exec "$name" psql -U postgres -d central_restore \
+            -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/security.sql | tr -d '\r\n')"
+          [[ "$security_restored" == "$security_before" ]] || {
+            echo 'FAIL: owners, grants, functions or RLS security fingerprint differs'; exit 1;
+          }
+          docker exec "$name" psql -U postgres -d central_restore \
+            -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/integrity.sql > "$work/target-integrity.csv"
+          cmp -s "$work/source-integrity.csv" "$work/target-integrity.csv" || {
+            echo 'FAIL: counts, relationships or access states differ'; exit 1;
+          }
+          if awk -F'|' '$1=="link_integrity" && $3+0>0 {bad=1} END {exit !bad}' "$work/target-integrity.csv"; then
+            echo 'FAIL: broken relationships detected'; exit 1
+          fi
+          elapsed="$(($(date +%s) - started))"
+          metrics="$(grep -c '|' "$work/target-integrity.csv" || true)"
+          digest="$(sha256sum "$work/central.dump" | cut -d' ' -f1)"
+          # Only AFTER real restore passed: encrypt the backup using a protected secret.
+          # No plaintext customer data is uploaded or exposed in GitHub Actions logs.
+          printf '%s' "$CENTRAL_BACKUP_ENCRYPTION_PASSWORD" > "$work/.gpg-passphrase"
+          chmod 600 "$work/.gpg-passphrase"
+          unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD PGPASSWORD
+          file="$RUNNER_TEMP/central-validated-encrypted-backup/central-verified-${GITHUB_RUN_ID}.dump.gpg"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
+            --cipher-algo AES256 --symmetric --output "$file" "$work/central.dump" >/dev/null 2>&1
+          test -s "$file"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
+            --decrypt --output /dev/null "$file" >/dev/null 2>&1 || {
+            echo 'FAIL: encrypted archive cannot be decrypted'
+            exit 1
+          }
+          ( cd "$RUNNER_TEMP/central-validated-encrypted-backup" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256" )
+          echo "PASS: isolated real Central dump restored; fingerprint and aggregate integrity match"
+          echo "metrics_checked=$metrics"
+          echo "archive_sha256=$digest"
+          echo "lab_elapsed_seconds=$elapsed"
+          echo "target_network=none"
+          echo "source=central_supabase_read_only"
+          echo "limitations=no functional login/billing checks; Storage object bytes and external secrets not restored; not disaster RTO/RPO"
+
+      - name: Store encrypted verified Central snapshot in GitHub
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: central-validated-encrypted-backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/central-validated-encrypted-backup/*.gpg
+            ${{ runner.temp }}/central-validated-encrypted-backup/*.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Remove encrypted files from runner workspace
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/central-validated-encrypted-backup"
