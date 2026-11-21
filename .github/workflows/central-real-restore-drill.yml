@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/central-real-restore-drill.yml'
       - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-storage-inventory.sql'
+      - 'scripts/central-storage-backup.py'
+      - 'supabase/functions/nexus-central-storage-backup/index.ts'
       - 'scripts/central-restore-functional-acceptance.sql'
       - 'scripts/central-integrity-safe-diagnostics.py'
       - 'scripts/central-restore-security-fingerprint.sql'
@@ -18,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # GitHub OIDC for bucket-scoped read, no new service-role secret
 
 concurrency:
   group: central-backup-and-restore
@@ -97,6 +101,7 @@ jobs:
           security_before="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
           [[ "$security_before" =~ ^[0-9a-f]{32}$ ]] || { echo 'FAIL: missing source security digest'; exit 1; }
           source_sql central-restore-integrity.sql > "$work/source-integrity.csv"
+          source_sql central-storage-inventory.sql > "$work/source-storage-inventory.json"
           # Capture source sequence ACLs as replayable SQL, never shown in Actions logs.
           source_sql central-restore-sequence-acl.sql > "$work/sequence-acl.sql"
           test -s "$work/sequence-acl.sql" || { echo 'FAIL: source sequence privilege manifest is empty'; exit 1; }
@@ -160,6 +165,7 @@ jobs:
           fi
           docker cp scripts/central-restore-security-fingerprint.sql "$name:/tmp/security.sql"
           docker cp scripts/central-restore-integrity.sql "$name:/tmp/integrity.sql"
+          docker cp scripts/central-storage-inventory.sql "$name:/tmp/storage-inventory.sql"
           security_restored="$(docker exec "$name" psql -U postgres -d central_restore \
             -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/security.sql | tr -d '\r\n')"
           if [[ "$security_restored" != "$security_before" ]]; then
@@ -217,16 +223,36 @@ jobs:
           printf '%s' "$CENTRAL_BACKUP_ENCRYPTION_PASSWORD" > "$work/.gpg-passphrase"
           chmod 600 "$work/.gpg-passphrase"
           unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD PGPASSWORD
+          # Obtain all private Storage object bytes using GitHub's short-lived
+          # OIDC credential, verified by a bucket-scoped Supabase Edge Function.
+          # Never create public Storage URLs or place a service-role key in GitHub.
+          mkdir -p "$work/recovery-package/storage"
+          python3 scripts/central-storage-backup.py export \
+            "$work/source-storage-inventory.json" "$work/recovery-package/storage"
+          # Fail if files changed during retrieval; do not publish a mixed snapshot.
+          source_sql central-storage-inventory.sql > "$work/source-storage-after.json"
+          cmp -s "$work/source-storage-inventory.json" "$work/source-storage-after.json" || {
+            echo 'FAIL: private Storage metadata changed during encrypted snapshot'
+            exit 1
+          }
+          docker exec "$name" psql -U postgres -d central_restore -X -A -t -q -v ON_ERROR_STOP=1 \
+            -f /tmp/storage-inventory.sql > "$work/restored-storage-inventory.json"
+          python3 scripts/central-storage-backup.py verify \
+            "$work/source-storage-inventory.json" "$work/restored-storage-inventory.json" \
+            "$work/recovery-package/storage"
+
           # A recoverable artifact must contain BOTH the native dump and the
           # exact sequence ACL replay script; package them together before encryption.
           mkdir -p "$work/recovery-package"
           cp "$work/central.dump" "$work/recovery-package/central.dump"
           cp "$work/sequence-acl.sql" "$work/recovery-package/sequence-acl.sql"
           cp "$work/source-integrity.csv" "$work/recovery-package/source-integrity.csv"
+          cp "$work/source-storage-inventory.json" "$work/recovery-package/source-storage-inventory.json"
           printf '%s\n' "$security_before" > "$work/recovery-package/security-digest.txt"
           printf '%s\n' "$snapshot_utc" > "$work/recovery-package/captured-utc.txt"
           tar -czf "$work/central-recovery-package.tar.gz" -C "$work/recovery-package" \
-            central.dump sequence-acl.sql source-integrity.csv security-digest.txt captured-utc.txt
+            central.dump sequence-acl.sql source-integrity.csv security-digest.txt captured-utc.txt \
+            source-storage-inventory.json storage
           file="$RUNNER_TEMP/central-validated-encrypted-backup/central-verified-${GITHUB_RUN_ID}.tar.gz.gpg"
           gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
             --cipher-algo AES256 --symmetric --output "$file" "$work/central-recovery-package.tar.gz" >/dev/null 2>&1
@@ -244,7 +270,7 @@ jobs:
           echo "lab_elapsed_seconds=$elapsed"
           echo "target_network=none"
           echo "source=central_supabase_read_only"
-          echo "limitations=no functional login/billing checks; Storage object bytes and external secrets not restored; not disaster RTO/RPO"
+          echo "limitations=external Auth login, live payment capture and other external secrets not restored; not service RTO/RPO"
 
       - name: Store encrypted verified Central snapshot in GitHub
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
