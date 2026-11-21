@@ -40,6 +40,8 @@ jobs:
 
       - name: Verify isolated Central restore checker safeguards (no real backups)
         run: node --test tests/central-restore-readiness.test.mjs tests/central-github-backup-safety.test.mjs tests/central-restore-failure-classifier.test.mjs tests/central-security-category-diagnostics.test.mjs tests/central-integrity-safe-diagnostics.test.mjs tests/central-stored-artifact-safety.test.mjs tests/central-backup-freshness.test.mjs tests/central-disabled-edge-archive.test.mjs tests/central-storage-backup-safety.test.mjs
+      - name: Verify temporary Storage API recovery safety (synthetic only)
+        run: python3 tests/central-storage-api-restore-safety.py
 
       - name: Verify CRM auth monitoring synthetic thresholds and no personal-data output
         run: node --test tests/crm-auth-alert-synthetic.test.mjs
