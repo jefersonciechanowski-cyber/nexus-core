@@ -46,3 +46,8 @@ test('never reveal arbitrary SQL identifiers as schema names', () => {
   const output = run('pg_restore: error: could not execute query: ERROR: schema "secret_customer_name" does not exist');
   assert.equal(output, 'restore_failure_class=missing_schema\nrestore_missing_schema_category=other_or_unspecified');
 });
+
+test('private internal schema is recognized without exposing SQL', () => {
+  const output = run('pg_restore: error: could not execute query: ERROR: schema "private" does not exist');
+  assert.equal(output, 'restore_failure_class=missing_schema\nrestore_missing_schema_category=private');
+});
