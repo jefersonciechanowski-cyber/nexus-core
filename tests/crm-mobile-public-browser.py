@@ -71,12 +71,12 @@ def scenario(browser, *, mobile):
         intercepted["accept"] = True
         if mobile:
             form.locator('button[type="submit"]').click()
-            page.wait_for_url(re.compile(r"^https://wa\\.me/"), timeout=20000)
+            page.wait_for_url(re.compile(r"^https://wa\.me/"), timeout=20000)
             assert len(context.pages) == 1, "Mobile created an unexpected second tab"
         else:
             with page.expect_popup(timeout=15000) as popup:
                 form.locator('button[type="submit"]').click()
-            popup.value.wait_for_url(re.compile(r"^https://wa\\.me/"), timeout=20000)
+            popup.value.wait_for_url(re.compile(r"^https://wa\.me/"), timeout=20000)
             assert page.url.startswith(URL), "Desktop unexpectedly lost its CRM form"
             expect(form.locator('[role="status"]')).to_contain_text("Solicitação recebida", timeout=15000)
 
