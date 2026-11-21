@@ -1,6 +1,19 @@
 /* Preview visual local: sem API, dados, credenciais, comandos ou armazenamento. */
 (function () {
   'use strict';
+  document.addEventListener('DOMContentLoaded', async function () {
+    try {
+      if (!window.NexusAuth?.restoreSession || !window.NexusAuth?.getClient) return;
+      const session = await window.NexusAuth.restoreSession();
+      if (session?.role !== 'nexus_admin') return;
+      const client = window.NexusAuth.getClient();
+      const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assurance.error || assurance.data?.currentLevel !== 'aal2') return;
+      window.enableNexusAIPreview(session);
+    } catch {
+      // Negar a exibição da prévia em qualquer erro de sessão ou MFA.
+    }
+  });
   window.enableNexusAIPreview = function (session) {
     if (!session || session.role !== 'nexus_admin' || document.getElementById('nexus-ai-preview-trigger')) return;
     const nav = document.querySelector('.side .nav');
