@@ -192,6 +192,10 @@ try {
         }
       }
       [Console]::Error.WriteLine('Synthetic-only mismatched security categories: ' + ($failedClasses -join ', '))
+      if ($failedClasses -contains 'schema_grants') {
+        [Console]::Error.WriteLine('Synthetic source schema grants: ' + ($beforeParts.schema_grants | ConvertTo-Json -Depth 12 -Compress))
+        [Console]::Error.WriteLine('Synthetic restored schema grants: ' + ($afterParts.schema_grants | ConvertTo-Json -Depth 12 -Compress))
+      }
     }
     throw 'Restored privileges or owners differ from source: SQL GRANTs, RLS, or SECURITY DEFINER context.'
   }
