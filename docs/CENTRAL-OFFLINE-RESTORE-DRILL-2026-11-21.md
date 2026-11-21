@@ -43,3 +43,19 @@ O script recusa URI de origem que não pertença à Central, não inclui senha n
 Referência oficial: https://supabase.com/docs/guides/platform/backups
 
 No plano Free do Supabase não há backups automáticos disponíveis no painel. A recomendação oficial é manter backups lógicos manuais e externos. O script é um ensaio de restauração, não uma política permanente de backup.
+
+
+## Auditoria de segurança da restauração (21/11/2026)
+
+O ensaio sintético inicial era incompleto: o `pg_dump` ignorava os donos e os `GRANTs` dos objetos. A inspeção somente-leitura da Central identificou 95 objetos com ACLs explícitas, 83 objetos com RLS e 214 políticas RLS nos esquemas públicos e gerenciados, além de proprietários diferentes para `public`, `auth` e `storage`.
+
+A versão corrigida preserva proprietários e permissões do arquivo lógico e compara **duas assinaturas** antes/depois do backup e depois da restauração: (1) contagens e estados operacionais, (2) assinaturas de donos de objetos/esquemas, `GRANTs` de tabelas/esquemas/funções, políticas RLS, proprietários e definições das funções privilegiadas. A conexão de origem utiliza parâmetros `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE` e `PGOPTIONS` com transações somente-leitura, evitando senha no argumento de processo. O contêiner de origem é removido; quem administra o Docker local ainda pode visualizar variáveis de ambiente durante a operação.
+
+O ensaio com dados **100% fictícios** foi aprovado em:
+https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44893106681
+
+Na execução, foram aprovadas 19 métricas de integridade, comparação de privilégios e leitura isolada de duas empresas fictícias. O controle negativo revogou uma permissão em um contêiner **descartável**, e o script recusou a restauração, como esperado. O tempo medido, 5,77 segundos, é apenas referência do laboratório sintético.
+
+**Limitações que permanecem:** o backup lógico não inclui atributos e vínculos de papéis globais do cluster PostgreSQL, credenciais de autenticação externas, conteúdo dos objetos Storage, funções Edge ou configurações de serviços externos. A Central real usa extensões e funções gerenciadas pelo Supabase; sua restauração no PostgreSQL padrão só será aceita se todos os comandos funcionarem sem ignorar erros e os digests coincidirem. Isso não comprova, por si, autenticação multiempresa ponta-a-ponta ou capacidade de retomada do serviço. Não confundir o teste sintético com DR/RTO/RPO validados.
+
+**Próxima ação para concluir o 17º critério:** executar o procedimento com a URI real da Central no computador autorizado; não enviar URL, senha, arquivo `.dump`, tokens ou dados pessoais por chat ou GitHub. Conferir o JSON agregado, o checksum SHA-256, a consistência das permissões, o tempo real e a idade do backup; complementar com validação funcional da autorização entre empresas em ambiente isolado.
