@@ -6,7 +6,7 @@ O backup real da Central (PostgreSQL + bytes privados de Storage) já foi aprova
 
 - Só aceita um destino Supabase explícito, confirmado duas vezes, no formato `https://<ref>.supabase.co`.
 - Bloqueia expressamente os projetos de produção conhecidos da Central, CRM e Agency. **Não executar em qualquer outro projeto com clientes ou dados reais.**
-- Exige que o bucket `sst-documents` já exista e seja **privado** no destino. A validação de configuração do bucket e as regras RLS precisam ser verificadas separadamente.
+- Exige que o bucket `sst-documents` já exista e seja **privado** no destino. Antes de enviar qualquer documento, consulta a API de metadados do bucket e recusa `public=true`, ausência do bucket ou resposta inválida. Políticas RLS de usuários autenticados ainda precisam de validação funcional separada.
 - Nunca usa credenciais da Central original, gera URLs públicas ou altera `storage.objects` diretamente. O token `CENTRAL_STORAGE_RESTORE_TOKEN` é **exclusivo do projeto temporário**, deve ser fornecido como segredo restrito ao teste, jamais commitado.
 - Falha diante de qualquer manifesto inesperado, arquivos adicionais, symlinks, caminho malformado, bytes truncados, hash diferente ou URL de produção.
 - O upload não sobrescreve objetos existentes (`x-upsert: false`) e exige readback por API autenticada com hash SHA-256 idêntico. Ao primeiro erro, não aprova a recuperação.
