@@ -10,7 +10,7 @@ test('stored artifact disaster recovery has no production DB connection and mini
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /contents: read/);
   assert.doesNotMatch(workflow, /CENTRAL_SOURCE_DATABASE_URL|SUPABASE_SERVICE_ROLE_KEY|pg_dump\b|postgresql:\/\//);
-  assert.match(workflow, /source_branch.*main/);
+  assert.match(workflow, /\[ "\$source_branch" = 'main' \]/);
   assert.match(workflow, /--network none/);
   assert.match(workflow, /HostConfig\.NetworkMode/);
   assert.match(workflow, /trap cleanup EXIT/);
