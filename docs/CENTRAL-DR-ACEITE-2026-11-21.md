@@ -15,6 +15,7 @@ Este documento separa **restauração lógica de dados da Central** de **retomad
 | 20 indicadores operacionais coerentes (integridade e estados) | [Run 44914215170](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44914215170) | PASS |
 | Download de artefato armazenado, hash, decifragem e restauração sem origem | [Run 44915040480](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44915040480) | PASS |
 | JWT fictício sem autorização não vê organizações | [Run 44915040480](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44915040480) | PASS |
+| RLS positivo do org_admin real e vínculos de billing sem cobrança | [Run 44919490775](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44919490775) | PASS |
 | Login com serviço real de Auth, cobrança Asaas e retomada pública dos serviços | Não exercitados pelo backup lógico | PENDENTE |
 
 ### Medições, limitações e objetivos
@@ -44,7 +45,7 @@ Funções implantadas sem fonte em `supabase/functions/<slug>/index.ts` na `main
 - [x] Backup e restauração com dados reais, integridade relacional, autenticação armazenada, ACL/RLS e funções restauradas
 - [x] Recarga do artefato **criptografado já armazenado** e recuperação independente da base original
 - [x] Negativa RLS para usuário fictício sem vínculo
-- [ ] Testes positivos e negativos de um **membro de organização real, somente no banco restaurado**, e consistência funcional de pagamento/contrato sem cobranças
+- [x] Testes positivos e negativos de um **membro de organização real, somente no banco restaurado**, e consistência funcional de pagamento/contrato sem cobranças — [run 44919490775](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44919490775), PASS
 - [ ] Backup e ensaio de recuperação de bytes do Storage privado
 - [ ] Origem reproduzível das 8 Edge Functions não versionadas ou desativação justificada, com validação de restauração
 - [ ] Plano de restauração externo (Auth, SMTP, DNS, Asaas, secrets) com responsabilidades e evidência funcional
@@ -57,3 +58,9 @@ Mesmo com a confirmação do GitHub Actions como `success`, **não aprovar autom
 Em 21/11/2026 o OpenSEO ainda não possui conta Google Search Console conectada nos projetos Nexus CRM ou Nexus Core. A autorização Google depende da ação explícita do responsável na interface de OAuth. Não marcar o último critério como concluído até confirmar a propriedade correspondente no OpenSEO.
 
 Link para conectar: https://app.openseo.so/p/381654de-eb74-4c9c-89f5-1d3c469a4988/search-performance
+
+## Controle automático de frescor e disponibilidade
+
+O workflow `.github/workflows/central-backup-freshness.yml` verifica diariamente, às 12:00 UTC, os registros de execução da rotina de backup, sua recuperação independente e a existência do artefato criptografado não expirado. Se algum requisito estiver ausente, inconsistente ou com mais de **27 horas**, o GitHub Actions ficará marcado como **failure**. Trata-se de uma verificação de metadados, sem ler o banco nem decifrar arquivos; ela não é uma garantia contratual de RPO, mas ajuda a detectar interrupções da rotina.
+
+A autenticação com provedor externo, cobrança real e os bytes de Storage continuam fora do aceite, apesar do sucesso dos testes do PostgreSQL isolado. O monitor deve continuar ativo mesmo enquanto existirem essas pendências.
