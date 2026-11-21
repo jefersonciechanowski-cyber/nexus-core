@@ -136,6 +136,7 @@ jobs:
           if ! docker exec "$name" pg_restore -U postgres -d central_restore \
             --single-transaction --exit-on-error /tmp/central.dump > "$work/restore.log" 2>&1; then
             echo 'FAIL: offline pg_restore failed; raw diagnostics suppressed'
+            python3 scripts/classify-central-restore-error.py "$work/restore.log"
             exit 1
           fi
           docker cp scripts/central-restore-security-fingerprint.sql "$name:/tmp/security.sql"
