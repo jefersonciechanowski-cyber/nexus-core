@@ -66,7 +66,7 @@ def oidc_token():
     return token
 
 def blob_key(name):
-    return hashlib.sha256((BUCKET + "\\0" + name).encode("utf-8")).hexdigest()
+    return hashlib.sha256((BUCKET + "\0" + name).encode("utf-8")).hexdigest()
 
 def export(inventory, folder):
     objects, total = load_inventory(inventory)
