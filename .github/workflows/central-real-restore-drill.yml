@@ -112,6 +112,8 @@ jobs:
           cmp -s "$work/source-integrity.csv" "$work/source-integrity-after.csv" || {
             echo 'FAIL: source operational aggregates changed during snapshot'; exit 1;
           }
+          # Manifest timestamp is captured immediately after snapshot stability.
+          snapshot_utc="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
           # No network, host port or external integrations are available in the target.
           docker run -d --rm --network none --name "$name" \
@@ -219,8 +221,11 @@ jobs:
           mkdir -p "$work/recovery-package"
           cp "$work/central.dump" "$work/recovery-package/central.dump"
           cp "$work/sequence-acl.sql" "$work/recovery-package/sequence-acl.sql"
+          cp "$work/source-integrity.csv" "$work/recovery-package/source-integrity.csv"
+          printf '%s\n' "$security_before" > "$work/recovery-package/security-digest.txt"
+          printf '%s\n' "$snapshot_utc" > "$work/recovery-package/captured-utc.txt"
           tar -czf "$work/central-recovery-package.tar.gz" -C "$work/recovery-package" \
-            central.dump sequence-acl.sql
+            central.dump sequence-acl.sql source-integrity.csv security-digest.txt captured-utc.txt
           file="$RUNNER_TEMP/central-validated-encrypted-backup/central-verified-${GITHUB_RUN_ID}.tar.gz.gpg"
           gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
             --cipher-algo AES256 --symmetric --output "$file" "$work/central-recovery-package.tar.gz" >/dev/null 2>&1
