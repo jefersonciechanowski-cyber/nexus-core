@@ -39,6 +39,6 @@ test('offline wrapper rejects deceptive remote PostgreSQL URLs before contacting
       encoding: 'utf8'
     });
     assert.equal(result.status, 2, 'expected blocked remote URL');
-    assert.match(result.stderr, /Blocked: only localhost|Node.js is required/);
+    assert.match(result.stderr, /Blocked: only localhost|Blocked: invalid PostgreSQL URL|Node.js is required/);
   }
 });
