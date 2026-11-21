@@ -34,10 +34,14 @@ jobs:
           set -euo pipefail
           docker run -d --rm --name central-source-synthetic             -e POSTGRES_PASSWORD=synthetic-only             -e POSTGRES_DB=central_source             -p 5454:5432 postgres:17
           for i in $(seq 1 70); do
-            if docker exec central-source-synthetic pg_isready -U postgres -d central_source > /dev/null; then break; fi
+            if docker logs central-source-synthetic 2>&1 | grep -q 'PostgreSQL init process complete'; then break; fi
             sleep 0.4
           done
-          docker exec central-source-synthetic pg_isready -U postgres -d central_source
+          for i in $(seq 1 70); do
+            if docker exec central-source-synthetic psql -U postgres -d central_source -Atc 'SELECT 1' 2>/dev/null | grep -qx 1; then break; fi
+            sleep 0.4
+          done
+          docker exec central-source-synthetic psql -U postgres -d central_source -Atc 'SELECT 1' | grep -qx 1
           docker cp tests/sql/central-offline-restore-synthetic.sql central-source-synthetic:/tmp/synthetic.sql
           docker exec central-source-synthetic psql -U postgres -d central_source             -v ON_ERROR_STOP=1 -q -f /tmp/synthetic.sql
       - name: Backup and offline-restore synthetic database using real operator script
