@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run -d --rm --name central-source-synthetic             -e POSTGRES_PASSWORD=synthetic-only             -e POSTGRES_DB=central_source             -p 127.0.0.1:5454:5432 postgres:17
+          docker run -d --rm --name central-source-synthetic             -e POSTGRES_PASSWORD=synthetic-only             -e POSTGRES_DB=central_source             -p 5454:5432 postgres:17
           for i in $(seq 1 70); do
             if docker exec central-source-synthetic pg_isready -U postgres -d central_source > /dev/null; then break; fi
             sleep 0.4
