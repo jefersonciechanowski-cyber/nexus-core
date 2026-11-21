@@ -191,7 +191,7 @@ try {
           $failedClasses += $category
         }
       }
-      Write-Warning ('Synthetic-only mismatched security categories: ' + ($failedClasses -join ', '))
+      [Console]::Error.WriteLine('Synthetic-only mismatched security categories: ' + ($failedClasses -join ', '))
     }
     throw 'Restored privileges or owners differ from source: SQL GRANTs, RLS, or SECURITY DEFINER context.'
   }
