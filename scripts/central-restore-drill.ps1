@@ -85,6 +85,9 @@ try {
   $stage = 'read-only source snapshot'
   $sourceBefore = (Source-Query $compareSql).Trim()
   if ($sourceBefore -notmatch '^[0-9a-f]{32}$') { throw 'Source comparison did not produce an aggregate digest.' }
+  $stage = 'read-only source grants, owners and RLS fingerprint'
+  $securityBefore = (Source-Query $securitySql).Trim()
+  if ($securityBefore -notmatch '^[0-9a-f]{32}$') { throw 'Source security fingerprint is unavailable.' }
   $capturedAt = [DateTimeOffset]::UtcNow
 
   # pg_dump is READ ONLY on source. Docker receives the URL as an environment
@@ -109,6 +112,9 @@ try {
   if ($sourceAfter -ne $sourceBefore) {
     throw 'Source changed while backup was taken; cannot certify equality to this aggregate checkpoint.'
   }
+  $stage = 'source security stability'
+  $securityAfter = (Source-Query $securitySql).Trim()
+  if ($securityAfter -ne $securityBefore) { throw 'Source GRANTs, owners, RLS or functions changed during dump.' }
 
   $stage = 'offline restore container startup'
   Run-Docker -Argv @('run','--rm','--detach','--network','none','--name',$restoreName,
@@ -148,6 +154,28 @@ try {
   $stage = 'offline count and permission integrity check'
   $restoredDigest = (Target-Query $compareSql).Trim()
   if ($restoredDigest -ne $sourceBefore) { throw 'Operational counts, roles or finance state differ in the recovered copy.' }
+  $stage = 'offline owner ACL RLS and security definer verification'
+  if ($SyntheticFixture -and $env:CENTRAL_DR_TEST_REVOKE_ACL -eq '1') {
+    # Negative test: prove that a single missing GRANT makes the procedure fail.
+    Target-Query 'REVOKE SELECT ON public.organizations FROM authenticated;' | Out-Null
+  }
+  $restoredSecurity = (Target-Query $securitySql).Trim()
+  if ($restoredSecurity -ne $securityBefore) {
+    throw 'Restored privileges or owners differ from source: SQL GRANTs, RLS, or SECURITY DEFINER context.'
+  }
+  if ($SyntheticFixture) {
+    $stage = 'cross-tenant RLS denial test'
+    foreach ($tenant in @(
+      '00000000-0000-0000-0000-000000000021',
+      '00000000-0000-0000-0000-000000000022'
+    )) {
+      $sql = "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.organization_id = '$tenant'; SELECT count(*) FROM public.organizations; ROLLBACK;"
+      $visible = (Target-Query $sql).Trim()
+      if ($visible -ne '1') { throw 'Synthetic cross-tenant RLS test failed.' }
+    }
+    $none = (Target-Query "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.organization_id = '00000000-0000-0000-0000-000000000099'; SELECT count(*) FROM public.organizations; ROLLBACK;").Trim()
+    if ($none -ne '0') { throw 'Synthetic organization access leaked across tenants.' }
+  }
   $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
   $integritySql = Join-Path $scriptDir 'central-restore-integrity.sql'
   if (-not (Test-Path -LiteralPath $integritySql)) { throw 'Missing reviewed integrity verification script.' }
@@ -169,6 +197,8 @@ try {
     backup_bytes = (Get-Item -LiteralPath $archive).Length
     backup_sha256 = $checksum
     output_digest_match = ($restoredDigest -eq $sourceBefore)
+    security_digest_match = ($restoredSecurity -eq $securityBefore)
+    tenant_isolation_probe = if ($SyntheticFixture) { 'passed' } else { 'not_tested' }
     checked_integrity_metrics = $entries.Count
     broken_relationships = $badLinks.Count
     recovery_lab_seconds = [math]::Round($restoreStarted.Elapsed.TotalSeconds,2)
@@ -176,7 +206,7 @@ try {
     isolated_network_mode = $network
     external_notifications_and_charges = 0
     stored_backup = [bool]$KeepBackup
-    excludes = 'Storage object bytes, SMTP/provider secrets, production DNS/Edge, real login and billing effects'
+    excludes = 'Storage object bytes, SMTP/provider secrets, production DNS/Edge, cluster role attributes, real login and billing effects'
   }
   # Do not print actual database contents or credential-bearing URLs.
   $summary | ConvertTo-Json -Depth 4
