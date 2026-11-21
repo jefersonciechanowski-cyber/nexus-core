@@ -117,6 +117,10 @@ try {
     Start-Sleep -Milliseconds 300
   }
   if (-not $ready) { throw 'Offline PostgreSQL did not become ready.' }
+  # The official image can briefly accept connections during initdb before a final restart.
+  Start-Sleep -Seconds 2
+  $stage = 'offline PostgreSQL final startup verification'
+  Target-Query 'SELECT 1' | Out-Null
 
   $stage = 'offline prerequisite database roles'
   foreach ($role in @('anon','authenticated','authenticator','service_role','supabase_auth_admin','supabase_storage_admin','supabase_admin','dashboard_user','supabase_read_only_user','supabase_realtime_admin','supabase_replication_admin')) {
