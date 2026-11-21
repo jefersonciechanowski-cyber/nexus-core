@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const sql = readFileSync(new URL('../scripts/central-restore-integrity.sql', import.meta.url), 'utf8');
 const runner = readFileSync(new URL('../scripts/verify-central-restore.sh', import.meta.url), 'utf8');
 test('restore checker is read-only and covers contract, user and account links', () => {
@@ -22,4 +24,21 @@ test('offline wrapper restricts access to a verified localhost restoration', () 
   assert.match(runner, /Blocked: only localhost/);
   assert.match(runner, /command -v psql/);
   assert.match(runner, /ON_ERROR_STOP=1/);
+});
+
+test('offline wrapper rejects deceptive remote PostgreSQL URLs before contacting any DB', () => {
+  const scriptPath = fileURLToPath(new URL('../scripts/verify-central-restore.sh', import.meta.url));
+  for (const url of [
+    'postgresql://fake-localhost.example.invalid/database',
+    'postgresql://user:localhost@remote.example.invalid/database',
+    'postgresql://database.internal/restore',
+    'https://127.0.0.1/restore'
+  ]) {
+    const result = spawnSync('bash', [scriptPath], {
+      env: { ...process.env, NEXUS_ISOLATED_RESTORE: '1', RESTORE_DB_URL: url },
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 2, 'expected blocked remote URL');
+    assert.match(result.stderr, /Blocked: only localhost|Node.js is required/);
+  }
 });
