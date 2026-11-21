@@ -1,0 +1,33 @@
+name: CRM mobile browser real-page safe smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-mobile-browser.yml'
+      - 'tests/crm-mobile-public-browser.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-mobile-browser-safe-check
+  cancel-in-progress: true
+
+jobs:
+  mobile_and_desktop_no_real_write:
+    name: Real Chrome mobile/desktop, simulated CRM receipt, intercepted WhatsApp
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout reviewed source (no persistent credentials)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Playwright browser toolkit
+        run: python3 -m pip install --user --disable-pip-version-check playwright==1.56.0
+      - name: Install Chromium for real mobile and desktop emulation
+        run: python3 -m playwright install --with-deps chromium
+      - name: Assert success/error and mobile/desktop WhatsApp handoff without external writes
+        run: python3 tests/crm-mobile-public-browser.py
