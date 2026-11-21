@@ -26,7 +26,7 @@ test('target is disposable and offline and comparisons fail closed', () => {
   assert.match(workflow, /pg_restore -U postgres -d central_restore/);
   assert.match(workflow, /--single-transaction --exit-on-error/);
   assert.match(workflow, /security_restored.*security_before/);
-  assert.match(workflow, /cmp -s .*source-integrity\.csv.*target-integrity\.csv/);
+  assert.match(workflow, /python3 scripts\/central-integrity-safe-diagnostics\.py verify/);
   assert.match(workflow, /trap cleanup EXIT/);
   assert.match(workflow, /rm -rf "\$work"/);
 });
