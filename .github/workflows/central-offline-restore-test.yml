@@ -9,6 +9,7 @@ on:
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/classify-central-restore-error.py'
   push:
     branches: [main]
     paths:
@@ -18,6 +19,7 @@ on:
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/classify-central-restore-error.py'
   workflow_dispatch:
 
 permissions:
