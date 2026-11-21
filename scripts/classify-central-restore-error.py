@@ -42,7 +42,7 @@ def main():
         # Names are strictly allowlisted platform schema identifiers.
         # Never echo arbitrary schema names, log excerpts or SQL.
         known_schemas = {"vault", "extensions", "net", "cron", "auth",
-                         "storage", "public", "graphql", "realtime",
+                         "storage", "public", "private", "graphql", "graphql_public", "realtime",
                          "pgsodium", "pgmq", "supabase_functions"}
         match = re.search(r'ERROR:\s+schema\s+["\x27]?([A-Za-z_][A-Za-z_0-9]*)["\x27]?\s+does not exist', raw, re.I)
         found = (match.group(1).lower() if match else "")
