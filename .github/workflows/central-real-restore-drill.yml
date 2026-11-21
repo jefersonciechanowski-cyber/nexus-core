@@ -8,6 +8,7 @@ on:
       - '.github/workflows/central-real-restore-drill.yml'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/central-security-category-diagnostics.py'
       - 'scripts/classify-central-restore-error.py'
   schedule:
     - cron: '30 7 * * *' # Daily 07:30 UTC; no local computer
@@ -144,9 +145,25 @@ jobs:
           docker cp scripts/central-restore-integrity.sql "$name:/tmp/integrity.sql"
           security_restored="$(docker exec "$name" psql -U postgres -d central_restore \
             -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/security.sql | tr -d '\r\n')"
-          [[ "$security_restored" == "$security_before" ]] || {
-            echo 'FAIL: owners, grants, functions or RLS security fingerprint differs'; exit 1;
-          }
+          if [[ "$security_restored" != "$security_before" ]]; then
+            # Print only fixed metadata category names, NEVER definitions or objects.
+            python3 scripts/central-security-category-diagnostics.py generate \
+              scripts/central-restore-security-fingerprint.sql "$work/security-categories.sql"
+            if docker run --rm "${source_pg[@]}" -v "$work:/audit:ro" postgres:17 \
+                psql -X -A -t -q -v ON_ERROR_STOP=1 -f /audit/security-categories.sql \
+                > "$work/source-security-categories.json" 2>/dev/null \
+              && docker cp "$work/security-categories.sql" "$name:/tmp/security-categories.sql" >/dev/null \
+              && docker exec "$name" psql -U postgres -d central_restore \
+                -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/security-categories.sql \
+                > "$work/target-security-categories.json" 2>/dev/null; then
+              python3 scripts/central-security-category-diagnostics.py compare \
+                "$work/source-security-categories.json" "$work/target-security-categories.json"
+            else
+              echo 'security_mismatch_categories=diagnostic_unavailable'
+            fi
+            echo 'FAIL: owners, grants, functions or RLS security fingerprint differs'
+            exit 1
+          fi
           docker exec "$name" psql -U postgres -d central_restore \
             -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/integrity.sql > "$work/target-integrity.csv"
           cmp -s "$work/source-integrity.csv" "$work/target-integrity.csv" || {
