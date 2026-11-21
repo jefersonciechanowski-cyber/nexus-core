@@ -74,18 +74,55 @@ jobs:
           # Refuse tar symlinks, traversal, hidden files, unexpected names or duplicates.
           python3 - "$work/package.tar.gz" "$work/recovered" <<'PY'
           from pathlib import Path
-          import sys, tarfile
+          import sys, json, tarfile, re
           archive, dest = Path(sys.argv[1]), Path(sys.argv[2])
-          expected = {"central.dump", "sequence-acl.sql", "source-integrity.csv", "security-digest.txt", "captured-utc.txt"}
+          fixed = {
+              "central.dump", "sequence-acl.sql", "source-integrity.csv",
+              "security-digest.txt", "captured-utc.txt",
+              "source-storage-inventory.json", "storage/manifest.json"
+          }
           with tarfile.open(archive, "r:gz") as tf:
               members = tf.getmembers()
-              if len(members) != len(expected) or {m.name for m in members} != expected or any(not m.isfile() for m in members):
-                  raise SystemExit("FAIL: unexpected recovery archive members")
+              if len(members) > 1010 or len({m.name for m in members}) != len(members):
+                  raise SystemExit("FAIL: archive duplication or excessive file count")
+              by_name = {m.name: m for m in members}
+              if "storage/manifest.json" not in by_name or by_name["storage/manifest.json"].size > 1024 * 1024:
+                  raise SystemExit("FAIL: missing or excessive Storage manifest")
+              try:
+                  manifest = json.loads(tf.extractfile(by_name["storage/manifest.json"]).read())
+                  blobs = {
+                      "storage/blobs/" + entry["blob"] for entry in manifest["objects"]
+                  }
+                  if (manifest["version"] != 1 or manifest["bucket"] != "sst-documents"
+                      or len(blobs) != len(manifest["objects"])
+                      or len(blobs) > 1000
+                      or not all(re.fullmatch(r"storage/blobs/[0-9a-f]{64}", b) for b in blobs)):
+                      raise ValueError("unsafe Storage manifest")
+              except (ValueError, KeyError, TypeError, AttributeError):
+                  raise SystemExit("FAIL: invalid stored Storage manifest")
+              expected = fixed | blobs
+              file_names = {m.name for m in members if m.isfile()}
+              dirs = {m.name for m in members if m.isdir()}
+              if (file_names != expected or not dirs.issubset({"storage", "storage/blobs"})
+                  or any(not (m.isfile() or m.isdir()) for m in members)
+                  or sum(m.size for m in members) > 300 * 1024 * 1024):
+                  raise SystemExit("FAIL: unexpected recovery archive member")
               for member in members:
-                  file = tf.extractfile(member)
-                  if file is None:
+                  if not member.isfile():
+                      continue
+                  source = tf.extractfile(member)
+                  if source is None:
                       raise SystemExit("FAIL: unreadable recovery member")
-                  (dest / member.name).write_bytes(file.read())
+                  target = dest / member.name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with target.open("xb") as output:
+                      remaining = member.size
+                      while remaining > 0:
+                          data = source.read(min(65536, remaining))
+                          if not data:
+                              raise SystemExit("FAIL: truncated recovery member")
+                          output.write(data)
+                          remaining -= len(data)
           PY
           test "$(head -c 5 "$work/recovered/central.dump")" = "PGDMP" || { echo 'FAIL: invalid PostgreSQL custom dump'; exit 1; }
           grep -Eq '^[0-9a-f]{32}$' "$work/recovered/security-digest.txt" || { echo 'FAIL: source security digest missing'; exit 1; }
@@ -124,6 +161,20 @@ jobs:
           docker cp scripts/central-restore-integrity.sql "$name:/tmp/integrity.sql" >/dev/null
           docker exec "$name" psql -U postgres -d central_restore -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/integrity.sql > "$work/actual-integrity.csv" 2> "$work/integrity.err"
           python3 scripts/central-integrity-safe-diagnostics.py verify "$work/recovered/source-integrity.csv" "$work/actual-integrity.csv" || { echo 'FAIL: offline restored operational state mismatch'; exit 1; }
+
+          # Reconstruct and hash-check every private Storage object from stored
+          # encrypted bytes, matched to the RESTORED database Storage metadata.
+          # Never connect to production or publish decrypted objects.
+          docker cp scripts/central-storage-inventory.sql "$name:/tmp/storage-inventory.sql" >/dev/null
+          docker exec "$name" psql -U postgres -d central_restore \
+            -X -A -t -q -v ON_ERROR_STOP=1 -f /tmp/storage-inventory.sql \
+            > "$work/actual-storage-inventory.json"
+          python3 scripts/central-storage-backup.py verify \
+            "$work/recovered/source-storage-inventory.json" \
+            "$work/actual-storage-inventory.json" "$work/recovered/storage" || {
+            echo 'FAIL: independently recovered private Storage objects did not match'
+            exit 1
+          }
           if awk -F'|' '$1=="link_integrity" && $3+0>0 {bad=1} END {exit !bad}' "$work/actual-integrity.csv"; then
             echo 'FAIL: restored copy contains broken links'
             exit 1
@@ -166,4 +217,4 @@ jobs:
           echo "isolated_negative_tenant_probe=passed"
           echo "recovery_lab_seconds=$(($(date +%s)-started))"
           echo 'external_notifications_and_charges=0'
-          echo 'limitations=no external Auth login, live payments, Storage bytes or disaster RTO/RPO certification'
+          echo 'limitations=no external Auth login, live payments, Storage service reupload or disaster RTO/RPO certification'
