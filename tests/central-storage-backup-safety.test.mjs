@@ -18,11 +18,13 @@ test('bucket-scoped GitHub OIDC verifies signature, audience, source workflow an
     'token.actions.githubusercontent.com/.well-known/jwks', 'RSASSA-PKCS1-v1_5',
     'crypto.subtle.verify', 'repository_id', '1323260483',
     'workflow_ref', '/.github/workflows/central-real-restore-drill.yml@',
-    'refs/heads/main', 'claims.aud !== AUDIENCE', 'claims.iss !== ISSUER',
+    'refs/heads/main', 'claims.aud === AUDIENCE', 'claims.iss === ISSUER',
     'claims.exp', 'sst-documents', 'request.method !== "POST"',
     'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")', 'return deny(401)',
   ]) assert.ok(edge.includes(part), 'OIDC gate missing: '+part);
   assert.ok(edge.includes('method: "GET"'), 'Storage access must be read-only GET');
+  assert.ok(edge.includes('central_storage_oidc_denied='), 'safe OIDC rejection category must be logged');
+  assert.doesNotMatch(edge, /console\\.(?:log|warn|error)\\([^)]*(?:token|claims|secret|key)\\s*\\)/);
   assert.doesNotMatch(edge, /method: "(?:POST|PUT|PATCH|DELETE)"[^\n]*storage/);
   assert.doesNotMatch(backup, /SUPABASE_SERVICE_ROLE_KEY|CENTRAL_STORAGE_SERVICE_ROLE_KEY/);
   assert.match(backup, /id-token: write/);

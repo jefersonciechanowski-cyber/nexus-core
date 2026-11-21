@@ -31,35 +31,60 @@ async function verifyGitHub(token: string): Promise<boolean> {
     const [headerPart, claimsPart, sigPart] = sections;
     const header = jsonPart(headerPart);
     const claims = jsonPart(claimsPart);
-    if (header.alg !== "RS256" || typeof header.kid !== "string" || header.kid.length > 150) return false;
+    if (header.alg !== "RS256" || typeof header.kid !== "string" || header.kid.length > 150) {
+      console.warn("central_storage_oidc_denied=header");
+      return false;
+    }
     // Reject before network access when any of the requested trust conditions fails.
     const now = Math.floor(Date.now() / 1000);
-    if (claims.iss !== ISSUER || claims.aud !== AUDIENCE ||
-        claims.sub !== "repo:" + REPO + ":ref:" + REF ||
-        claims.repository !== REPO || claims.repository_id !== REPO_ID ||
-        claims.ref !== REF || claims.workflow_ref !== WORKFLOW_REF ||
-        !["schedule", "push", "workflow_dispatch"].includes(String(claims.event_name)) ||
-        typeof claims.iat !== "number" || typeof claims.exp !== "number" ||
-        claims.iat > now + 30 || claims.iat < now - 600 ||
-        claims.exp < now - 30 || claims.exp > now + 660 ||
-        (typeof claims.nbf === "number" && claims.nbf > now + 30)) return false;
+    const checks: Array<[string, boolean]> = [
+      ["issuer", claims.iss === ISSUER],
+      ["audience", claims.aud === AUDIENCE],
+      ["subject", claims.sub === "repo:" + REPO + ":ref:" + REF],
+      ["repository", claims.repository === REPO],
+      ["repository_id", claims.repository_id === REPO_ID],
+      ["ref", claims.ref === REF],
+      ["workflow_ref", claims.workflow_ref === WORKFLOW_REF],
+      ["event_name", ["schedule", "push", "workflow_dispatch"].includes(String(claims.event_name))],
+      ["issued_at", typeof claims.iat === "number" && claims.iat <= now + 30 && claims.iat >= now - 600],
+      ["expires_at", typeof claims.exp === "number" && claims.exp >= now - 30 && claims.exp <= now + 660],
+      ["not_before", typeof claims.nbf !== "number" || claims.nbf <= now + 30],
+    ];
+    const failures = checks.filter(([, valid]) => !valid).map(([name]) => name);
+    if (failures.length) {
+      // Only controlled field names are logged; never JWT claims or secret bytes.
+      console.warn("central_storage_oidc_denied=" + failures.join(","));
+      return false;
+    }
     // Fetch the key set ONLY from the pinned GitHub OIDC issuer over HTTPS.
     const response = await fetch(JWKS, { redirect: "error", signal: AbortSignal.timeout(7000), cache: "no-store" });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      console.warn("central_storage_oidc_denied=jwks_fetch");
+      return false;
+    }
     const jwks = await response.json() as { keys?: Array<Record<string, unknown>> };
-    if (!Array.isArray(jwks.keys)) return false;
+    if (!Array.isArray(jwks.keys)) {
+      console.warn("central_storage_oidc_denied=jwks_format");
+      return false;
+    }
     const match = jwks.keys.find((k) => k.kid === header.kid && k.kty === "RSA" &&
       (!k.use || k.use === "sig") && (!k.alg || k.alg === "RS256") &&
       typeof k.n === "string" && typeof k.e === "string");
-    if (!match) return false;
+    if (!match) {
+      console.warn("central_storage_oidc_denied=jwks_key");
+      return false;
+    }
     const key = await crypto.subtle.importKey("jwk",
       match as JsonWebKey,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
       false, ["verify"]);
-    return await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key,
+    const good = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key,
       base64url(sigPart),
       new TextEncoder().encode(headerPart + "." + claimsPart));
+    if (!good) console.warn("central_storage_oidc_denied=signature");
+    return good;
   } catch {
+    console.warn("central_storage_oidc_denied=verification_exception");
     return false;
   }
 }
