@@ -103,6 +103,8 @@ ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY synthetic_tenant_scope ON public.organizations
   FOR SELECT TO authenticated
   USING (id = nullif(current_setting('request.jwt.claim.organization_id', true), '')::uuid);
+-- Production's public schema has no implicit PUBLIC usage.
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT SELECT ON public.organizations TO authenticated;
 -- Privileged function ownership and EXECUTE grants must survive the restore.
