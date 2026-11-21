@@ -35,3 +35,14 @@ test('unknown restore errors never echo SQL or secrets', () => {
   const got = run('pg_restore: error: failing SQL with SECRET-PRIVATE-123');
   assert.equal(got, 'restore_failure_class=unknown_restore_error');
 });
+
+test('only platform allowlisted missing schema name is reported', () => {
+  const output = run('pg_restore: error: could not execute query: ERROR: schema "vault" does not exist\nSQL: private@example.invalid');
+  assert.equal(output, 'restore_failure_class=missing_schema\nrestore_missing_schema_category=vault');
+  assert.ok(!output.includes('private@example.invalid'));
+});
+
+test('never reveal arbitrary SQL identifiers as schema names', () => {
+  const output = run('pg_restore: error: could not execute query: ERROR: schema "secret_customer_name" does not exist');
+  assert.equal(output, 'restore_failure_class=missing_schema\nrestore_missing_schema_category=other_or_unspecified');
+});
