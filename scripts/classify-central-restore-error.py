@@ -44,7 +44,7 @@ def main():
         known_schemas = {"vault", "extensions", "net", "cron", "auth",
                          "storage", "public", "graphql", "realtime",
                          "pgsodium", "pgmq", "supabase_functions"}
-        match = re.search(r'ERROR:\\s+schema\\s+["\\x27]?([A-Za-z_][A-Za-z_0-9]*)["\\x27]?\\s+does not exist', raw, re.I)
+        match = re.search(r'ERROR:\s+schema\s+["\x27]?([A-Za-z_][A-Za-z_0-9]*)["\x27]?\s+does not exist', raw, re.I)
         found = (match.group(1).lower() if match else "")
         print("restore_missing_schema_category=" + (
             found if found in known_schemas else "other_or_unspecified"
