@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/central-offline-restore-test.yml'
       - '.github/workflows/central-real-restore-drill.yml'
+      - '.github/workflows/central-stored-artifact-restore.yml'
       - 'scripts/central-restore-drill.ps1'
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
@@ -18,6 +19,7 @@ on:
     paths:
       - '.github/workflows/central-offline-restore-test.yml'
       - '.github/workflows/central-real-restore-drill.yml'
+      - '.github/workflows/central-stored-artifact-restore.yml'
       - 'scripts/central-restore-drill.ps1'
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
