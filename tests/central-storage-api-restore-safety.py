@@ -31,8 +31,9 @@ def fixture(root):
 
 class StorageRestoreSafetyTests(unittest.TestCase):
     def test_reject_production_target_or_mismatch(self):
-        with self.assertRaises(ValueError):
-            dr.validate_target("svphwbccqeoakpmcpvhy", "svphwbccqeoakpmcpvhy")
+        for production_ref in ("svphwbccqeoakpmcpvhy", "hpnblrmejcddaturaeno", "ngxqtztfotkpdvynstae"):
+            with self.assertRaises(ValueError):
+                dr.validate_target(production_ref, production_ref)
         with self.assertRaises(ValueError):
             dr.validate_target("abcdefghijklmnopqrst", "different-reference")
         self.assertEqual(dr.validate_target("abcdefghijklmnopqrst", "abcdefghijklmnopqrst"),
