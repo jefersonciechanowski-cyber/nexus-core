@@ -1,0 +1,36 @@
+# Backup da Central pelo GitHub Actions — operação e recuperação
+
+> Escopo: **Central** `nexus-core` / Supabase `svphwbccqeoakpmcpvhy`. Não é o backup diário do `nexus-crm`.
+
+## Situação operacional
+
+O workflow `.github/workflows/central-real-restore-drill.yml` é executado em GitHub Actions na `main`, por agendamento (07:30 UTC) e manualmente. Produz uma cópia PostgreSQL com leitura somente da origem, tenta recuperar num PostgreSQL 17 descartável sem rede e valida um fingerprint de permissões/RLS e indicadores operacionais antes de cifrar e armazenar um artefato por 30 dias.
+
+**Atenção: agendado não significa protegido.** Sem os segredos abaixo, toda execução falha fechada sem produzir backup. A execução PASS do teste sintético não substitui uma restauração real. Verifique o histórico do workflow e o artefato cifrado após configuração.
+
+## Segredos necessários (somente no GitHub)
+
+Abrir a configuração do repositório em `Settings > Secrets and variables > Actions > New repository secret`.
+
+| Nome do segredo | Valor (nunca incluir neste documento) | Fonte / precaução |
+| --- | --- | --- |
+| `CENTRAL_SOURCE_DATABASE_URL` | URI PostgreSQL completa do Supabase da **Central**, idealmente *Session pooler* | Supabase `Connect > Direct/Connection string > Session pooler`. O trecho `[YOUR-PASSWORD]` precisa ser substituído pela senha real PostgreSQL. |
+| `CENTRAL_BACKUP_ENCRYPTION_PASSWORD` | Senha **exclusiva**, gerada num gerenciador seguro, com pelo menos 24 caracteres (preferir 32 aleatórios ou mais) | Necessária para recuperar os artefatos cifrados. Guardar em cofre seguro separado do GitHub e registrar responsáveis/recuperação. |
+
+Não publicar conexão, senha, `.dump`, `.sql`, arquivos de clientes ou artefato decifrado em issues, PRs, conversas, código-fonte, commits ou logs. Nunca usar uma chave `anon` ou `service_role` no lugar da URI PostgreSQL.
+
+Se não souber a senha do banco, **não redefinir de imediato**. Primeiro verificar o gerenciador de senhas e as dependências reais (serviços externos, outros runners e operações administrativas). Uma redefinição pode invalidar conexões existentes. Se necessária, planejar a rotação e atualizar cada dependência de maneira controlada.
+
+## Validação que falta para o critério de recuperação
+
+- Execução real com sucesso após configurar credenciais; registrar link do workflow, data, checksum de *ciphertext*, duração medida e idade do snapshot.
+- Provar que funções privilegiadas, proprietários, ACLs, RLS e dados operacionais têm a mesma assinatura na restauração.
+- Verificação funcional de autorização entre empresas **sem conectar a restauração a integrações externas**.
+- Documentar RTO/RPO reais e o plano para bytes de Storage, Edge Functions, DNS, Auth e provedores externos, que não estão cobertos pelo backup lógico atual.
+- Confirmar que um administrador autorizado consegue **obter e decifrar** o artefato sem expor segredo ou dados a terceiros.
+
+**Política de aprovação:** não contar este critério como homologado por existir um workflow, pela passagem da CI sintética ou por ter gerado um arquivo criptografado; deve haver evidência de restauração completa e validação funcional.
+
+O repositório é público. O artefato contém dados reais **cifrados**; mantenha a senha de cifragem aleatória, de alta entropia e fora do GitHub, e revise as permissões de acesso ao Actions antes de executar. Repositório privado e armazenamento com retenção mais longa devem ser avaliados antes de usar isto como único mecanismo de recuperação.
+
+O procedimento histórico local consta de `docs/CENTRAL-OFFLINE-RESTORE-DRILL-2026-11-21.md`, mas **não é mais o caminho operacional preferido**. Nenhum PowerShell no computador, Make ou n8n é exigido para o fluxo GitHub.
