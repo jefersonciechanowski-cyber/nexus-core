@@ -1,0 +1,61 @@
+name: Central backup and cold recovery freshness (read-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/central-backup-freshness.yml'
+      - 'scripts/check-central-backup-freshness.py'
+  schedule:
+    - cron: '0 12 * * *' # 12:00 UTC, after scheduled 07:30 UTC backup
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify_backup_freshness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout reviewed freshness checker
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Verify recent encrypted backup and independent recovery on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+
+          # Read ONLY GitHub Actions metadata. Never fetch backup bytes or secrets.
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/central-real-restore-drill.yml/runs?branch=main&status=success&per_page=5" > "$work/backups.json" 2>/dev/null; then
+            echo 'FAIL: cannot inspect real backup workflow history'
+            exit 1
+          fi
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/central-stored-artifact-restore.yml/runs?branch=main&status=success&per_page=5" > "$work/restores.json" 2>/dev/null; then
+            echo 'FAIL: cannot inspect cold restore workflow history'
+            exit 1
+          fi
+          backup_id="$(python3 - "$work/backups.json" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1],encoding='utf-8'))
+          runs=[r for r in data.get('workflow_runs',[]) if r.get('head_branch')=='main' and r.get('conclusion')=='success']
+          if not runs:
+              raise SystemExit('FAIL: no successful Central backup on main')
+          print(runs[0]['id'])
+          PY
+          )"
+          [[ "$backup_id" =~ ^[0-9]+$ ]] || exit 1
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$backup_id/artifacts?per_page=100" > "$work/artifacts.json" 2>/dev/null; then
+            echo 'FAIL: cannot inspect encrypted backup artifacts'
+            exit 1
+          fi
+          python3 scripts/check-central-backup-freshness.py \
+            "$work/backups.json" "$work/restores.json" "$work/artifacts.json"
