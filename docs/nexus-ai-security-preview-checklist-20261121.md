@@ -54,3 +54,15 @@ O último comentário do Cloudflare no PR #239 confirmou outro build com erro pa
 - **Responsabilidades:** NVIDIA para consulta e respostas no Nexus AI; ChatGPT/desenvolvimento com execução apenas em fluxos autorizados, sem escrita autônoma na V1.
 
 **Status:** decisão funcional registrada; implementação e homologação dessas regras ainda pendentes. Não publicar em produção apenas por esta aprovação de escopo.
+
+## Verificação direta de metadados Supabase (somente leitura)
+
+Projeto: `nexus-core-producao`. Consulta limitada a metadados de funções e configuração RLS; nenhum registro de clientes foi consultado.
+
+- `public.is_nexus_admin_aal2()`: `SECURITY DEFINER`, disponível ao papel `authenticated`, não ao `anon`. Corpo verifica `auth.jwt()->>'aal' = 'aal2'` e perfil `nexus_admin` ativo vinculado a `auth.uid()`.
+- `public.has_recent_nexus_admin_mfa_session(uuid)`: `SECURITY DEFINER`, sem execução para `anon` nem para `authenticated` nos privilégios consultados. Corpo verifica perfil admin ativo e sessão `aal2` recente (até duas horas) com `factor_id`.
+- RLS ativada nas tabelas `public.profiles` e `public.nexus_ai_usage_events`.
+
+**Limites:** funções com `SECURITY DEFINER` precisam de auditoria de quem pode invocá-las e de como são utilizadas. A função de sessão recente aceita `p_user_id`; auditar invocadores e confirmar vinculação ao usuário autenticado em cada fluxo. As verificações acima não homologam cada policy, RPC ou API nem constituem teste AAL1/AAL2 real.
+
+**Ação antes de IA real:** auditar políticas e rotas consumidoras, executar testes de negação em ambiente controlado e validar fail-closed; não modificar produção nesta fase.
