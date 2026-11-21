@@ -8,6 +8,7 @@ on:
       - '.github/workflows/central-real-restore-drill.yml'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/central-security-category-diagnostics.py'
       - 'scripts/classify-central-restore-error.py'
   schedule:
     - cron: '30 7 * * *' # Daily 07:30 UTC; no local computer
