@@ -59,18 +59,18 @@ function Run-Docker([string[]]$Argv) {
   return ($result | Out-String).Trim()
 }
 function Source-Query([string]$Query) {
-  return Run-Docker @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
+  return (Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
     '--env','CENTRAL_SOURCE_DATABASE_URL',$PostgresImage,
-    'sh','-c','exec psql "$CENTRAL_SOURCE_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query)
+    'sh','-c','exec psql "$CENTRAL_SOURCE_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
 }
 function Target-Query([string]$Query) {
-  return Run-Docker @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
-    '-X','-A','-t','-v','ON_ERROR_STOP=1','-c',$Query)
+  return (Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
+    '-X','-A','-t','-v','ON_ERROR_STOP=1','-c',$Query))
 }
 
 try {
   $stage = 'image preparation'
-  Run-Docker @('pull',$PostgresImage) | Out-Null
+  Run-Docker -Argv @('pull',$PostgresImage) | Out-Null
   $stage = 'read-only source snapshot'
   $sourceBefore = (Source-Query $compareSql).Trim()
   if ($sourceBefore -notmatch '^[0-9a-f]{32}$') { throw 'Source comparison did not produce an aggregate digest.' }
@@ -79,7 +79,7 @@ try {
   # pg_dump is READ ONLY on source. Docker receives the URL as an environment
   # variable, NEVER as a literal command argument or process log.
   $stage = 'read-only custom-format database dump'
-  Run-Docker @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
+  Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
     '--env','CENTRAL_SOURCE_DATABASE_URL','--volume',($folder + ':/backup'),
     $PostgresImage,'sh','-c',
     'exec pg_dump --dbname="$CENTRAL_SOURCE_DATABASE_URL" --format=custom --no-owner --no-privileges --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
@@ -100,11 +100,11 @@ try {
   }
 
   $stage = 'offline restore container startup'
-  Run-Docker @('run','--rm','--detach','--network','none','--name',$restoreName,
+  Run-Docker -Argv @('run','--rm','--detach','--network','none','--name',$restoreName,
     '--env','POSTGRES_HOST_AUTH_METHOD=trust','--env','POSTGRES_DB=central_restore',
     '--tmpfs','/var/lib/postgresql/data:rw,size=268435456',
     $PostgresImage) | Out-Null
-  $network = Run-Docker @('inspect','--format','{{.HostConfig.NetworkMode}}',$restoreName)
+  $network = Run-Docker -Argv @('inspect','--format','{{.HostConfig.NetworkMode}}',$restoreName)
   if ($network -ne 'none') { throw 'Restore container must have network mode NONE.' }
 
   $ready = $false
@@ -121,10 +121,10 @@ try {
     Target-Query $statement | Out-Null
   }
   $stage = 'offline archive transfer'
-  Run-Docker @('cp',$archive,($restoreName + ':/tmp/central-native-logical.dump')) | Out-Null
+  Run-Docker -Argv @('cp',$archive,($restoreName + ':/tmp/central-native-logical.dump')) | Out-Null
 
   $stage = 'offline pg_restore'
-  Run-Docker @('exec',$restoreName,'pg_restore','--dbname=central_restore','--username=postgres',
+  Run-Docker -Argv @('exec',$restoreName,'pg_restore','--dbname=central_restore','--username=postgres',
     '--no-owner','--no-privileges','--single-transaction','--exit-on-error',
     '/tmp/central-native-logical.dump') | Out-Null
 
@@ -134,9 +134,9 @@ try {
   $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
   $integritySql = Join-Path $scriptDir 'central-restore-integrity.sql'
   if (-not (Test-Path -LiteralPath $integritySql)) { throw 'Missing reviewed integrity verification script.' }
-  Run-Docker @('cp',$integritySql,($restoreName + ':/tmp/central-restore-integrity.sql')) | Out-Null
-  $csv = Run-Docker @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
-    '-X','--csv','-v','ON_ERROR_STOP=1','-f','/tmp/central-restore-integrity.sql')
+  Run-Docker -Argv @('cp',$integritySql,($restoreName + ':/tmp/central-restore-integrity.sql')) | Out-Null
+  $csv = Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
+    '-X','--csv','--quiet','-v','ON_ERROR_STOP=1','-f','/tmp/central-restore-integrity.sql')
   $entries = @($csv | ConvertFrom-Csv)
   $badLinks = @($entries | Where-Object { $_.type -eq 'link_integrity' -and [int64]$_.total -gt 0 })
   if ($badLinks.Count -gt 0) { throw 'Recovered database contains broken organization, user or contract links.' }
