@@ -40,7 +40,8 @@ async function verifyGitHub(token: string): Promise<boolean> {
     const checks: Array<[string, boolean]> = [
       ["issuer", claims.iss === ISSUER],
       ["audience", claims.aud === AUDIENCE],
-      ["subject", claims.sub === "repo:" + REPO + ":ref:" + REF],
+      ["subject", typeof claims.sub === "string" &&
+        claims.sub.startsWith("repo:" + REPO + ":") && claims.sub.length <= 512],
       ["repository", claims.repository === REPO],
       ["repository_id", claims.repository_id === REPO_ID],
       ["ref", claims.ref === REF],
