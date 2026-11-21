@@ -22,7 +22,7 @@ test('real Central backup requires encrypted credentials and narrow GitHub permi
 test('target is disposable and offline and comparisons fail closed', () => {
   assert.match(workflow, /--network none/);
   assert.match(workflow, /HostConfig\.NetworkMode/);
-  assert.match(workflow, /pg_dump --format=custom --schema=public --schema=auth --schema=storage/);
+  assert.match(workflow, /pg_dump --format=custom --schema=public --schema=auth --schema=storage --schema=private/);
   assert.match(workflow, /pg_restore -U postgres -d central_restore/);
   assert.match(workflow, /--single-transaction --exit-on-error/);
   assert.match(workflow, /security_restored.*security_before/);
