@@ -64,3 +64,13 @@ test('recovery package includes encrypted replayable source sequence ACLs', () =
   assert.match(workflow, /central\.dump sequence-acl\.sql/);
   assert.match(workflow, /central-verified-.*\.tar\.gz\.gpg/);
 });
+
+test('final private Storage inventory uses a temporary PostgreSQL credential only in read-only command', () => {
+  const unexport = workflow.indexOf('unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD PGPASSWORD');
+  const exportStep = workflow.indexOf('central-storage-backup.py export');
+  const finalInventory = workflow.indexOf('PGPASSWORD="$central_pgpass" source_sql central-storage-inventory.sql');
+  assert.ok(unexport > 0 && exportStep > unexport && finalInventory > exportStep);
+  assert.match(workflow, /central_pgpass="\$PGPASSWORD"/);
+  assert.match(workflow, /unset central_pgpass/);
+  assert.match(workflow, /default_transaction_read_only=on/);
+});
