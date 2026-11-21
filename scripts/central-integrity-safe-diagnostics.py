@@ -28,9 +28,25 @@ def parse(path):
         raise ValueError("No metrics")
     return metrics
 
+def verify_structured(src_path, dst_path):
+    # Key/value semantics are authoritative; row order, blank lines and CRLF
+    # differences from psql are not business-state drift.
+    try:
+        source, restored = parse(src_path), parse(dst_path)
+    except (OSError, ValueError, TypeError):
+        print("FAIL: structured operational integrity format invalid")
+        return 2
+    if source != restored:
+        print("FAIL: structured operational metrics differ")
+        return 1
+    print("PASS: all structured operational metrics are equal")
+    return 0
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "verify":
+        raise SystemExit(verify_structured(sys.argv[2], sys.argv[3]))
     if len(sys.argv) != 3:
-        raise SystemExit("usage: central-integrity-safe-diagnostics.py source.csv target.csv")
+        raise SystemExit("usage: central-integrity-safe-diagnostics.py [verify] source.csv target.csv")
     try:
         source, target = parse(sys.argv[1]), parse(sys.argv[2])
     except (OSError, ValueError, TypeError):
