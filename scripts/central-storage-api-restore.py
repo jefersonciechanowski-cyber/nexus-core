@@ -27,7 +27,7 @@ from urllib.parse import quote
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 
-SOURCE_REF = "svphwbccqeoakpmcpvhy"
+PRODUCTION_REFS = {"svphwbccqeoakpmcpvhy", "hpnblrmejcddaturaeno", "ngxqtztfotkpdvynstae"}
 BUCKET = "sst-documents"
 MAX_FILES = 1000
 MAX_BYTES = 256 * 1024 * 1024
@@ -40,8 +40,8 @@ class NoRedirect(HTTPRedirectHandler):
 def validate_target(ref, confirmation):
     if not re.fullmatch(r"[a-z0-9]{20}", ref or ""):
         raise ValueError("invalid destination project reference")
-    if ref == SOURCE_REF:
-        raise ValueError("original Central is forbidden as restore target")
+    if ref in PRODUCTION_REFS:
+        raise ValueError("Nexus production projects are forbidden as restore targets")
     if ref != confirmation:
         raise ValueError("target project confirmation mismatch")
     return "https://" + ref + ".supabase.co"
