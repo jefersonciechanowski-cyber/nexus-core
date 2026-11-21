@@ -34,7 +34,25 @@ if (-not $SyntheticFixture) {
   }
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker Desktop/Engine is required.' }
-$env:CENTRAL_SOURCE_DATABASE_URL = $SourceDbUrl
+# Keep the password out of OS process arguments. libpq resolves PG* environment
+# fields and performs TLS; the source containers are short lived.
+$oldPgVars = @{}
+foreach ($varName in @('PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGOPTIONS')) {
+  $oldPgVars[$varName] = [Environment]::GetEnvironmentVariable($varName, 'Process')
+}
+$userParts = $uri.UserInfo.Split(':', 2)
+if ($userParts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($userParts[0])) {
+  throw 'Database URI must contain user and password.'
+}
+$env:PGHOST = $uri.Host
+$env:PGPORT = if ($uri.Port -gt 0) { [string]$uri.Port } else { '5432' }
+$env:PGUSER = [uri]::UnescapeDataString($userParts[0])
+$env:PGPASSWORD = [uri]::UnescapeDataString($userParts[1])
+$env:PGDATABASE = [uri]::UnescapeDataString($uri.AbsolutePath.TrimStart('/'))
+$env:PGSSLMODE = if ($SyntheticFixture) { 'disable' } else { 'require' }
+$env:PGOPTIONS = '-c default_transaction_read_only=on'
+$sourceConnectionEnv = @('--env','PGHOST','--env','PGPORT','--env','PGUSER',
+  '--env','PGPASSWORD','--env','PGDATABASE','--env','PGSSLMODE','--env','PGOPTIONS')
 $folder = Join-Path ([System.IO.Path]::GetTempPath()) ('central-recovery-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder -Force | Out-Null
 $archive = Join-Path $folder 'central-native-logical.dump'
@@ -71,8 +89,8 @@ function Run-Docker([string[]]$Argv) {
 }
 function Source-Query([string]$Query) {
   return (Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL','--env','PGOPTIONS=-c default_transaction_read_only=on',$PostgresImage,
-    'sh','-c','export PGDATABASE="$CENTRAL_SOURCE_DATABASE_URL"; unset CENTRAL_SOURCE_DATABASE_URL; exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
+    @sourceConnectionEnv,$PostgresImage,
+    'sh','-c','exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
 }
 function Target-Query([string]$Query) {
   return (Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
@@ -94,9 +112,9 @@ try {
   # variable, NEVER as a literal command argument or process log.
   $stage = 'read-only custom-format database dump'
   Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    '--env','CENTRAL_SOURCE_DATABASE_URL','--env','PGOPTIONS=-c default_transaction_read_only=on','--volume',($folder + ':/backup'),
+    @sourceConnectionEnv,'--volume',($folder + ':/backup'),
     $PostgresImage,'sh','-c',
-    'export PGDATABASE="$CENTRAL_SOURCE_DATABASE_URL"; unset CENTRAL_SOURCE_DATABASE_URL; exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
+    'exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
 
   if (-not (Test-Path -LiteralPath $archive)) { throw 'No dump was generated.' }
   $fs = [IO.File]::OpenRead($archive)
@@ -213,6 +231,9 @@ try {
   if ($KeepBackup) { Write-Warning 'Sensitive backup retained locally; store only in an encrypted private location.' }
 } finally {
   $env:CENTRAL_SOURCE_DATABASE_URL = $oldSource
+  foreach ($varName in $oldPgVars.Keys) {
+    [Environment]::SetEnvironmentVariable($varName, $oldPgVars[$varName], 'Process')
+  }
   & docker rm -f $restoreName 2>$null | Out-Null
   if (-not $KeepBackup) {
     if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Force -Recurse -ErrorAction SilentlyContinue }
