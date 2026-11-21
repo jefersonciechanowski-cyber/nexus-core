@@ -36,3 +36,10 @@
 5. Não alterar login/MFA atual nem publicar código da V1 na produção antes de revisão e homologação.
 
 **Nota:** esta é uma auditoria estática parcial. Não afirma que o banco está vulnerável nem que MFA/RLS falharam; esses resultados só podem ser declarados após testes reais.
+
+
+## Complemento de revisão — proteção MFA no script de piloto
+
+Inspeção adicional de `apps/nexus-admin/pilot.js`: a função `enforceAdminMfaSession()` é chamada antes de montar o formulário de piloto. Ela exige `nexus_admin`, verifica `client.auth.mfa.getAuthenticatorAssuranceLevel()` com `currentLevel === 'aal2'`, confirmação TOTP recente e marcador local, usando limite de 7.200 segundos (2 horas). Se falhar, faz logout local e retorna ao login. **Evidência positiva de defesa na UI; não prova autorização no backend ou em todos os outros fluxos.** A coluna MFA da matriz anterior diz respeito apenas aos arquivos inicialmente examinados.
+
+O último comentário do Cloudflare no PR #239 confirmou outro build com erro para commit `665eff85`. A tentativa de abrir o endereço de preview externamente também não obteve resposta útil. A causa exata ainda requer logs; não modificar build/deploy em produção sem diagnosticar.
