@@ -69,7 +69,7 @@ class StorageRestoreSafetyTests(unittest.TestCase):
             calls = []
             def fake_request(url, method, token, body=None, content_type=None):
                 calls.append((url, method, content_type))
-                self.assertTrue(url.startswith("https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/"))
+                self.assertTrue(url.startswith("https://abcdefghijklmnopqrst.supabase.co/storage/v1/"))
                 self.assertEqual(token, "test_credential_1234567890")
                 if url.endswith("/storage/v1/bucket/sst-documents"):
                     self.assertEqual(method, "GET")
