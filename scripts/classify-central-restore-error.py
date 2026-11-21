@@ -36,7 +36,19 @@ def main():
     except OSError:
         print("restore_failure_class=log_unavailable")
         return
-    print("restore_failure_class=" + classify(raw))
+    category = classify(raw)
+    print("restore_failure_class=" + category)
+    if category == "missing_schema":
+        # Names are strictly allowlisted platform schema identifiers.
+        # Never echo arbitrary schema names, log excerpts or SQL.
+        known_schemas = {"vault", "extensions", "net", "cron", "auth",
+                         "storage", "public", "graphql", "realtime",
+                         "pgsodium", "pgmq", "supabase_functions"}
+        match = re.search(r'ERROR:\\s+schema\\s+["\\x27]?([A-Za-z_][A-Za-z_0-9]*)["\\x27]?\\s+does not exist', raw, re.I)
+        found = (match.group(1).lower() if match else "")
+        print("restore_missing_schema_category=" + (
+            found if found in known_schemas else "other_or_unspecified"
+        ))
 
 if __name__ == "__main__":
     main()
