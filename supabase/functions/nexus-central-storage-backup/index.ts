@@ -40,7 +40,10 @@ async function verifyGitHub(token: string): Promise<boolean> {
     const checks: Array<[string, boolean]> = [
       ["issuer", claims.iss === ISSUER],
       ["audience", claims.aud === AUDIENCE],
-      ["subject", claims.sub === "repo:" + REPO + ":ref:" + REF],
+      // GitHub permits a customized subject template. Trust the signed immutable
+      // repository_id + exact repository/ref/workflow_ref conditions below,
+      // not one particular "sub" formatting convention.
+      ["subject", typeof claims.sub === "string" && claims.sub.length >= 3 && claims.sub.length <= 512],
       ["repository", claims.repository === REPO],
       ["repository_id", claims.repository_id === REPO_ID],
       ["ref", claims.ref === REF],
