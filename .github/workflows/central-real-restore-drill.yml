@@ -2,6 +2,12 @@ name: Central encrypted backup & isolated real restore (GitHub only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/central-real-restore-drill.yml'
+      - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-restore-security-fingerprint.sql'
   schedule:
     - cron: '30 7 * * *' # Daily 07:30 UTC; no local computer
 
@@ -121,6 +127,10 @@ jobs:
           done
           docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
             -c 'DROP SCHEMA IF EXISTS public CASCADE' >/dev/null
+          # Source uses pgcrypto and uuid-ossp in extensions schema. Install
+          # compatible built-in PostgreSQL extensions in the disposable DB.
+          docker exec "$name" psql -U postgres -d central_restore -v ON_ERROR_STOP=1 \
+            -c 'CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;' >/dev/null
           docker cp "$work/central.dump" "$name:/tmp/central.dump"
           # Never print pg_restore SQL or raw backup bytes in Actions logs.
           if ! docker exec "$name" pg_restore -U postgres -d central_restore \
