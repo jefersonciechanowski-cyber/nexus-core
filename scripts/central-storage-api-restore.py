@@ -129,6 +129,15 @@ def _multipart(content):
 def restore(records, target_url, token):
     if not token or len(token) < 16:
         raise ValueError("target credential unavailable")
+    # Never reimport confidential customer bytes into a PUBLIC bucket.
+    raw = _request(target_url + "/storage/v1/bucket/" + BUCKET, "GET", token)
+    try:
+        bucket = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ValueError("destination bucket metadata unavailable")
+    if (not isinstance(bucket, dict) or bucket.get("id") != BUCKET
+            or bucket.get("public") is not False):
+        raise ValueError("destination Storage bucket must be private")
     for name, path, digest, size in records:
         encoded = "/".join(quote(p, safe="") for p in name.split("/"))
         write = target_url + "/storage/v1/object/" + BUCKET + "/" + encoded
