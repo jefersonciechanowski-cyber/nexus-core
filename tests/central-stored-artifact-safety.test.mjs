@@ -29,9 +29,11 @@ test('stored artifact is checked, decrypted privately and restored with strict s
 });
 test('produced encrypted package embeds independent source digests and checkpoint time', () => {
   for(const name of ['central.dump', 'sequence-acl.sql', 'source-integrity.csv',
-    'security-digest.txt', 'captured-utc.txt', 'source-storage-inventory.json', 'storage/manifest.json']) {
+    'security-digest.txt', 'captured-utc.txt', 'source-storage-inventory.json']) {
     assert.ok(producer.includes(name), 'missing bundle member ' + name);
   }
+  assert.match(producer, /central-storage-backup\.py export/);
+  assert.match(producer, /source-storage-inventory\.json storage/);
   assert.match(producer, /tar -czf/);
   assert.match(producer, /AES256 --symmetric/);
 });
