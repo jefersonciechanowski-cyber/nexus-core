@@ -1,0 +1,68 @@
+name: Central PostgreSQL offline restore drill (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/central-offline-restore-test.yml'
+      - 'scripts/central-restore-drill.ps1'
+      - 'tests/sql/central-offline-restore-synthetic.sql'
+      - 'scripts/central-restore-integrity.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/central-offline-restore-test.yml'
+      - 'scripts/central-restore-drill.ps1'
+      - 'tests/sql/central-offline-restore-synthetic.sql'
+      - 'scripts/central-restore-integrity.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline_postgres_recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout approved recovery scripts without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Start disposable PostgreSQL 17 with synthetic data only
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name central-source-synthetic             -e POSTGRES_PASSWORD=synthetic-only             -e POSTGRES_DB=central_source             -p 127.0.0.1:5454:5432 postgres:17
+          for i in $(seq 1 70); do
+            if docker exec central-source-synthetic pg_isready -U postgres -d central_source > /dev/null; then break; fi
+            sleep 0.4
+          done
+          docker exec central-source-synthetic pg_isready -U postgres -d central_source
+          docker cp tests/sql/central-offline-restore-synthetic.sql central-source-synthetic:/tmp/synthetic.sql
+          docker exec central-source-synthetic psql -U postgres -d central_source             -v ON_ERROR_STOP=1 -q -f /tmp/synthetic.sql
+      - name: Backup and offline-restore synthetic database using real operator script
+        shell: bash
+        env:
+          CENTRAL_SOURCE_DATABASE_URL: postgresql://postgres:synthetic-only@host.docker.internal:5454/central_source
+        run: |
+          set -euo pipefail
+          pwsh -NoProfile -File scripts/central-restore-drill.ps1 -SyntheticFixture > /tmp/central-restore-summary.json
+          python3 - <<'PY'
+          import json
+          p = '/tmp/central-restore-summary.json'
+          data = json.load(open(p, encoding='utf-8'))
+          assert data['outcome'] == 'PASS', data
+          assert data['source'] == 'synthetic', data
+          assert data['output_digest_match'] is True, data
+          assert data['isolated_network_mode'] == 'none', data
+          assert data['broken_relationships'] == 0, data
+          assert data['external_notifications_and_charges'] == 0, data
+          assert data['checked_integrity_metrics'] >= 15, data
+          assert data['stored_backup'] is False, data
+          print('PASS: real custom pg_dump -> PostgreSQL 17 recovery in network-disabled Docker, integrity and states preserved')
+          print('restore duration seconds:', data['recovery_lab_seconds'])
+          print('verified metrics:', data['checked_integrity_metrics'])
+          PY
+      - name: Clean up synthetic source
+        if: always()
+        run: docker rm -f central-source-synthetic 2>/dev/null || true
