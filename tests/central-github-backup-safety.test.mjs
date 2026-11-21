@@ -51,3 +51,16 @@ test('synthetic positive/negative restore runs on real workflow changes', () => 
   assert.match(synthetic, /revoked GRANT is detected/);
   assert.match(synthetic, /security_digest_match/);
 });
+
+test('recovery package includes encrypted replayable source sequence ACLs', () => {
+  const source = readFileSync(new URL('../scripts/central-restore-sequence-acl.sql', import.meta.url), 'utf8');
+  assert.match(source, /SELECT format\(/);
+  assert.match(source, /aclexplode\(c\.relacl\)/);
+  assert.match(source, /c\.relkind = 'S'/);
+  assert.match(workflow, /source_sql central-restore-sequence-acl\.sql > "\$work\/sequence-acl\.sql"/);
+  assert.match(workflow, /psql -U postgres -d central_restore/);
+  assert.match(workflow, /-f \/tmp\/sequence-acl\.sql/);
+  assert.match(workflow, /tar -czf .*central-recovery-package\.tar\.gz/);
+  assert.match(workflow, /central\.dump sequence-acl\.sql/);
+  assert.match(workflow, /central-verified-.*\.tar\.gz\.gpg/);
+});

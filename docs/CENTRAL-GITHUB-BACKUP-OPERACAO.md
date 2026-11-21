@@ -34,3 +34,13 @@ Se não souber a senha do banco, **não redefinir de imediato**. Primeiro verifi
 O repositório é público. O artefato contém dados reais **cifrados**; mantenha a senha de cifragem aleatória, de alta entropia e fora do GitHub, e revise as permissões de acesso ao Actions antes de executar. Repositório privado e armazenamento com retenção mais longa devem ser avaliados antes de usar isto como único mecanismo de recuperação.
 
 O procedimento histórico local consta de `docs/CENTRAL-OFFLINE-RESTORE-DRILL-2026-11-21.md`, mas **não é mais o caminho operacional preferido**. Nenhum PowerShell no computador, Make ou n8n é exigido para o fluxo GitHub.
+
+
+## Integridade do pacote lógico
+
+O artefato GPG AES-256 validado contém um pacote `tar.gz` com dois arquivos inseparáveis: `central.dump` (dump PostgreSQL 17) e `sequence-acl.sql` (manifesto com as permissões **explícitas** de sequências `public` que o dump nativo pode não reproduzir integralmente). Ambos são derivados da origem somente-leitura e cifrados juntos.
+
+Numa restauração **offline**, aplique o dump ao banco descartável e depois aplique o manifesto de ACL somente nesse ambiente antes de comparar os fingerprints de segurança. O GitHub Actions faz essa verificação e só publica o pacote cifrado após a aprovação. Não execute o manifesto em produção; não divulgue seu conteúdo ou arquivos decifrados.
+
+Este fluxo testa a geração de uma cópia corrente e a recuperação de seus componentes no mesmo ensaio; um desastre real ainda exige recuperar o artefato armazenado, decifrar, restaurar sem depender da origem e validar dependências externas/RTO/RPO.
+

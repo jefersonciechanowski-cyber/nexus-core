@@ -8,6 +8,7 @@ on:
       - '.github/workflows/central-real-restore-drill.yml'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/central-restore-sequence-acl.sql'
       - 'scripts/central-security-category-diagnostics.py'
       - 'scripts/classify-central-restore-error.py'
   schedule:
@@ -94,6 +95,9 @@ jobs:
           security_before="$(source_sql central-restore-security-fingerprint.sql | tr -d '\r\n')"
           [[ "$security_before" =~ ^[0-9a-f]{32}$ ]] || { echo 'FAIL: missing source security digest'; exit 1; }
           source_sql central-restore-integrity.sql > "$work/source-integrity.csv"
+          # Capture source sequence ACLs as replayable SQL, never shown in Actions logs.
+          source_sql central-restore-sequence-acl.sql > "$work/sequence-acl.sql"
+          test -s "$work/sequence-acl.sql" || { echo 'FAIL: source sequence privilege manifest is empty'; exit 1; }
 
           docker run --rm "${source_pg[@]}" -v "$work:/backup" postgres:17 \
             pg_dump --format=custom --schema=public --schema=auth --schema=storage --schema=private \
@@ -139,6 +143,15 @@ jobs:
             --single-transaction --exit-on-error /tmp/central.dump > "$work/restore.log" 2>&1; then
             echo 'FAIL: offline pg_restore failed; raw diagnostics suppressed'
             python3 scripts/classify-central-restore-error.py "$work/restore.log"
+            exit 1
+          fi
+          # pg_dump can omit redundant explicit owner grants on sequences.
+          # Replay the source-derived manifest in the offline target only.
+          docker cp "$work/sequence-acl.sql" "$name:/tmp/sequence-acl.sql" >/dev/null
+          if ! docker exec "$name" psql -U postgres -d central_restore \
+            -X -q -v ON_ERROR_STOP=1 -f /tmp/sequence-acl.sql \
+            > "$work/acl-replay.log" 2>&1; then
+            echo 'FAIL: isolated sequence privilege replay failed; details suppressed'
             exit 1
           fi
           docker cp scripts/central-restore-security-fingerprint.sql "$name:/tmp/security.sql"
@@ -196,9 +209,16 @@ jobs:
           printf '%s' "$CENTRAL_BACKUP_ENCRYPTION_PASSWORD" > "$work/.gpg-passphrase"
           chmod 600 "$work/.gpg-passphrase"
           unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD PGPASSWORD
-          file="$RUNNER_TEMP/central-validated-encrypted-backup/central-verified-${GITHUB_RUN_ID}.dump.gpg"
+          # A recoverable artifact must contain BOTH the native dump and the
+          # exact sequence ACL replay script; package them together before encryption.
+          mkdir -p "$work/recovery-package"
+          cp "$work/central.dump" "$work/recovery-package/central.dump"
+          cp "$work/sequence-acl.sql" "$work/recovery-package/sequence-acl.sql"
+          tar -czf "$work/central-recovery-package.tar.gz" -C "$work/recovery-package" \
+            central.dump sequence-acl.sql
+          file="$RUNNER_TEMP/central-validated-encrypted-backup/central-verified-${GITHUB_RUN_ID}.tar.gz.gpg"
           gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
-            --cipher-algo AES256 --symmetric --output "$file" "$work/central.dump" >/dev/null 2>&1
+            --cipher-algo AES256 --symmetric --output "$file" "$work/central-recovery-package.tar.gz" >/dev/null 2>&1
           test -s "$file"
           gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/.gpg-passphrase" \
             --decrypt --output /dev/null "$file" >/dev/null 2>&1 || {
@@ -208,6 +228,7 @@ jobs:
           ( cd "$RUNNER_TEMP/central-validated-encrypted-backup" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256" )
           echo "PASS: isolated real Central dump restored; fingerprint and aggregate integrity match"
           echo "metrics_checked=$metrics"
+          echo "sequence_acl_manifest_statements=$(grep -c '^GRANT ' "$work/sequence-acl.sql" || true)"
           echo "archive_sha256=$digest"
           echo "lab_elapsed_seconds=$elapsed"
           echo "target_network=none"
