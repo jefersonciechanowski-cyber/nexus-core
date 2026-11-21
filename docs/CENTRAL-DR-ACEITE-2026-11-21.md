@@ -33,12 +33,12 @@ Auditoria somente leitura do Supabase em 21/11/2026:
 | --- | ---: | --- |
 | Storage buckets | 1 bucket **privado** | Metadados no backup; bytes fora |
 | Storage objects | 3 objetos (~2.378.927 bytes declarados) | **Bytes não incluídos** no `.dump` |
-| Edge Functions | 65 implantadas | 57 têm `index.ts` na `main`; 8 funções não encontradas no repositório |
+| Edge Functions | 65 implantadas | 57 fontes na `main` antes da revisão; as 8 funções restantes foram conferidas no Supabase (todas desativadas, HTTP 410) e versionadas em `supabase/functions/` |
 | Auth e integrações | 5 usuários internos no dump; provedores, chaves, SMTP, DNS, Asaas externos | Dados internos preservados; configurações e segredos externos não restaurados |
 
 O bucket privado não deve ser exposto publicamente para facilitar backup. Implementar futuramente exportação autenticada e criptografada **sem inserir tokens no código, issues ou logs**. Não basta registrar `storage.objects`: é preciso testar os bytes recuperados e ACLs dos objetos. Nunca criar links públicos para esses arquivos.
 
-Funções implantadas sem fonte em `supabase/functions/<slug>/index.ts` na `main` durante a auditoria: `nexus-part1-billing-acceptance`, `nexus-part3-ordering-acceptance`, `nexus-crm-stripe-test-webhook`, `nexus-crm-billing-acceptance-step`, `nexus-crm-billing-acceptance-run`, `nexus-crm-entitlement-diagnostic-once`, `nexus-public-crm-sales-test`, `nexus-crm-billing-acceptance-once`. Classificar cada uma como essencial ou legado antes de recuperar publicamente o código; nunca publicar fontes sem revisão de segredos.
+Funções que estavam implantadas sem fonte em `supabase/functions/<slug>/index.ts` na `main` antes desta correção (todas atualmente desativadas por HTTP 410, sem chamar provedores externos): `nexus-part1-billing-acceptance`, `nexus-part3-ordering-acceptance`, `nexus-crm-stripe-test-webhook`, `nexus-crm-billing-acceptance-step`, `nexus-crm-billing-acceptance-run`, `nexus-crm-entitlement-diagnostic-once`, `nexus-public-crm-sales-test`, `nexus-crm-billing-acceptance-once`. As oito versões implantadas foram verificadas como stubs de desativação sem segredos e adicionadas ao repositório. Não reativá-las em novos deploys. O código fonte versionado não substitui um teste de redeploy com configuração de Auth, Storage e fornecedores externos.
 
 ## Aceite do critério 17 — requisitos restantes
 
@@ -47,7 +47,7 @@ Funções implantadas sem fonte em `supabase/functions/<slug>/index.ts` na `main
 - [x] Negativa RLS para usuário fictício sem vínculo
 - [x] Testes positivos e negativos de um **membro de organização real, somente no banco restaurado**, e consistência funcional de pagamento/contrato sem cobranças — [run 44919490775](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44919490775), PASS
 - [ ] Backup e ensaio de recuperação de bytes do Storage privado
-- [ ] Origem reproduzível das 8 Edge Functions não versionadas ou desativação justificada, com validação de restauração
+- [x] Fonte das 8 Edge Functions temporárias resgatada do Supabase e versionada com resposta HTTP 410; continua pendente teste da implantação integral de funções essenciais e seus segredos
 - [ ] Plano de restauração externo (Auth, SMTP, DNS, Asaas, secrets) com responsabilidades e evidência funcional
 - [ ] RTO/RPO de **serviço completo** medidos e aceitos, com cópia independente do GitHub ou risco formalmente aceito
 
