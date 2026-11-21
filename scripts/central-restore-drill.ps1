@@ -120,6 +120,8 @@ try {
     $statement = "DO " + '$$' + " BEGIN IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role NOLOGIN; END IF; END " + '$$' + ";"
     Target-Query $statement | Out-Null
   }
+  $stage = 'offline database schema preparation'
+  Target-Query 'DROP SCHEMA IF EXISTS public CASCADE;' | Out-Null
   $stage = 'offline archive transfer'
   Run-Docker -Argv @('cp',$archive,($restoreName + ':/tmp/central-native-logical.dump')) | Out-Null
 
