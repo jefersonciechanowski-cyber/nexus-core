@@ -45,3 +45,22 @@ test('only fixed category labels are printed when database digests differ', () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('ACL diagnostics expose counts and allowlisted schemas only', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'central-acl-test-'));
+  try {
+    const sqlPath = join(dir, 'acls.sql');
+    execute('generate-acl', original, sqlPath);
+    assert.match(readFileSync(sqlPath, 'utf8'), /payload->'table_grants'/);
+    const src = join(dir, 'source-acls.json'), dst = join(dir, 'target-acls.json');
+    const secretObject = 'never_print_customer_sensitive_internal_table';
+    writeFileSync(src, JSON.stringify([['private', secretObject, 'authenticated', 'SELECT', false]]));
+    writeFileSync(dst, JSON.stringify([]));
+    const result = execute('compare-acl', src, dst);
+    assert.equal(result, 'acl_missing_grants=1\nacl_extra_grants=0\nacl_changed_objects=1\nacl_impacted_schemas=private'.replaceAll('\n', '\n'));
+    assert.ok(!result.includes(secretObject));
+    assert.ok(!result.includes('authenticated'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
