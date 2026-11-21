@@ -7,6 +7,7 @@ on:
       - 'scripts/central-restore-drill.ps1'
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-restore-security-fingerprint.sql'
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - 'scripts/central-restore-drill.ps1'
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
+      - 'scripts/central-restore-security-fingerprint.sql'
   workflow_dispatch:
 
 permissions:
@@ -58,6 +60,8 @@ jobs:
           assert data['outcome'] == 'PASS', data
           assert data['source'] == 'synthetic', data
           assert data['output_digest_match'] is True, data
+          assert data['security_digest_match'] is True, data
+          assert data['tenant_isolation_probe'] == 'passed', data
           assert data['isolated_network_mode'] == 'none', data
           assert data['broken_relationships'] == 0, data
           assert data['external_notifications_and_charges'] == 0, data
@@ -67,6 +71,27 @@ jobs:
           print('restore duration seconds:', data['recovery_lab_seconds'])
           print('verified metrics:', data['checked_integrity_metrics'])
           PY
+      - name: Negative control - revoking one real SQL grant must invalidate restoration
+        shell: bash
+        env:
+          CENTRAL_SOURCE_DATABASE_URL: postgresql://postgres:synthetic-only@host.docker.internal:5454/central_source
+          CENTRAL_DR_TEST_REVOKE_ACL: '1'
+        run: |
+          set -euo pipefail
+          set +e
+          pwsh -NoProfile -File scripts/central-restore-drill.ps1 -SyntheticFixture > /tmp/negative-restore.out 2>&1
+          exit_code=$?
+          set -e
+          if [ "$exit_code" -eq 0 ]; then
+            echo 'FAIL: altered ACL did not stop recovery'
+            exit 1
+          fi
+          if ! grep -q 'Restored privileges or owners differ' /tmp/negative-restore.out; then
+            echo 'FAIL: negative control failed for a reason other than ACL mismatch'
+            exit 1
+          fi
+          rm -f /tmp/negative-restore.out
+          echo 'PASS: a revoked GRANT is detected and makes restore fail closed'
       - name: Clean up synthetic source
         if: always()
         run: docker rm -f central-source-synthetic 2>/dev/null || true
