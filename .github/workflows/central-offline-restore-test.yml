@@ -9,6 +9,7 @@ on:
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/central-security-category-diagnostics.py'
       - 'scripts/classify-central-restore-error.py'
   push:
     branches: [main]
@@ -19,6 +20,7 @@ on:
       - 'tests/sql/central-offline-restore-synthetic.sql'
       - 'scripts/central-restore-integrity.sql'
       - 'scripts/central-restore-security-fingerprint.sql'
+      - 'scripts/central-security-category-diagnostics.py'
       - 'scripts/classify-central-restore-error.py'
   workflow_dispatch:
 
