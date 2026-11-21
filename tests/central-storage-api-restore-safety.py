@@ -71,6 +71,9 @@ class StorageRestoreSafetyTests(unittest.TestCase):
                 calls.append((url, method, content_type))
                 self.assertTrue(url.startswith("https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/"))
                 self.assertEqual(token, "test_credential_1234567890")
+                if url.endswith("/storage/v1/bucket/sst-documents"):
+                    self.assertEqual(method, "GET")
+                    return b'{"id":"sst-documents","public":false}'
                 if method == "POST":
                     self.assertIn(b"Content-Disposition: form-data", body)
                     self.assertIn(DATA, body)
@@ -80,17 +83,32 @@ class StorageRestoreSafetyTests(unittest.TestCase):
                 return DATA
             with patch.object(dr, "_request", fake_request):
                 dr.restore(records, dr.validate_target("abcdefghijklmnopqrst","abcdefghijklmnopqrst"), "test_credential_1234567890")
-            self.assertEqual([x[1] for x in calls], ["POST", "GET"])
+            self.assertEqual([x[1] for x in calls], ["GET", "POST", "GET"])
 
     def test_readback_hash_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             base = fixture(temp)
             records, _ = dr.verified_files(base)
             def fake_request(url, method, token, body=None, content_type=None):
+                if url.endswith("/storage/v1/bucket/sst-documents"):
+                    return b'{"id":"sst-documents","public":false}'
                 return b'{"Key":"test"}' if method == "POST" else b"x" * len(DATA)
             with patch.object(dr, "_request", fake_request):
                 with self.assertRaises(ValueError):
                     dr.restore(records, "https://abcdefghijklmnopqrst.supabase.co", "test_credential_1234567890")
+
+    def test_public_bucket_is_rejected_before_any_object_upload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = fixture(temp)
+            records, _ = dr.verified_files(base)
+            calls = []
+            def fake_request(url, method, token, body=None, content_type=None):
+                calls.append((url, method))
+                return b'{"id":"sst-documents","public":true}'
+            with patch.object(dr, "_request", fake_request):
+                with self.assertRaises(ValueError):
+                    dr.restore(records, "https://abcdefghijklmnopqrst.supabase.co", "test_credential_1234567890")
+            self.assertEqual(len(calls), 1, "must refuse PUBLIC bucket before uploading any file")
 
 if __name__ == "__main__":
     unittest.main()
