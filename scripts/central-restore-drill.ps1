@@ -186,7 +186,7 @@ try {
       $beforeParts = (Source-Query $partsSql | ConvertFrom-Json)
       $afterParts = (Target-Query $partsSql | ConvertFrom-Json)
       $failedClasses = @()
-      foreach ($category in @('objects','table_grants','policies','functions','function_grants','schema_grants')) {
+      foreach ($category in @('objects','table_grants','policies','functions','function_grants','schema_owners','schema_grants')) {
         if (($beforeParts.$category | ConvertTo-Json -Depth 70 -Compress) -ne ($afterParts.$category | ConvertTo-Json -Depth 70 -Compress)) {
           $failedClasses += $category
         }
