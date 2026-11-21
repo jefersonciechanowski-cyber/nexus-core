@@ -41,6 +41,9 @@ jobs:
       - name: Verify isolated Central restore checker safeguards (no real backups)
         run: node --test tests/central-restore-readiness.test.mjs
 
+      - name: Verify CRM auth monitoring synthetic thresholds and no personal-data output
+        run: node --test tests/crm-auth-alert-synthetic.test.mjs
+
       - name: Verify SST and Nexus Central tenant, payment, Storage and expiry security guards
         run: node --test tests/sst-central-security-boundaries.test.mjs
 
