@@ -1,0 +1,29 @@
+name: CRM native Auth login throttle - one-time synthetic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-auth-live-throttle.yml'
+      - 'tests/crm-auth-live-throttle-synthetic.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-native-auth-throttle-one-time
+  cancel-in-progress: true
+
+jobs:
+  synthetic_noncustomer_password_limit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Checkout reviewed test only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Probe production native password grant limit from runner IP
+        # Dedicated public-runner egress; synthetic .invalid domain, no actual user.
+        # Request cap 48, stops at first 429; no sign-up, mail, WhatsApp or billing.
+        run: python3 tests/crm-auth-live-throttle-synthetic.py
