@@ -32,11 +32,11 @@ Auditoria somente leitura do Supabase em 21/11/2026:
 | Componente | Inventário | Situação |
 | --- | ---: | --- |
 | Storage buckets | 1 bucket **privado** | Metadados no backup; bytes fora |
-| Storage objects | 3 objetos (~2.378.927 bytes declarados) | Nova rotina de captura cifrada de bytes por OIDC (só considerar concluído após execução real e recuperação independente aprovadas) |
-| Edge Functions | 65 implantadas | 57 fontes na `main` antes da revisão; as 8 funções restantes foram conferidas no Supabase (todas desativadas, HTTP 410) e versionadas em `supabase/functions/` |
+| Storage objects | 3 objetos privados, 2.378.927 bytes | **PASS**: exportação cifrada e recuperação independente dos bytes/hashes, runs 44924143771 e 44924319356 |
+| Edge Functions | 66 implantadas, 66 fontes na `main` | Inclui endpoint novo OIDC de backup, com leitura restrita a um bucket; oito endpoints antigos permanecem desativados (HTTP 410) |
 | Auth e integrações | 5 usuários internos no dump; provedores, chaves, SMTP, DNS, Asaas externos | Dados internos preservados; configurações e segredos externos não restaurados |
 
-O bucket privado não deve ser exposto publicamente para facilitar backup. Implementar futuramente exportação autenticada e criptografada **sem inserir tokens no código, issues ou logs**. Não basta registrar `storage.objects`: é preciso testar os bytes recuperados e ACLs dos objetos. Nunca criar links públicos para esses arquivos.
+O bucket continua privado. A exportação cifrada autenticada por GitHub OIDC e o teste de recuperação independente de todos os bytes foram aprovados. **Não existem URLs públicas de documentos**. Ainda falta testar a reimportação desses bytes por API para um serviço Storage Supabase novo, com RLS e acesso da aplicação.
 
 Funções que estavam implantadas sem fonte em `supabase/functions/<slug>/index.ts` na `main` antes desta correção (todas atualmente desativadas por HTTP 410, sem chamar provedores externos): `nexus-part1-billing-acceptance`, `nexus-part3-ordering-acceptance`, `nexus-crm-stripe-test-webhook`, `nexus-crm-billing-acceptance-step`, `nexus-crm-billing-acceptance-run`, `nexus-crm-entitlement-diagnostic-once`, `nexus-public-crm-sales-test`, `nexus-crm-billing-acceptance-once`. As oito versões implantadas foram verificadas como stubs de desativação sem segredos e adicionadas ao repositório. Não reativá-las em novos deploys. O código fonte versionado não substitui um teste de redeploy com configuração de Auth, Storage e fornecedores externos.
 
@@ -46,7 +46,7 @@ Funções que estavam implantadas sem fonte em `supabase/functions/<slug>/index.
 - [x] Recarga do artefato **criptografado já armazenado** e recuperação independente da base original
 - [x] Negativa RLS para usuário fictício sem vínculo
 - [x] Testes positivos e negativos de um **membro de organização real, somente no banco restaurado**, e consistência funcional de pagamento/contrato sem cobranças — [run 44919490775](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44919490775), PASS
-- [ ] Backup e ensaio de recuperação de bytes do Storage privado (implementação OIDC no PR de Storage; confirmar PASS real e teste de hashes antes de marcar concluído)
+- [x] Backup de arquivos privados e recuperação independente dos bytes com hashes SHA-256 e metadados — [run real 44924143771](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924143771) + [run offline 44924319356](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924319356)
 - [x] Fonte das 8 Edge Functions temporárias resgatada do Supabase e versionada com resposta HTTP 410; continua pendente teste da implantação integral de funções essenciais e seus segredos
 - [ ] Plano de restauração externo (Auth, SMTP, DNS, Asaas, secrets) com responsabilidades e evidência funcional
 - [ ] RTO/RPO de **serviço completo** medidos e aceitos, com cópia independente do GitHub ou risco formalmente aceito
@@ -68,10 +68,34 @@ A autenticação com provedor externo, cobrança real e os bytes de Storage cont
 
 ## Implementação adicional: exportação privada de objetos com GitHub OIDC
 
-O workflow real passa a solicitar ao próprio GitHub um JWT temporário (*OpenID Connect*) com audiência exclusiva `https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-central-storage-backup`. A função interna só atende a JWTs com assinatura RS256 verificável no JWKS oficial, `issuer`, `audience`, `sub`, ID do repositório e `workflow_ref` exatos da `main`. Não confundir `verify_jwt=false` da plataforma com ausência de autenticação: esta rota **exige assinatura Github validada no próprio código** e rejeita usuários anônimos.
+O workflow real passa a solicitar ao próprio GitHub um JWT temporário (*OpenID Connect*) com audiência exclusiva `https://svphwbccqeoakpmcpvhy.supabase.co/functions/v1/nexus-central-storage-backup`. A função interna só atende a JWTs com assinatura RS256 verificável no JWKS oficial, `issuer`, `audience`, ID imutável do repositório, `ref` e `workflow_ref` exatos da `main`, além de validade e evento restrito; `sub` é exigido mas aceita o formato customizável do GitHub. Não confundir `verify_jwt=false` da plataforma com ausência de autenticação: esta rota **exige assinatura Github validada no próprio código** e rejeita usuários anônimos.
 
 O endpoint restringe a leitura ao bucket privado `sst-documents` e à operação `GET` de objetos. A chave privilegiada de Supabase é usada **somente dentro do ambiente da Edge Function**, nunca fornecida ao GitHub. URLs públicas ou links assinados de objetos não são gerados.
 
 As cópias baixadas no runner recebem nomes opacos, hash SHA-256 individual e manifesto de tamanhos e metadados. Todos os bytes são incorporados ao mesmo `tar.gz.gpg` AES-256 do banco, depois de conferir estabilidade de metadata e correspondência com a cópia PostgreSQL isolada. O recovery workflow verifica cada byte, hash e metadado **sem acesso à produção**, aceitando apenas nomes rígidos de membros do pacote.
 
 **Atenção:** restaurar os bytes em arquivos locais de laboratório é diferente de executar um teste de *reupload* em novo Storage da Supabase. Ainda precisa de validação de acesso pela aplicação num serviço reconstruído, procedimento seguro de implantação das Edge Functions, segredos externos, responsáveis e RTO/RPO de serviço. Os backups cifrados no GitHub expiram em 30 dias: manter também uma cópia independente do fornecedor faz parte do DR integral. A rotina deve reprovar se arquivo privado ou login OIDC falhar; nunca usar backup apenas do banco como substituto silencioso.
+
+## Resultado do ensaio completo com bytes de Storage — 21/11/2026
+
+| Prova | Evidência | Resultado |
+| --- | --- | --- |
+| Backup PostgreSQL + 3 documentos privados em um único pacote AES-256 | [Execução 44924143771](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924143771) | **PASS** |
+| Inventário antes/depois da leitura do Storage e comparação contra o banco restaurado | [Execução 44924143771](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924143771) | **PASS** |
+| Recuperação independente sem banco de origem, SHA-256 individual de 3/3 arquivos (2.378.927 bytes) e igualdade dos metadados | [Execução 44924319356](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924319356) | **PASS** |
+| Autorização funcional de membro org-admin da Central, negativa RLS e vínculos financeiros sem cobranças | [Execução 44924319356](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44924319356) | **PASS** |
+
+- O artefato cifrado `central-validated-encrypted-backup-44924143771` possui **2.575.342 bytes**, expira em **21/12/2026** e inclui dump, manifesto de permissões, metadados e conteúdo dos objetos privados.
+- Tempo do ensaio de geração/validação do pacote: **88 segundos**. Tempo do ensaio de recuperação independente offline: **13 segundos**. Esses tempos não são RTO de serviço.
+- O teste independente não precisa consultar o banco Supabase de produção: baixa o artefato já armazenado no GitHub, descriptografa com a credencial protegida no próprio GitHub e reconstitui os arquivos temporariamente no runner, verificando SHA-256 e metadados do PostgreSQL restaurado. Nada é enviado como arquivo desprotegido.
+- Saúde da Central verificada após os testes: `ACTIVE_HEALTHY`.
+
+### Pendências indispensáveis para recuperação de serviço
+
+1. **Reupload de Storage:** realizar teste isolado de importação por API em um projeto Supabase temporário, verificar acesso com RLS e remover o ambiente de teste. Não editar `storage.objects` via SQL nem reimportar em produção como ensaio.
+2. **Autenticação e integrações:** assegurar procedimento de restauração segura de configurações não incluídas no dump (SMTP, DNS, sessões, chaves de Auth, Asaas e serviços externos), com testes sem cobrar clientes.
+3. **RTO/RPO:** definir metas de continuidade e medir um incidente simulado cobrindo toda a aplicação, não somente PostgreSQL e Storage em laboratório.
+4. **Redundância fora do GitHub:** armazenar cópia cifrada em segundo provedor ou aceitar formalmente o risco de indisponibilidade do GitHub/expiração de artefatos. Garantir recuperação da senha de criptografia em um cofre autorizado **fora do GitHub**, com controle de responsáveis.
+
+**Placar formal permanece em 16/18 (88,9%) enquanto o critério 17 não cumprir o escopo integral.** A conexão Google Search Console (critério 18) ainda depende de autorização explícita do titular da conta Google.
+
