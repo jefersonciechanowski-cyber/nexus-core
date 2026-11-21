@@ -88,9 +88,9 @@ function Run-Docker([string[]]$Argv) {
   return ($result | Out-String).Trim()
 }
 function Source-Query([string]$Query) {
-  return (Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    @sourceConnectionEnv,$PostgresImage,
-    'sh','-c','exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query))
+  $argv = @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway') + $sourceConnectionEnv +
+    @($PostgresImage,'sh','-c','exec psql -X -A -t -v ON_ERROR_STOP=1 -c "$1"','sh',$Query)
+  return (Run-Docker -Argv $argv)
 }
 function Target-Query([string]$Query) {
   return (Run-Docker -Argv @('exec',$restoreName,'psql','-U','postgres','-d','central_restore',
@@ -111,10 +111,10 @@ try {
   # pg_dump is READ ONLY on source. Docker receives the URL as an environment
   # variable, NEVER as a literal command argument or process log.
   $stage = 'read-only custom-format database dump'
-  Run-Docker -Argv @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway',
-    @sourceConnectionEnv,'--volume',($folder + ':/backup'),
-    $PostgresImage,'sh','-c',
-    'exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump') | Out-Null
+  $dumpArgv = @('run','--rm','--network','bridge','--add-host','host.docker.internal:host-gateway') + $sourceConnectionEnv +
+    @('--volume',($folder + ':/backup'),$PostgresImage,'sh','-c',
+      'exec pg_dump --format=custom --schema=public --schema=auth --schema=storage --file=/backup/central-native-logical.dump')
+  Run-Docker -Argv $dumpArgv | Out-Null
 
   if (-not (Test-Path -LiteralPath $archive)) { throw 'No dump was generated.' }
   $fs = [IO.File]::OpenRead($archive)
