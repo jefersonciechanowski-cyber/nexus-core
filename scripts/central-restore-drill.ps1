@@ -179,6 +179,20 @@ try {
   }
   $restoredSecurity = (Target-Query $securitySql).Trim()
   if ($restoredSecurity -ne $securityBefore) {
+    if ($SyntheticFixture) {
+      # Synthetic-only diagnostics: compare categories without printing any SQL
+      # definition or data. Never execute this branch on the real database.
+      $partsSql = $securitySql.Replace('SELECT md5(jsonb_build_object(', 'SELECT jsonb_build_object(').Replace(')::text) AS security_digest;', ')::text AS security_parts;')
+      $beforeParts = (Source-Query $partsSql | ConvertFrom-Json)
+      $afterParts = (Target-Query $partsSql | ConvertFrom-Json)
+      $failedClasses = @()
+      foreach ($category in @('objects','table_grants','policies','functions','function_grants','schema_grants')) {
+        if (($beforeParts.$category | ConvertTo-Json -Depth 70 -Compress) -ne ($afterParts.$category | ConvertTo-Json -Depth 70 -Compress)) {
+          $failedClasses += $category
+        }
+      }
+      Write-Warning ('Synthetic-only mismatched security categories: ' + ($failedClasses -join ', '))
+    }
     throw 'Restored privileges or owners differ from source: SQL GRANTs, RLS, or SECURITY DEFINER context.'
   }
   if ($SyntheticFixture) {
