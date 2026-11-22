@@ -227,6 +227,26 @@ for (const required of [
   if (!nexusAiCoreSource.includes(required)) fail('Nexus AI: server evidence contract missing: ' + required);
 }
 
+// Nexus AI microphone is opt-in and cannot bypass admin MFA or NVIDIA's read-only backend.
+const voiceUiSource = await readFile(join(projectRoot, 'apps', 'nexus-admin', 'nexus-ai-preview.js'), 'utf8');
+for(const required of [
+  "currentLevel === 'aal2'",
+  "statusData?.provider!=='nvidia'",
+  "window.SpeechRecognition||window.webkitSpeechRecognition",
+  "window.SpeechSynthesisUtterance",
+  "engine.lang='pt-BR'",
+  "utterance.lang='pt-BR'",
+  "voiceOrb.addEventListener('click',toggleVoice)",
+  "stopVoice();\n        requestEpoch++",
+  "window.speechSynthesis.cancel()",
+  "body:{operation:'snapshot'}",
+]) {
+  if (!voiceUiSource.includes(required)) fail('Nexus AI voice/read-only guard missing: '+required);
+}
+if (/\bMediaRecorder\b|\bgetUserMedia\b|\.innerHTML\s*=\s*(?:answer|body)/.test(voiceUiSource)) {
+  fail('Nexus AI voice: raw audio capture/upload or unsafe answer HTML detected.');
+}
+
 const adminAal2GuardMigration = migrationFiles.find(file => file.endsWith('20260923235000_enforce_admin_aal2_rpc_guards.sql'));
 if (!adminAal2GuardMigration) {
   fail('supabase/migrations: migration dos guards AAL2 administrativos ausente.');
