@@ -199,6 +199,34 @@ if (/api\.openai\.com|OPENAI_API_KEY|gpt-5\./.test(nexusAiCoreSource)) {
   fail('Nexus AI Core: fallback OpenAI não autorizado.');
 }
 
+// Nexus AI evidence must be read-only, service-role isolated and enforced for BOTH modes.
+const centralSnapshotMigration = migrationFiles.find(file => file.endsWith('20261122143000_nexus_ai_central_readonly_snapshot.sql'));
+if (!centralSnapshotMigration) {
+  fail('Nexus AI: Central read-only evidence migration missing.');
+} else {
+  const snapshotSQL = await readFile(centralSnapshotMigration, 'utf8');
+  for (const required of [
+    'security invoker',
+    'revoke all on function public.nexus_ai_central_snapshot() from public, anon, authenticated',
+    'grant execute on function public.nexus_ai_central_snapshot() to service_role',
+    "'crmOperationalUsers', false",
+    "'crmSystemHealth', false",
+  ]) {
+    if (!snapshotSQL.includes(required)) fail('Nexus AI: snapshot privilege/coverage rule missing: ' + required);
+  }
+  if (/security definer|company_name|registration_number|provider_payment_id|select\s+\*/i.test(snapshotSQL)) {
+    fail('Nexus AI: privileged or personal-data source found in aggregate snapshot.');
+  }
+}
+for (const required of [
+  "admin.rpc('nexus_ai_central_snapshot')",
+  "body.operation === 'snapshot'",
+  "context = await buildAdminContext(admin)",
+  "evidence: { source: context.source",
+]) {
+  if (!nexusAiCoreSource.includes(required)) fail('Nexus AI: server evidence contract missing: ' + required);
+}
+
 const adminAal2GuardMigration = migrationFiles.find(file => file.endsWith('20260923235000_enforce_admin_aal2_rpc_guards.sql'));
 if (!adminAal2GuardMigration) {
   fail('supabase/migrations: migration dos guards AAL2 administrativos ausente.');
