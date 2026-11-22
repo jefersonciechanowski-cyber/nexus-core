@@ -57,3 +57,7 @@
 | Aceite formal (operador + aprovador) | PENDENTE |
 
 **Regra de aceite:** apenas a documentação desta matriz não altera o placar 16/18. O 18º critério continua separado: autorização do Google Search Console no OpenSEO pelo titular.
+
+## Atualização de status — 22/11/2026 UTC
+
+Segunda cópia criptografada no Google Drive **aprovada por readback + SHA-256** do ZIP, em pasta privada; ver [prova externa](CENTRAL-DR-EXTERNAL-ENCRYPTED-BACKUP-2026-11-22.md). Três arquivos privados reais reimportados com sucesso por API Storage **local** (run 44966078715). A célula “segunda cópia” da matriz histórica acima passa a **PASS**, mas a de **cofre de chaves independente** continua **PENDENTE**. Automação de cópias externas criada, **ainda sem execução recorrente verificada**. RTO/RPO real de serviço, teste hosted/isolado e dependências externas continuam pendentes. Placar 17/18 (94,4%), não homologar serviço completo.
