@@ -30,10 +30,15 @@ body.central-nexus-tools-v3::before {
 body.central-nexus-v2::after,
 body.central-nexus-tools-v3::after {
   inset:-15vh -12vw;
-  background:
+  /* The wave is part of the page background, not a card behind the orb. */
+  background-image:
+    url("central-nexus-wave.svg"),
     radial-gradient(ellipse 38% 42% at 27% 35%,rgba(25,157,145,.26),transparent 78%),
     radial-gradient(ellipse 39% 34% at 78% 54%,rgba(16,116,121,.28),transparent 80%),
     radial-gradient(ellipse 24% 30% at 48% 76%,rgba(188,150,80,.065),transparent 85%);
+  background-position:center calc(100% - 15vh),center,center,center;
+  background-size:100% auto,auto,auto,auto;
+  background-repeat:no-repeat;
   opacity:.68;
   transform:translate3d(0,0,0) scale(1);
   transform-origin:50% 50%;
