@@ -108,8 +108,10 @@ test('CSP-safe external script and local login redirect, financial pilot remains
  assert.match(pix,/financeEnabled=false/);
 });
 
-test('Central sidebar links directly to private Pix diagnostic after login, with no payment change',()=>{
- assert.match(dashboard, /href="crm-live-pix-pilot\.html"/);
- assert.match(dashboard, /Teste Pix R\$ 10/);
- assert.match(pix, /financeEnabled=false/);
+test('private Pix pilot stays financially disabled and is no longer promoted in the Central menu',()=>{
+  assert.doesNotMatch(dashboard, /href="crm-live-pix-pilot\.html"/);
+  assert.doesNotMatch(dashboard, /Teste Pix R\$ 10/);
+  assert.doesNotMatch(dashboard, /<summary>Ferramentas<\/summary>/);
+  assert.match(dashboard, /data-view="courtesy"/);
+  assert.match(pix, /financeEnabled=false/);
 });
