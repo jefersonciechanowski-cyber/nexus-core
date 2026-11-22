@@ -54,6 +54,14 @@ for (const [lineNumber, line] of headers.split(/\r?\n/).entries()) {
   );
 }
 
+// Neural speech is synthesized server-side and played from a temporary local WAV Blob.
+// Limit this exception to the authenticated Nexus Admin route only.
+const adminCspSection = headers.split('/apps/nexus-admin/*')[1]?.split('/apps/portal-cliente/*')[0] || '';
+const adminCspLine = adminCspSection.split('\n').find(line => line.includes('Content-Security-Policy:')) || '';
+if (!adminCspLine.includes("media-src 'self' blob:")) {
+  failures.push('_headers: áudio WAV neural da Central requer media-src restrito a self e blob.');
+}
+
 const policies = headers
   .split(/\r?\n/)
   .map(line => line.trim())
