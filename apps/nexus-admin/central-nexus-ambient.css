@@ -1,0 +1,75 @@
+/* Nexus Core · persistent ambient field shared by every Central screen.
+   Purely visual: one stable background, independent of the AI panel lifecycle. */
+body.central-nexus-v2,
+body.central-nexus-tools-v3 {
+  position:relative;
+  isolation:isolate;
+  background-color:#061b1a;
+}
+body.central-nexus-v2::before,
+body.central-nexus-v2::after,
+body.central-nexus-tools-v3::before,
+body.central-nexus-tools-v3::after {
+  content:"";
+  position:fixed;
+  pointer-events:none;
+  z-index:0;
+}
+body.central-nexus-v2::before,
+body.central-nexus-tools-v3::before {
+  inset:0;
+  background-image:
+    linear-gradient(to right,rgba(91,188,169,.085) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(91,188,169,.075) 1px,transparent 1px);
+  background-size:72px 72px;
+  opacity:.32;
+  -webkit-mask-image:radial-gradient(ellipse 86% 76% at 50% 42%,#000 9%,transparent 100%);
+  mask-image:radial-gradient(ellipse 86% 76% at 50% 42%,#000 9%,transparent 100%);
+  animation:nexus-ambient-grid-breathe 26s ease-in-out infinite alternate;
+}
+body.central-nexus-v2::after,
+body.central-nexus-tools-v3::after {
+  inset:-15vh -12vw;
+  background:
+    radial-gradient(ellipse 38% 42% at 27% 35%,rgba(25,157,145,.26),transparent 78%),
+    radial-gradient(ellipse 39% 34% at 78% 54%,rgba(16,116,121,.28),transparent 80%),
+    radial-gradient(ellipse 24% 30% at 48% 76%,rgba(188,150,80,.065),transparent 85%);
+  opacity:.68;
+  transform:translate3d(0,0,0) scale(1);
+  transform-origin:50% 50%;
+  animation:nexus-ambient-orbit 34s ease-in-out infinite alternate;
+  will-change:transform;
+}
+body.central-nexus-v2 > .shell,
+body.central-nexus-tools-v3 > .shell {
+  position:relative;
+  z-index:1;
+}
+@keyframes nexus-ambient-grid-breathe {
+  from { opacity:.2; }
+  to { opacity:.43; }
+}
+@keyframes nexus-ambient-orbit {
+  0% { transform:translate3d(-2%,1.5%,0) scale(1); }
+  50% { transform:translate3d(1.8%,-1.3%,0) scale(1.055); }
+  100% { transform:translate3d(-.5%,2.2%,0) scale(1.02); }
+}
+/* The embedded admin pages let the parent Central supply the shared animated
+   backdrop, rather than starting a second animation inside the iframe. */
+html.nexus-embedded body.central-nexus-v2::before,
+html.nexus-embedded body.central-nexus-v2::after,
+html.nexus-embedded body.central-nexus-tools-v3::before,
+html.nexus-embedded body.central-nexus-tools-v3::after {
+  display:none!important;
+  animation:none!important;
+}
+/* Motion accessibility: retain the translucent visual identity without motion. */
+@media (prefers-reduced-motion:reduce) {
+  body.central-nexus-v2::before,
+  body.central-nexus-v2::after,
+  body.central-nexus-tools-v3::before,
+  body.central-nexus-tools-v3::after {
+    animation:none!important;
+    will-change:auto;
+  }
+}
