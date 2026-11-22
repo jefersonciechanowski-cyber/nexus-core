@@ -107,7 +107,7 @@
       const canListen=typeof VoiceRecognition==='function';
       const canSpeak=Boolean(window.speechSynthesis&&window.SpeechSynthesisUtterance);
       let voiceActive=false,autoSpeak=false,rec=null,recText='',speakEpoch=0,voiceState='idle';
-      let recConfidence=null;
+      let recConfidence=null,finishRecognition=null;
       let neuralEnabled=true,neuralAudio=null,neuralAbort=null,neuralObjectUrl=null;
       function refreshVoice(state,message){
         voiceState=state;
@@ -133,6 +133,7 @@
         stopAudioButton.hidden=true;
       }
       function stopListening(){
+        finishRecognition=null;
         const previous=rec;
         rec=null;
         if(previous){
@@ -304,6 +305,7 @@
         };
         engine.onerror=event=>{
           if(engine!==rec)return;
+          finishRecognition=null;
           const explanations={
             'not-allowed':'Permita o microfone nas configurações do navegador.',
             'service-not-allowed':'Serviço de transcrição do navegador indisponível. Use o ditado do Windows (Win + H).',
@@ -318,6 +320,7 @@
         };
         engine.onend=()=>{
           if(engine!==rec)return;
+          finishRecognition=null;
           rec=null;
           questionInput.placeholder=questionHint;
           if(!voiceActive||!dialog.open)return;
@@ -336,10 +339,10 @@
           chatForm.requestSubmit();
         };
         // Stop button must flush the recognizer (not abort and discard text).
-        engine.nexusFinish=()=>{
+        finishRecognition=()=>{
           if(engine!==rec)return;
           stopRequested=true;
-          try{engine.stop();refreshVoice('listening','Finalizando transcrição...');}
+          try{refreshVoice('listening','Finalizando transcrição...');engine.stop();}
           catch{
             const text=(recText||latestTranscript||'').trim();
             if(text)questionInput.value=text;
@@ -358,7 +361,7 @@
       }
       function toggleVoice(){
         if(voiceActive){
-          if(rec&&typeof rec.nexusFinish==='function'){rec.nexusFinish();return;}
+          if(rec&&typeof finishRecognition==='function'){finishRecognition();return;}
           stopVoice();return;
         }
         selectTab('network');
