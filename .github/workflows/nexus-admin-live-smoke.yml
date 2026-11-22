@@ -54,3 +54,16 @@ jobs:
           else:
               print('Official Central HTML has no CRM Comercial navigation entry.')
           PY
+          # Observe canonical path headers. No authentication, tokens or customer data.
+          # Cloudflare may redirect accounts.html to accounts (without extension).
+          for RESOURCE in accounts crm-access; do
+            curl --silent --show-error --location --head --max-time 20 \
+              "${ORIGIN}/${RESOURCE}.html?embedded=1" > "/tmp/nexus-${RESOURCE}-headers.txt"
+            if grep -qi '^x-frame-options: sameorigin' "/tmp/nexus-${RESOURCE}-headers.txt" && \
+               grep -qi "frame-ancestors 'self'" "/tmp/nexus-${RESOURCE}-headers.txt"; then
+              echo "Admin embedded route ${RESOURCE}: SAMEORIGIN and CSP self"
+            else
+              echo "::warning::Admin embedded route ${RESOURCE}: response headers may still block embedding."
+              grep -iE '^x-frame-options:|^content-security-policy:' "/tmp/nexus-${RESOURCE}-headers.txt" | cut -c 1-180 || true
+            fi
+          done

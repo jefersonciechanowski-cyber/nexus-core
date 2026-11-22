@@ -463,3 +463,53 @@ body.central-nexus-v2 {
     height:max(610px,calc(100dvh - 175px));
   }
 }
+
+/* Nexus Central: seven equal-width tabs, no clipped labels or horizontal bar.
+   Alias labels are compact in visual text, full titles are kept in aria-label/title. */
+@media(min-width:901px){
+  body.central-nexus-v2 .side{
+    grid-template-columns:176px minmax(0,1fr) 116px;
+    column-gap:10px;
+  }
+  body.central-nexus-v2 .nav{
+    display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+    gap:3px;align-content:center;justify-items:stretch;
+    min-width:0;width:100%;max-width:none;
+    overflow:visible;scrollbar-width:none;
+  }
+  body.central-nexus-v2 .nav > button[data-view] {
+    display:flex;min-width:0;width:100%;min-height:36px;
+    align-items:center;justify-content:center;
+    padding:7px 3px;font-size:clamp(10px,.82vw,12px);
+    font-weight:540;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    border-width:1px;transition:color .12s,background .12s,border-color .12s;
+  }
+  body.central-nexus-v2 .nav > button[data-view].active {font-weight:540}
+  body.central-nexus-v2 .sidebar-tools{width:116px;min-width:116px}
+}
+@media(min-width:901px) and (max-width:1120px){
+  body.central-nexus-v2 .side{grid-template-columns:148px minmax(0,1fr) 108px;column-gap:5px}
+  body.central-nexus-v2 .side .logo{width:145px}
+  body.central-nexus-v2 .sidebar-tools{min-width:108px;width:108px}
+  body.central-nexus-v2 .nav > button[data-view]{font-size:10px;letter-spacing:-.025em;padding-inline:1px}
+}
+@media(max-width:900px){
+  body.central-nexus-v2 .side{
+    grid-template-rows:43px 15px auto;
+    height:auto;min-height:0;
+  }
+  body.central-nexus-v2 .nav{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:4px;width:100%;max-width:none;min-width:0;
+    overflow:visible;align-content:stretch;
+  }
+  body.central-nexus-v2 .nav > button[data-view]{
+    display:flex;width:100%;min-width:0;min-height:34px;
+    justify-content:center;padding:6px 4px;font-size:11px;
+    font-weight:540;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  body.central-nexus-v2 .nav > button[data-view].active{font-weight:540}
+}
+@media(max-width:490px){
+  body.central-nexus-v2 .nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
