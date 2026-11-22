@@ -4,7 +4,7 @@
   const source = document.currentScript;
   const pixelId = String(source?.dataset.metaPixelId || '').trim();
   const consentCookie = 'nexus_marketing_consent';
-  const consentVersion = 'v1';
+  const consentVersion = 'v2';
   const consentMaxAge = 60 * 60 * 24 * 180;
   let preference = readPreference();
   let pixelInitialized = false;
@@ -55,12 +55,17 @@
     if (typeof window.fbq === 'function') window.fbq('consent', 'revoke');
     deleteCookie('_fbp');
     deleteCookie('_fbc');
+    document.cookie.split(';').forEach(part => {
+      const name = part.split('=')[0]?.trim();
+      if (name && /^(?:_ga(?:_|$)|_gid$|_gat(?:_|$))/.test(name)) deleteCookie(name);
+    });
   }
 
   function track(eventName, parameters = {}) {
     if (preference !== 'granted' || !pixelId) return false;
     initializePixel();
     window.fbq('track', eventName, parameters);
+    if (eventName === 'Lead') window.NexusGA4?.track('generate_lead');
     return true;
   }
 
@@ -92,7 +97,7 @@
         <div class="nexus-cookie-card">
           <div class="nexus-cookie-copy">
             <strong id="nexusCookieTitle">Cookies e privacidade</strong>
-            <p>Usamos cookies opcionais da Meta para medir visitas e melhorar nossas campanhas. Você pode aceitar ou recusar. <a href="privacidade.html">Saiba mais</a>.</p>
+            <p>Com sua autorização, usamos cookies opcionais do Google Analytics para entender visitas e da Meta para medir campanhas. Nada é ativado antes de aceitar. Você pode aceitar ou recusar. <a href="privacidade.html">Saiba mais</a>.</p>
           </div>
           <div class="nexus-cookie-actions">
             <button type="button" data-cookie-choice="denied">Recusar</button>
@@ -105,8 +110,13 @@
           const choice = button.dataset.cookieChoice;
           writePreference(choice);
           banner.classList.remove('visible');
-          if (choice === 'granted') initializePixel();
-          else revokePixel();
+          if (choice === 'granted') {
+            initializePixel();
+            window.dispatchEvent(new Event('nexus:consent-granted'));
+          } else {
+            revokePixel();
+            window.dispatchEvent(new Event('nexus:consent-revoked'));
+          }
         });
       });
     }

@@ -11,7 +11,7 @@ const privacy = readFileSync(new URL("../privacidade.html", import.meta.url),"ut
 const build = readFileSync(new URL("../scripts/prepare-cloudflare.mjs", import.meta.url),"utf8");
 
 function browser(initialConsent = null, gpc = false) {
-  const storage = new Map(initialConsent === null ? [] : [["nexus:institutional:analytics-consent:v1",initialConsent]]);
+  const storage = new Map(initialConsent === null ? [] : [["nexus:institutional:analytics-consent:v2",initialConsent]]);
   const calls = [];
   const elements = [];
   const preferences = {
@@ -83,7 +83,7 @@ test("consent defaults to OFF, and refusals never start analytics",()=>{
   assert.deepEqual(x.calls,[]);
   assert.equal(x.elements.length,1);
   x.elements[0].querySelector(".nexus-consent-reject").clickHandler();
-  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v1"),"deny");
+  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v2"),"deny");
   assert.equal(x.calls.includes("start"),false);
   assert.equal(x.win.nexusTrackingConsent,false);
 });
@@ -91,14 +91,14 @@ test("consent defaults to OFF, and refusals never start analytics",()=>{
 test("explicit grant enables analytics, and visitor can reopen options and revoke",()=>{
   const x=browser();
   x.elements[0].querySelector(".nexus-consent-allow").clickHandler();
-  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v1"),"allow");
+  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v2"),"allow");
   assert.equal(x.win.nexusTrackingConsent,true);
   assert.ok(x.calls.includes("start"));
   x.preferences.handlers.click();
   assert.equal(x.elements.length,2);
   x.elements[1].querySelector(".nexus-consent-reject").clickHandler();
   assert.equal(x.win.nexusTrackingConsent,false);
-  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v1"),"deny");
+  assert.equal(x.storage.get("nexus:institutional:analytics-consent:v2"),"deny");
   assert.ok(x.calls.includes("stop"));
 });
 
