@@ -19,22 +19,18 @@
   document.addEventListener('DOMContentLoaded', async function () {
     try {
       if (!await sessionAllowed()) return;
-      const nav=document.querySelector('.side .nav');
-      if (!nav || document.getElementById('nexus-ai-preview-trigger')) return;
+      const trigger=document.getElementById('nexus-ai-preview-trigger');
+      const host=document.getElementById('nexus-ai-workspace');
+      if (!trigger || !host || !document.querySelector('.side .nav')) return;
       const style=document.createElement('style');
       style.textContent=STYLE;
       document.head.appendChild(style);
-      const trigger=document.createElement('button');
-      trigger.type='button';
-      trigger.id='nexus-ai-preview-trigger';
-      trigger.className='nexus-ai-preview-trigger';
-      trigger.textContent='Visualizar Nexus AI';
-      nav.appendChild(trigger);
+      // Use the existing Nexus AI unchanged within the Central's navigation tab.
       const dialog=document.createElement('dialog');
-      dialog.className='nexus-v3-dialog';
+      dialog.className='nexus-v3-dialog nexus-ai-embedded';
       dialog.setAttribute('aria-label','Nexus AI — centro de inteligência com voz');
       dialog.innerHTML=MARKUP;
-      document.body.appendChild(dialog);
+      host.replaceChildren(dialog);
 
       const svg=dialog.querySelector('.nexus-v3-graph');
       const toggle=dialog.querySelector('.nexus-v3-motion-toggle');
@@ -504,21 +500,38 @@
       });
 
       dialog.querySelector('.nexus-v3-close').addEventListener('click',()=>dialog.close());
-      dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
-      dialog.addEventListener('close',()=>{clearChat();svg.pauseAnimations?.();trigger.focus();});
-      trigger.addEventListener('click',async()=>{
+      dialog.addEventListener('close',()=>{
+        clearChat();
+        svg.pauseAnimations?.();
+        if(location.hash==='#ai')document.querySelector('.nav [data-view="overview"]')?.click();
+      });
+      window.addEventListener('nexus:central:view',async event=>{
+        if(event.detail?.view!=='ai'){
+          if(dialog.open)dialog.close();
+          return;
+        }
         trigger.disabled=true;
         try {
-          if (!await sessionAllowed()) {trigger.remove();return;}
-          selectTab(null);
-          dialog.showModal();
-          controlMotion(dialog.dataset.motion==='paused');
+          if (!await sessionAllowed()) {
+            trigger.hidden=true;
+            document.querySelector('.nav [data-view="overview"]')?.click();
+            return;
+          }
+          if(location.hash!=='#ai')return;
+          if(!dialog.open){
+            selectTab(null);
+            dialog.show();
+            controlMotion(dialog.dataset.motion==='paused');
+          }
         } catch {
-          trigger.remove();
+          trigger.hidden=true;
+          document.querySelector('.nav [data-view="overview"]')?.click();
         } finally {
           trigger.disabled=false;
         }
       });
+      trigger.hidden=false;
+      if(location.hash==='#ai')trigger.click();
     } catch {
       // Exibição negada em caso de erro de sessão, MFA ou montagem da prévia.
     }
