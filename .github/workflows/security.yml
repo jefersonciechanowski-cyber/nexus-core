@@ -43,6 +43,9 @@ jobs:
       - name: Verify temporary Storage API recovery safety (synthetic only)
         run: python3 tests/central-storage-api-restore-safety.py
 
+      - name: Verify stored encrypted archive extraction safeguards (synthetic only)
+        run: python3 tests/central-stored-storage-extract-safety.py
+
       - name: Verify CRM auth monitoring synthetic thresholds and no personal-data output
         run: node --test tests/crm-auth-alert-synthetic.test.mjs
 
