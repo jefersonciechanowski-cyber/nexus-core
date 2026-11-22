@@ -11,6 +11,7 @@ const pix = file('crm-live-pix-pilot.html');
 const theme = file('central-nexus-v2.css');
 const toolsTheme = file('central-nexus-tools-v3.css');
 const ai = file('nexus-ai-preview.js');
+const pilot = file('pilot.js');
 const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
 test('same primary navigation in all shell pages; commercial CRM is not reintroduced', () => {
@@ -95,4 +96,35 @@ test('AI viewport and chat scroll stay within their container without clipping',
   assert.match(theme, /\.nexus-v5-chat-log\s*\{/);
   assert.match(theme, /overflow-y:auto!important/);
   assert.match(theme, /@media\(max-width:900px\)/);
+});
+
+test('view switching renders all sections after the initial shared data request', () => {
+  assert.match(index, /function renderAll\(\)\{renderSummary\(\);renderOverview\(\);renderClients\(\);renderProducts\(\);renderPayments\(\);\}/);
+  assert.match(index, /const changed=view!==activeView/);
+  assert.match(index, /if\(changed&&window\.scrollY>0\)window\.scrollTo\(\{top:0,behavior:'auto'\}\)/);
+  assert.doesNotMatch(index.match(/function setView\(view\)\{[\s\S]*?\n/)?.[0] || '', /loadData\(|renderAll\(/);
+});
+
+test('navigation does not change button width or reintroduce a CRM Comercial entry', () => {
+  const mainNav = index.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
+  assert.ok(mainNav);
+  assert.doesNotMatch(mainNav, /CRM Comercial|href="leads\.html"/);
+  assert.match(theme, /\.nav \[data-nexus-leads-link\]\{display:none!important\}/);
+  assert.match(theme, /font-variant-numeric:tabular-nums/);
+  assert.match(theme, /font-weight:530;\s*\}\s*\.central-nexus-v2 \.nav a:focus-visible/);
+});
+
+test('AI uses full available desktop viewport and leaves other tabs unchanged', () => {
+  assert.match(ai, /classList\.toggle\('central-ai-active',event\.detail\?\.view==='ai'\)/);
+  assert.match(ai, /classList\.remove\('central-ai-active'\)/);
+  assert.match(theme, /body\.central-nexus-v2\.central-ai-active\{height:100dvh;overflow:hidden\}/);
+  assert.match(theme, /\.central-nexus-v2\.central-ai-active #view-ai \.central-ai-workspace\s*\{/);
+  assert.match(theme, /flex:1 1 0;min-height:0;height:auto;max-height:none/);
+  assert.match(theme, /nexus-v5-chat-log[\s\S]*?overflow-y:auto!important/);
+  assert.match(theme, /@media \(min-width:901px\)/);
+});
+
+test('SST pilot scroll is immediate and minimizes movement', () => {
+  assert.match(pilot, /scrollIntoView\(\{behavior:'auto',block:'nearest'\}\)/);
+  assert.doesNotMatch(pilot, /scrollIntoView\(\{behavior:'smooth'/);
 });
