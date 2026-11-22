@@ -106,3 +106,11 @@ As cópias baixadas no runner recebem nomes opacos, hash SHA-256 individual e ma
 A prova local melhora a confiança no método de reimportação, mas não constitui ensaio hospedado de restauração dos **três arquivos reais** nem homologação integral de Auth, Edge Functions, Asaas, SMTP, DNS ou RTO/RPO de serviço. A matriz de dependências externas está em [CENTRAL-DR-EXTERNAL-DEPENDENCIES-2026-11-21.md](CENTRAL-DR-EXTERNAL-DEPENDENCIES-2026-11-21.md), incorporada no [PR #244](https://github.com/jefersonciechanowski-cyber/nexus-core/pull/244).
 
 **Placar formal mantido em 16/18 (88,9%).** Critério 17 exige ensaio integrado e aceite; critério 18 exige OAuth Google Search Console no OpenSEO. Nenhum percentual foi inflado por teste sintético/local.
+
+## Nova evidência — reimportação dos três objetos privados por API local real (22/11/2026 UTC)
+
+[GitHub Actions 44966078715](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44966078715) — **PASS**. Recuperou o pacote cifrado armazenado da execução 44924143771, verificou SHA-256, decifrou no runner temporário, validou o manifesto e reimportou **3/3 arquivos privados reais (2.378.927 bytes)** na API de Storage de uma instância Supabase local isolada em Docker. Readback autenticado aprovado, acesso anônimo negado, workspace removido. Não houve contratação de projeto hospedado nem escrita nos sistemas de produção.
+
+A prova **supera os testes anteriores com arquivos fictícios**, mas **não** comprova restauração funcional hospedada da aplicação, autenticação completa, recuperação de credenciais/Asaas/SMTP/DNS/Edge Functions, segunda cópia fora do GitHub ou RTO/RPO de serviço. O teste com documentos reais foi limitado a ambiente local de laboratório. O workflow é mantido em execução manual somente na `main` e pinado por SHA.
+
+**Placar geral segue 17/18 (94,4%) após confirmação separada da conexão Google Search Console no OpenSEO**; o único critério restante é a recuperação integral, que exige os aceites adicionais documentados. Não converter resultado de laboratório em garantia contratual.
