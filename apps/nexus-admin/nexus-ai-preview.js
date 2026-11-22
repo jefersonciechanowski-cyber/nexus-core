@@ -602,7 +602,12 @@
         // or page-wide layout mutation is needed on other tabs.
         document.body.classList.toggle('central-ai-active',event.detail?.view==='ai');
         if(event.detail?.view!=='ai'){
-          if(dialog.open)dialog.close();
+          // Keep the conversation and rendered sphere in memory while navigating.
+          // Stop audio and animation so hidden tabs never continue recording/playing.
+          if(dialog.open){
+            stopVoice();
+            svg.pauseAnimations?.();
+          }
           return;
         }
         trigger.disabled=true;
@@ -626,7 +631,9 @@
         }
       });
       trigger.hidden=false;
-      if(location.hash==='#ai')trigger.click();
+      if(location.hash==='#ai'){
+        window.dispatchEvent(new CustomEvent('nexus:central:view',{detail:{view:'ai'}}));
+      }
     } catch {
       // Exibição negada em caso de erro de sessão, MFA ou montagem da prévia.
     }
