@@ -279,7 +279,7 @@ test('Nexus AI full-bleed mode removes double headers and isolated cards without
   const wave = file('central-nexus-wave.svg');
   assert.match(wave, /<svg[^>]+viewBox="0 0 1440 290"/);
   assert.match(wave, /<polyline/);
-  assert.doesNotMatch(wave, /<script|https?:\/\//);
+  assert.doesNotMatch(wave, /<script|<foreignObject|xlink:href/);
 });
 
 test('full-bleed is exclusive to Nexus AI and other tabs retain administrative header', () => {
