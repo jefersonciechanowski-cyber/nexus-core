@@ -258,6 +258,45 @@ if (/\bMediaRecorder\b|\bgetUserMedia\b|\.innerHTML\s*=\s*(?:answer|body)/.test(
   fail('Nexus AI voice: raw audio capture/upload or unsafe answer HTML detected.');
 }
 
+// NVIDIA Magpie voice is optional, admin MFA-only and cannot generate unmetered audio.
+const voiceBackendSource=await readFile(join(projectRoot,'supabase','functions','nexus-ai-voice','index.ts'),'utf8');
+const voiceBudgetMigration=migrationFiles.find(file=>file.endsWith('20261122194000_nexus_ai_neural_voice_budget.sql'));
+if(!voiceBudgetMigration){
+  fail('Nexus neural voice: mandatory service-only quota migration absent.');
+}else{
+  const voiceBudgetSQL=await readFile(voiceBudgetMigration,'utf8');
+  for(const required of [
+    'enable row level security',
+    'revoke all on table public.nexus_ai_voice_usage_events from public, anon, authenticated',
+    'security invoker',
+    'grant execute on function public.reserve_nexus_ai_voice_usage(uuid,uuid,integer)',
+    'v_month_count>=500',
+    'v_today_count>=40',
+    'v_month_characters + p_character_count > 120000',
+  ]) {
+    if(!voiceBudgetSQL.includes(required))fail('Nexus neural voice: quota or isolation check missing: '+required);
+  }
+  if(/security definer|audio_blob|transcription|prompt_content/i.test(voiceBudgetSQL)){
+    fail('Nexus neural voice: prohibited privileged/plaintext storage.');
+  }
+}
+for(const required of [
+  "client.rpc('is_nexus_admin_aal2')",
+  "profile.role!=='nexus_admin'",
+  "Deno.env.get('NVIDIA_API_KEY')",
+  "Deno.env.get('NEXUS_AI_ENABLED')",
+  'Magpie-Multilingual.PT-BR.Diego',
+  "admin.rpc('reserve_nexus_ai_voice_usage'",
+  "body.operation!=='speak'",
+  "signature!=='RIFF'",
+  "MAX_AUDIO_BYTES=1_900_000",
+]) {
+  if(!voiceBackendSource.includes(required))fail('Nexus neural voice: secure backend contract missing: '+required);
+}
+if(/storage\.from|api\.openai\.com|OPENAI_API_KEY/.test(voiceBackendSource)){
+  fail('Nexus neural voice: unsupported provider or external storage.');
+}
+
 const adminAal2GuardMigration = migrationFiles.find(file => file.endsWith('20260923235000_enforce_admin_aal2_rpc_guards.sql'));
 if (!adminAal2GuardMigration) {
   fail('supabase/migrations: migration dos guards AAL2 administrativos ausente.');
