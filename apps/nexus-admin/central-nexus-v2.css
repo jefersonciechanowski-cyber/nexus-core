@@ -431,3 +431,35 @@ body.central-nexus-v2 {
   .central-nexus-v2 .profile{min-width:0;max-width:100%;flex-wrap:wrap}
   .central-nexus-v2 .nav a,.central-nexus-v2 .nav button{font-weight:530}
 }
+
+/* One persistent Central shell: accounts/courtesy tools are cached once
+   inside same-origin management tabs; switching views never remounts the shell. */
+.central-nexus-v2 .central-embedded-tab {
+  width:100%;min-width:0;padding:0;
+}
+.central-nexus-v2 .central-embedded-tab iframe {
+  display:block;width:100%;height:clamp(520px,calc(100dvh - 210px),1180px);
+  min-width:0;max-width:100%;border:1px solid rgba(119,206,183,.23);
+  border-radius:12px;background:rgba(4,27,26,.42);
+  overflow:auto;
+}
+.central-nexus-v2 .central-embedded-tab iframe[hidden] {display:none!important}
+.central-nexus-v2 .central-embedded-status {
+  padding:20px 18px;min-height:110px;color:#b7d6cb;
+  border:1px solid rgba(125,200,180,.23);border-radius:12px;
+  background:rgba(18,67,58,.42);
+}
+.central-nexus-v2 .central-embedded-status a {
+  display:inline-block;color:#f2d5a2;text-underline-offset:3px;
+}
+.central-nexus-v2 .sidebar-tools .central-tool-link {
+  width:100%;text-align:left;cursor:pointer;
+}
+.central-nexus-v2 .nav button[data-view="courtesy"]{
+  white-space:nowrap;
+}
+@media(max-width:900px){
+  .central-nexus-v2 .central-embedded-tab iframe {
+    height:max(610px,calc(100dvh - 175px));
+  }
+}
