@@ -1,0 +1,33 @@
+/* Central-only presentation for same-origin embedded account and courtesy pages. */
+html.nexus-embedded,html.nexus-embedded body {
+  background:transparent!important;min-height:0!important;height:auto!important;
+}
+html.nexus-embedded body.central-nexus-v2 .shell{
+  display:block!important;min-height:0!important;height:auto!important;overflow:visible!important;
+}
+html.nexus-embedded body.central-nexus-v2 .side,
+html.nexus-embedded body.central-nexus-v2 .top,
+html.nexus-embedded body.central-nexus-tools-v3 .top{
+  display:none!important;
+}
+html.nexus-embedded body.central-nexus-v2 .main{
+  display:block!important;max-width:none!important;width:100%!important;
+  padding:8px 4px 20px!important;margin:0!important;overflow:visible!important;
+}
+html.nexus-embedded body.central-nexus-tools-v3 .shell{
+  max-width:none!important;min-height:0!important;padding:8px 4px 20px!important;
+  margin:0!important;
+}
+html.nexus-embedded body.central-nexus-v2 .cards{
+  margin-top:0;
+}
+html.nexus-embedded body.central-nexus-tools-v3 .panel{
+  margin-bottom:14px;
+}
+html.nexus-embedded body.central-nexus-v2 .modal{
+  z-index:1000;
+}
+@media(max-width:900px){
+  html.nexus-embedded body.central-nexus-v2 .main,
+  html.nexus-embedded body.central-nexus-tools-v3 .shell{padding:6px 2px 18px!important}
+}
