@@ -46,3 +46,22 @@ test('novo tema compartilha visual Nexus entre páginas administrativas', () => 
   assert.match(html, /centralWorkQueue/);
   assert.match(theme, /#f5f7f8/);
 });
+
+
+test('Nexus AI uses remaining screen height rather than the old minimum size that clipped content', () => {
+  assert.match(theme, /:has\(#view-ai:not\(\[hidden\]\)\) \.main/);
+  assert.match(theme, /:has\(#view-ai:not\(\[hidden\]\)\) \.central-ai-workspace/);
+  assert.match(theme, /#view-ai \.nexus-v3-dialog\.nexus-ai-embedded/);
+  assert.match(theme, /height:100%!important;block-size:100%!important;max-height:100%!important/);
+  assert.match(theme, /\.nexus-v5-chat-log\s*\{\s*min-height:0!important;overflow-y:auto!important/);
+  assert.match(theme, /@media\(max-width:900px\)/);
+});
+
+test('translucent Nexus styling preserves readable cards and keyboard accessibility', () => {
+  assert.match(theme, /backdrop-filter:blur\(22px\)/);
+  assert.match(theme, /background:linear-gradient\(145deg,rgba\(255,255,255,\.87\)/);
+  assert.match(theme, /\.card:hover\s*\{/);
+  assert.match(theme, /prefers-reduced-motion:reduce/);
+  assert.match(theme, /focus-visible/);
+  assert.doesNotMatch(theme, /script-src|unsafe-inline/);
+});
