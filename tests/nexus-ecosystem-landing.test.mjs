@@ -77,3 +77,16 @@ test('Cloudflare assets and sitemap exclude redirect-only CRM alias',()=>{
     assert.ok(sitemap.includes('<loc>'+url+'</loc>'),'Sitemap missing '+url);
   assert.doesNotMatch(sitemap,/<loc>https:\/\/nexuscore\.app\.br\/crm\/<\/loc>/);
 });
+
+
+test('SST commercial landing tracks its own site ID only after explicit privacy consent', () => {
+  const sst = read('apps/site-captacao/index.html');
+  const consent = read('apps/site-captacao/marketing-consent.js');
+  assert.match(sst, /data-nexus-site="7236d2c6-903f-4aeb-849f-d960734c7bc5"/);
+  assert.match(sst, /src="\.\.\/\.\.\/crm\/nexus-tracker\.js"/);
+  assert.match(consent, /window\.nexusTrackingConsent = preference === 'granted'/);
+  assert.match(consent, /window\.dispatchEvent\(new Event\('nexus:consent-granted'\)\)/);
+  assert.match(consent, /window\.dispatchEvent\(new Event\('nexus:consent-revoked'\)\)/);
+  assert.match(consent, /globalPrivacyControl/);
+  assert.doesNotMatch(read('index.html'), /data-nexus-site="7236d2c6-903f-4aeb-849f-d960734c7bc5"/);
+});
