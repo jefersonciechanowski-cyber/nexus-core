@@ -108,6 +108,13 @@
       const canSpeak=Boolean(window.speechSynthesis&&window.SpeechSynthesisUtterance);
       let voiceActive=false,autoSpeak=false,rec=null,recText='',speakEpoch=0,voiceState='idle';
       let recConfidence=null,finishRecognition=null;
+      let recognitionAttempt=0,recognitionSession=0,recognitionRetry=null,recognitionSilence=null,recognitionWatchdog=null;
+      function clearRecognitionTimers(){
+        for(const timer of [recognitionRetry,recognitionSilence,recognitionWatchdog]){
+          if(timer!==null)window.clearTimeout(timer);
+        }
+        recognitionRetry=null;recognitionSilence=null;recognitionWatchdog=null;
+      }
       let neuralEnabled=true,neuralAudio=null,neuralAbort=null,neuralObjectUrl=null;
       function refreshVoice(state,message){
         voiceState=state;
@@ -133,6 +140,7 @@
         stopAudioButton.hidden=true;
       }
       function stopListening(){
+        clearRecognitionTimers();
         finishRecognition=null;
         const previous=rec;
         rec=null;
@@ -142,6 +150,7 @@
         }
       }
       function stopVoice(message){
+        recognitionSession++;
         questionInput.placeholder=questionInput.dataset.defaultPlaceholder||'Pergunte à Nexus AI...';
         voiceActive=false;
         autoSpeak=false;
@@ -264,21 +273,106 @@
         if(!voiceActive)refreshVoice('idle',neuralEnabled?'Voz neural selecionada.':'Voz local selecionada.');
       });
 
-      // Web Speech may return interim text without a final result. Never discard
-      // heard words just because Chrome ends recognition before finalization.
+      // Chrome's remote speech service can end without any onresult event even when
+      // the microphone receives sound. Retry once, then explain the actual failure.
       function startListening(){
         if(!voiceActive||!dialog.open||chatBusy||rec)return;
-        if(!canListen){stopVoice('Reconhecimento indisponível. Você pode digitar ou usar o ditado do Windows (Win + H).');return;}
+        if(!canListen){
+          stopVoice('Reconhecimento não disponível. Digite ou use Win + H no Windows.');
+          return;
+        }
+        clearRecognitionTimers();
+        const session=recognitionSession;
         const engine=new VoiceRecognition();
-        rec=engine;recText='';recConfidence=null;
-        let latestTranscript='',hasFinal=false,stopRequested=false;
-        const questionHint=questionInput.getAttribute('data-default-placeholder')||
+        rec=engine;finishRecognition=null;recText='';recConfidence=null;
+        let latestTranscript='',hasFinal=false,stopRequested=false,soundSeen=false,speechSeen=false,errorCode='';
+        let processed=false;
+        const questionHint=questionInput.dataset.defaultPlaceholder||
           questionInput.getAttribute('placeholder')||'Pergunte à Nexus AI...';
         questionInput.dataset.defaultPlaceholder=questionHint;
-        engine.lang='pt-BR';engine.continuous=false;
-        engine.interimResults=true;engine.maxAlternatives=1;
+        function stillCurrent(){return engine===rec&&session===recognitionSession&&voiceActive&&dialog.open;}
+        function stopEngine(){
+          if(!stillCurrent()||processed)return;
+          try{engine.stop();}catch{
+            // Chrome may already have ended; a later onend will be ignored as stale.
+            onRecognitionFinished();
+          }
+        }
+        function finishAfterPause(delay){
+          if(recognitionSilence!==null)window.clearTimeout(recognitionSilence);
+          recognitionSilence=window.setTimeout(()=>{
+            recognitionSilence=null;
+            stopEngine();
+          },delay);
+        }
+        function retryWithReason(reason){
+          if(recognitionAttempt>=1||stopRequested){
+            stopVoice(reason);
+            questionInput.focus();
+            return;
+          }
+          recognitionAttempt++;
+          refreshVoice('listening','Tentando reconhecer sua fala novamente...');
+          chatStatus.textContent='O Chrome não transcreveu a primeira tentativa. Tentando mais uma vez.';
+          recognitionRetry=window.setTimeout(()=>{
+            recognitionRetry=null;
+            if(session===recognitionSession&&voiceActive&&!chatBusy&&dialog.open)startListening();
+          },600);
+        }
+        function onRecognitionFinished(){
+          if(processed||!stillCurrent())return;
+          processed=true;
+          if(recognitionWatchdog!==null){window.clearTimeout(recognitionWatchdog);recognitionWatchdog=null;}
+          if(recognitionSilence!==null){window.clearTimeout(recognitionSilence);recognitionSilence=null;}
+          rec=null;finishRecognition=null;
+          questionInput.placeholder=questionHint;
+          const spoken=(recText||latestTranscript||'').replace(/\s+/g,' ').trim().slice(0,900);
+          if(spoken.length<2){
+            const reason=errorCode==='not-allowed'
+              ?'O microfone não está autorizado. Permita o acesso no Chrome.'
+              :errorCode==='network'||errorCode==='service-not-allowed'
+              ?'O serviço de transcrição do Chrome não respondeu. Experimente o ditado do Windows (Win + H).'
+              :soundSeen||speechSeen
+              ?'O microfone recebeu áudio, mas o Chrome não retornou texto. Use Win + H para ditar no campo ou digite.'
+              :'Não consegui identificar uma fala. Verifique o microfone ou use Win + H.';
+            if(errorCode==='not-allowed'||errorCode==='service-not-allowed'||errorCode==='network'){
+              stopVoice(reason);
+            }else retryWithReason(reason);
+            return;
+          }
+          questionInput.value=spoken;
+          recognitionAttempt=0;
+          if(stopRequested||!hasFinal||(recConfidence!==null&&recConfidence<.72)){
+            stopVoice('Transcrição recebida. Confira a pergunta e toque em Enviar.');
+            questionInput.focus();
+            return;
+          }
+          refreshVoice('thinking','Pergunta reconhecida. Consultando a Nexus...');
+          chatForm.requestSubmit();
+        }
+        engine.lang='pt-BR';
+        engine.continuous=true;
+        engine.interimResults=true;
+        engine.maxAlternatives=1;
+        engine.onaudiostart=()=>{
+          if(stillCurrent())chatStatus.textContent='Microfone ativo. Fale uma pergunta em português.';
+        };
+        engine.onsoundstart=()=>{
+          if(!stillCurrent())return;
+          soundSeen=true;
+          refreshVoice('listening','Som captado. Aguardando transcrição...');
+          chatStatus.textContent='Áudio detectado. Aguardando texto do serviço de voz do Chrome...';
+        };
+        engine.onspeechstart=()=>{
+          if(!stillCurrent())return;
+          speechSeen=true;
+          refreshVoice('listening','Fala detectada. Transcrevendo...');
+        };
+        engine.onspeechend=()=>{
+          if(stillCurrent())finishAfterPause(1250);
+        };
         engine.onresult=event=>{
-          if(engine!==rec||!voiceActive)return;
+          if(!stillCurrent())return;
           const finalParts=[],interimParts=[];
           for(let i=0;i<event.results.length;i++){
             const result=event.results[i];
@@ -299,66 +393,49 @@
           if(finalParts.length)recText=finalParts.join(' ').replace(/\s+/g,' ').trim().slice(0,900);
           if(latestTranscript){
             questionInput.value=latestTranscript;
-            chatStatus.textContent='Transcrição: '+latestTranscript.slice(0,90);
-            refreshVoice('listening',interimParts.length?'Transcrevendo...':'Pergunta capturada.');
+            refreshVoice('listening',interimParts.length?'Transcrevendo...':'Texto reconhecido.');
+            chatStatus.textContent='Reconhecido: '+latestTranscript.slice(0,95);
+            if(hasFinal&&!interimParts.length)finishAfterPause(1350);
           }
+        };
+        engine.onnomatch=()=>{
+          if(stillCurrent())chatStatus.textContent='O Chrome ouviu áudio, mas não identificou palavras. Tente falar mais devagar.';
         };
         engine.onerror=event=>{
-          if(engine!==rec)return;
-          finishRecognition=null;
-          const explanations={
-            'not-allowed':'Permita o microfone nas configurações do navegador.',
-            'service-not-allowed':'Serviço de transcrição do navegador indisponível. Use o ditado do Windows (Win + H).',
-            'audio-capture':'Não foi encontrado um microfone disponível.',
-            'network':'O navegador não conseguiu acessar o serviço de transcrição. Use o ditado do Windows (Win + H).',
-            'no-speech':'Não recebi palavras reconhecidas. Verifique o microfone ou digite sua pergunta.',
-            'language-not-supported':'O reconhecimento de português não está disponível neste navegador.'
-          };
-          const message=explanations[event.error]||'Não foi possível transcrever sua fala.';
-          if(latestTranscript.length>=2)questionInput.value=latestTranscript;
-          stopVoice(message+(latestTranscript?' Revise o texto capturado e clique em Enviar.':''));
-        };
-        engine.onend=()=>{
-          if(engine!==rec)return;
-          finishRecognition=null;
-          rec=null;
-          questionInput.placeholder=questionHint;
-          if(!voiceActive||!dialog.open)return;
-          const spoken=(recText||latestTranscript||'').replace(/\s+/g,' ').trim().slice(0,900);
-          if(spoken.length<2){
-            stopVoice('Não recebi a transcrição. Use o teclado ou o ditado do Windows (Win + H).');
-            return;
+          if(!stillCurrent())return;
+          errorCode=String(event?.error||'');
+          // 'no-speech' is commonly followed by onend without any onresult.
+          // Let onend perform a bounded retry, rather than dropping the session.
+          if(errorCode==='not-allowed'||errorCode==='service-not-allowed'||errorCode==='network'){
+            onRecognitionFinished();
+          }else if(errorCode==='audio-capture'||errorCode==='language-not-supported'){
+            stopVoice(errorCode==='audio-capture'?'Microfone não encontrado.':'Português brasileiro indisponível no reconhecimento deste navegador.');
           }
-          questionInput.value=spoken;
-          if(stopRequested||!hasFinal||recConfidence!==null&&recConfidence<.72){
-            stopVoice('Texto capturado. Confira a pergunta e clique em Enviar.');
-            questionInput.focus();
-            return;
-          }
-          refreshVoice('thinking','Pergunta reconhecida. Consultando a Nexus...');
-          chatForm.requestSubmit();
         };
-        // Stop button must flush the recognizer (not abort and discard text).
+        engine.onend=()=>onRecognitionFinished();
         finishRecognition=()=>{
-          if(engine!==rec)return;
+          if(!stillCurrent())return;
           stopRequested=true;
-          try{refreshVoice('listening','Finalizando transcrição...');engine.stop();}
-          catch{
-            const text=(recText||latestTranscript||'').trim();
-            if(text)questionInput.value=text;
-            stopVoice('Revise a pergunta e clique em Enviar.');
-          }
+          chatStatus.textContent='Finalizando... a transcrição ficará disponível para revisão.';
+          refreshVoice('listening','Finalizando transcrição...');
+          stopEngine();
         };
         try{
           questionInput.placeholder='Ouvindo... fale sua pergunta';
           engine.start();
-          refreshVoice('listening','Ouvindo... fale agora.');
-          chatStatus.textContent='Microfone ligado. Fale uma pergunta e aguarde a transcrição.';
+          refreshVoice('listening','Fale agora...');
+          recognitionWatchdog=window.setTimeout(()=>{
+            recognitionWatchdog=null;
+            if(stillCurrent()){
+              chatStatus.textContent='Aguardando o Chrome... finalizando para recuperar a transcrição.';
+              stopEngine();
+            }
+          },18000);
         }catch{
-          questionInput.placeholder=questionHint;
-          stopVoice('Não foi possível iniciar a transcrição. Use o ditado do Windows (Win + H).');
+          onRecognitionFinished();
         }
       }
+
       function toggleVoice(){
         if(voiceActive){
           if(rec&&typeof finishRecognition==='function'){finishRecognition();return;}
@@ -377,6 +454,7 @@
         }
         stopSpeech();
         voiceActive=true;autoSpeak=true;
+        recognitionSession++;recognitionAttempt=0;
         chatStatus.textContent='Autorize o microfone quando o navegador solicitar.';
         startListening();
       }
