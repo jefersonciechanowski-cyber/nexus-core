@@ -86,7 +86,7 @@
     const form = card.querySelector('#pilotForm');
     const message = card.querySelector('#pilotMessage');
     const submit = card.querySelector('#pilotSubmit');
-    window.openNexusPilotForm = () => { if(typeof window.setView==='function')window.setView('clients');card.scrollIntoView({behavior:'smooth',block:'start'});card.querySelector('#pilotCompany').focus({preventScroll:true}); };
+    window.openNexusPilotForm = () => { if(typeof window.setView==='function')window.setView('clients');card.scrollIntoView({behavior:'auto',block:'nearest'});card.querySelector('#pilotCompany').focus({preventScroll:true}); };
     window.refreshPilotPlanChoices = (plans,products) => {
       const product=(products||[]).find(p=>p.code==='sst');if(!product)return;
       const options=(plans||[]).filter(p=>p.product_id===product.id&&p.status==='active'&&planInfo[p.code]);
