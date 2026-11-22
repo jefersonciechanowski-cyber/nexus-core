@@ -25,3 +25,12 @@ O teste `tests/central-storage-api-restore-safety.py` é **sintético**, com doc
 5. Medir o processo completo para RTO/RPO incluindo recuperação do banco, Storage, Auth, Edge Functions, DNS, SMTP e Asaas. Manter uma cópia cifrada fora do GitHub para reduzir dependência do fornecedor.
 
 **Estado:** reimportação real por API em projeto Supabase temporário **ainda pendente**. O teste com respostas simuladas não conta como homologação completa do critério 17. O monitor diário de backups e o ensaio independente real do arquivo cifrado permanecem ativos.
+
+## Evidência adicional — API real em Supabase LOCAL (22/11/2026)
+
+- [PR #245](https://github.com/jefersonciechanowski-cyber/nexus-core/pull/245), incorporado na `main`.
+- [GitHub Actions 44965006913](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44965006913), **PASS** (7/7 verificações do PR).
+- O ensaio levantou a stack oficial Supabase CLI v3 em Docker efêmero, fez upload e leitura de **três arquivos fictícios**, conferiu hashes, bloqueou acesso sem token/anon e recusou sobrescrita. Depois removeu a stack local.
+- Nenhum arquivo real do cliente, segredo de produção ou projeto Supabase hospedado foi usado. O teste anterior com mocks continua útil para falhas negativas; o novo ensaio comprova que o código consegue falar com uma API Storage Supabase real, mas **somente local e com dados fictícios**.
+
+**Não homologado ainda:** reimportar os 3 arquivos privados reais num **projeto Supabase temporário hospedado**, verificar acesso funcional de usuários de teste com regras RLS correspondentes às da Central e completar Auth/Asaas/SMTP/DNS/Edge Functions, cofre/segunda cópia e RTO/RPO total. O critério formal 17 continua pendente; placa geral permanece 16/18.

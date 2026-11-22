@@ -99,3 +99,10 @@ As cópias baixadas no runner recebem nomes opacos, hash SHA-256 individual e ma
 
 **Placar formal permanece em 16/18 (88,9%) enquanto o critério 17 não cumprir o escopo integral.** A conexão Google Search Console (critério 18) ainda depende de autorização explícita do titular da conta Google.
 
+## Atualização complementar de evidências — 22/11/2026
+
+**Integração Storage API local: PASS.** [Execução 44965006913](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44965006913), [PR #245](https://github.com/jefersonciechanowski-cyber/nexus-core/pull/245). A stack oficial Supabase foi executada em Docker local no GitHub Actions; 3/3 **documentos fictícios** passaram em POST/GET autenticado, SHA-256, negativa de acesso anônimo e proteção sem sobrescrita. A stack foi destruída ao fim. Teste sem qualquer conexão com Central, CRM ou Agency de produção.
+
+A prova local melhora a confiança no método de reimportação, mas não constitui ensaio hospedado de restauração dos **três arquivos reais** nem homologação integral de Auth, Edge Functions, Asaas, SMTP, DNS ou RTO/RPO de serviço. A matriz de dependências externas está em [CENTRAL-DR-EXTERNAL-DEPENDENCIES-2026-11-21.md](CENTRAL-DR-EXTERNAL-DEPENDENCIES-2026-11-21.md), incorporada no [PR #244](https://github.com/jefersonciechanowski-cyber/nexus-core/pull/244).
+
+**Placar formal mantido em 16/18 (88,9%).** Critério 17 exige ensaio integrado e aceite; critério 18 exige OAuth Google Search Console no OpenSEO. Nenhum percentual foi inflado por teste sintético/local.
