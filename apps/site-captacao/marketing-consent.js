@@ -6,7 +6,10 @@
   const consentCookie = 'nexus_marketing_consent';
   const consentVersion = 'v2';
   const consentMaxAge = 60 * 60 * 24 * 180;
-  let preference = readPreference();
+  const privacySignal = navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
+  let preference = privacySignal ? 'denied' : readPreference();
+  // The first-party tracker starts only after the same explicit opt-in.
+  window.nexusTrackingConsent = preference === 'granted' && !privacySignal;
   let pixelInitialized = false;
 
   function readPreference() {
@@ -21,7 +24,8 @@
   function writePreference(value) {
     const secure = location.protocol === 'https:' ? '; Secure' : '';
     document.cookie = `${consentCookie}=${encodeURIComponent(`${consentVersion}:${value}`)}; Max-Age=${consentMaxAge}; Path=/; SameSite=Lax${secure}`;
-    preference = value;
+    preference = privacySignal ? 'denied' : value;
+    window.nexusTrackingConsent = preference === 'granted';
   }
 
   function deleteCookie(name) {
@@ -33,7 +37,7 @@
   }
 
   function initializePixel() {
-    if (pixelInitialized || preference !== 'granted' || !pixelId) return;
+    if (pixelInitialized || preference !== 'granted' || privacySignal || !pixelId) return;
 
     /* Meta Pixel base loader. It is created only after marketing consent. */
     !function(f,b,e,v,n,t,s) {
