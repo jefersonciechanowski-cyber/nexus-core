@@ -65,6 +65,7 @@
         selectTab(button.getAttribute('aria-expanded')==='true'?null:button.dataset.tab);
       }));
       dialog.querySelectorAll('[data-dismiss-panel]').forEach(button=>button.addEventListener('click',()=>{
+        if(button.dataset.dismissPanel==='network')stopVoice();
         const name=button.dataset.dismissPanel;
         selectTab(null);
         tabs.find(tab=>tab.dataset.tab===name)?.focus();
@@ -98,6 +99,168 @@
       const sendButton=dialog.querySelector('.nexus-v5-send');
       const clearButton=dialog.querySelector('.nexus-v5-clear');
       const snapshotButton=dialog.querySelector('.nexus-v10-snapshot');
+
+      // Voz: reconhecimento e síntese nativos do navegador. Nenhuma chave no cliente.
+      const voiceOrb=dialog.querySelector('.nexus-v12-voice-core');
+      const voiceSignal=dialog.querySelector('.nexus-v12-voice-signal');
+      const voiceMic=dialog.querySelector('.nexus-v12-microphone');
+      const voiceSpeaker=dialog.querySelector('.nexus-v12-sound-toggle');
+      const stopAudioButton=dialog.querySelector('.nexus-v12-stop-audio');
+      const VoiceRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      const canListen=typeof VoiceRecognition==='function';
+      const canSpeak=Boolean(window.speechSynthesis&&window.SpeechSynthesisUtterance);
+      let voiceActive=false,autoSpeak=false,rec=null,recText='',speakEpoch=0,voiceState='idle';
+      function refreshVoice(state,message){
+        voiceState=state;
+        dialog.dataset.voiceState=state;
+        voiceSignal.textContent=message||(
+          state==='listening'?'Ouvindo...':state==='thinking'?'Consultando a Nexus...':
+          state==='speaking'?'A Nexus está falando...':'Voz desativada'
+        );
+        voiceOrb.setAttribute('aria-pressed',voiceActive?'true':'false');
+        voiceMic.setAttribute('aria-pressed',voiceActive?'true':'false');
+        voiceOrb.querySelector('span').textContent=voiceActive?'Parar voz':'Conversar';
+        voiceMic.textContent=voiceActive?'■ Parar voz':'🎙 Falar';
+        voiceSpeaker.setAttribute('aria-pressed',autoSpeak?'true':'false');
+        voiceSpeaker.textContent=autoSpeak?'🔊 Ouvir respostas: sim':'🔈 Ouvir respostas: não';
+        stopAudioButton.hidden=state!=='speaking';
+      }
+      function stopSpeech(){
+        speakEpoch++;
+        if(canSpeak)window.speechSynthesis.cancel();
+        stopAudioButton.hidden=true;
+      }
+      function stopListening(){
+        const previous=rec;
+        rec=null;
+        if(previous){
+          previous.onresult=null;previous.onend=null;previous.onerror=null;
+          try{previous.abort();}catch{}
+        }
+      }
+      function stopVoice(message){
+        voiceActive=false;
+        autoSpeak=false;
+        stopListening();
+        stopSpeech();
+        refreshVoice('idle',message||'Voz desativada');
+      }
+      function hearAgain(){
+        if(voiceActive&&!chatBusy&&dialog.open){
+          refreshVoice('idle','Preparando o microfone...');
+          window.setTimeout(()=>{
+            if(voiceActive&&!chatBusy&&dialog.open&&!rec)startListening();
+          },350);
+        } else refreshVoice('idle','Resposta concluída.');
+      }
+      function speakAnswer(body){
+        if(!canSpeak)return;
+        stopSpeech();
+        const epoch=speakEpoch;
+        let text=normalizeNexusAnswer(body).replace(/[*#_]/g,'').replace(/\s+/g,' ').trim().slice(0,1300);
+        if(!text){hearAgain();return;}
+        const parts=[];
+        while(text){
+          let cut=Math.min(220,text.length);
+          if(cut<text.length){
+            const lastSpace=text.lastIndexOf(' ',cut);
+            if(lastSpace>80)cut=lastSpace;
+          }
+          parts.push(text.slice(0,cut).trim());
+          text=text.slice(cut).trimStart();
+        }
+        function say(index){
+          if(epoch!==speakEpoch||!dialog.open)return;
+          if(index===parts.length){hearAgain();return;}
+          const utterance=new window.SpeechSynthesisUtterance(parts[index]);
+          utterance.lang='pt-BR';utterance.rate=1;utterance.pitch=1;
+          const voices=window.speechSynthesis.getVoices();
+          utterance.voice=voices.find(v=>v.lang.toLowerCase()==='pt-br')||
+            voices.find(v=>v.lang.toLowerCase().startsWith('pt'))||null;
+          utterance.onstart=()=>{if(epoch===speakEpoch)refreshVoice('speaking');};
+          utterance.onend=()=>{if(epoch===speakEpoch)say(index+1);};
+          utterance.onerror=()=>{
+            if(epoch!==speakEpoch)return;
+            if(voiceActive)stopVoice('Não foi possível reproduzir a resposta.');
+            else refreshVoice('idle','Não foi possível reproduzir o áudio.');
+          };
+          window.speechSynthesis.speak(utterance);
+        }
+        refreshVoice('speaking');
+        say(0);
+      }
+      function startListening(){
+        if(!voiceActive||!dialog.open||chatBusy||rec)return;
+        if(!canListen){stopVoice('Seu navegador não oferece reconhecimento de voz.');return;}
+        const engine=new VoiceRecognition();
+        rec=engine;recText='';
+        engine.lang='pt-BR';engine.continuous=false;
+        engine.interimResults=true;engine.maxAlternatives=1;
+        engine.onresult=event=>{
+          if(engine!==rec||!voiceActive)return;
+          let partial='',finished='';
+          for(let i=0;i<event.results.length;i++){
+            const transcript=event.results[i][0]?.transcript||'';
+            if(event.results[i].isFinal)finished+=transcript+' ';
+            else partial+=transcript+' ';
+          }
+          if(finished.trim())recText=finished.trim().slice(0,900);
+          questionInput.value=(recText||partial.trim()).slice(0,900);
+          if(partial.trim())refreshVoice('listening','Ouvindo: '+partial.trim().slice(0,45));
+        };
+        engine.onerror=event=>{
+          if(engine!==rec)return;
+          const explanations={
+            'not-allowed':'Autorize o microfone no navegador.',
+            'service-not-allowed':'Serviço de reconhecimento indisponível.',
+            'audio-capture':'Microfone não encontrado.',
+            'network':'Falha no serviço de voz do navegador.',
+            'no-speech':'Não ouvi uma pergunta. Tente novamente.',
+            'language-not-supported':'Reconhecimento em português não disponível.'
+          };
+          stopVoice(explanations[event.error]||'Não consegui reconhecer sua fala.');
+        };
+        engine.onend=()=>{
+          if(engine!==rec)return;
+          rec=null;
+          if(!voiceActive||!dialog.open)return;
+          if(recText.length>=2){
+            questionInput.value=recText;
+            refreshVoice('thinking','Pergunta reconhecida. Consultando a NVIDIA...');
+            chatForm.requestSubmit();
+          }else stopVoice('Não ouvi uma pergunta completa. Toque para falar novamente.');
+        };
+        try{engine.start();refreshVoice('listening');}
+        catch{stopVoice('Não foi possível iniciar o microfone.');}
+      }
+      function toggleVoice(){
+        if(voiceActive){stopVoice();return;}
+        if(chatBusy){voiceSignal.textContent='Aguarde a resposta atual.';return;}
+        if(!canListen||!canSpeak){
+          voiceSignal.textContent='A voz não está disponível neste navegador. Use Chrome atualizado.';
+          return;
+        }
+        stopSpeech();
+        voiceActive=true;autoSpeak=true;
+        selectTab('network');
+        startListening();
+      }
+      voiceOrb.addEventListener('click',toggleVoice);
+      voiceMic.addEventListener('click',toggleVoice);
+      voiceSpeaker.addEventListener('click',()=>{
+        if(!canSpeak)return;
+        if(voiceActive){stopVoice('Conversa por voz desligada.');return;}
+        autoSpeak=!autoSpeak;
+        if(!autoSpeak)stopSpeech();
+        refreshVoice('idle');
+      });
+      stopAudioButton.addEventListener('click',()=>{
+        if(voiceActive)stopVoice('Conversa interrompida.');
+        else{stopSpeech();refreshVoice('idle','Áudio interrompido.');}
+      });
+      refreshVoice('idle');
+      if(!canListen){voiceOrb.title='Seu navegador não suporta entrada por voz.';}
+
       const originalWelcome=chatLog.firstElementChild.textContent;
       const history=[];
       let chatBusy=false;
@@ -185,6 +348,7 @@
         chatLog.scrollTop=chatLog.scrollHeight;
       }
       function clearChat() {
+        stopVoice();
         requestEpoch++;
         history.length=0;
         chatBusy=false;
@@ -206,6 +370,7 @@
       // Non-billable aggregate snapshot; no model/API key is called for this action.
       snapshotButton.addEventListener('click',async()=>{
         if(chatBusy)return;
+        if(voiceActive)stopVoice('Consulta de dados iniciada.');
         const epoch=++requestEpoch;
         chatBusy=true;
         snapshotButton.disabled=true;
@@ -310,6 +475,7 @@
           if(!answer)throw new Error('O servidor não retornou uma resposta de texto.');
           addChatMessage('user',asked);
           addChatMessage('assistant',answer);
+          if(autoSpeak)speakAnswer(answer);
           history.push({question:asked,answer});
           if(history.length>2)history.shift();
           questionInput.value='';
@@ -321,6 +487,7 @@
             ? 'Fonte: Central · '+displayedAt+' · Sem ações executadas.'
             : 'Fonte de dados não confirmada. Não utilize como diagnóstico operacional.';
         }catch(error){
+          if(voiceActive)stopVoice('Consulta interrompida devido a erro.');
           if(epoch===requestEpoch&&dialog.open){
             const message=String(error?.message||'Falha na consulta.');
             addChatMessage('error',message);
@@ -330,7 +497,7 @@
           if(epoch===requestEpoch){
             chatBusy=false;
             sendButton.disabled=false;clearButton.disabled=false;snapshotButton.disabled=false;questionInput.disabled=false;capabilitySelect.disabled=false;
-            if(dialog.open&&!views.network.hidden)questionInput.focus();
+            if(dialog.open&&!views.network.hidden&&!voiceActive)questionInput.focus();
           }
         }
       });
