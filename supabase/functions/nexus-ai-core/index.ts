@@ -140,10 +140,6 @@ Deno.serve(async request => {
     return json({ error: 'Confirme a autenticação em duas etapas para usar a Nexus AI administrativa.' }, 403);
   }
 
-  // Fail closed. Do not fall back to a different provider or a caller-provided model.
-  if (!enabled) return json({ error: 'Nexus AI está desativada no servidor.' }, 503);
-  if (!nvidiaKey) return json({ error: 'Provedor NVIDIA não configurado na Central.' }, 503);
-  if (!NVIDIA_MODELS.has(model)) return json({ error: 'Modelo NVIDIA não autorizado.' }, 503);
 
   let body: Record<string, unknown>;
   try {
@@ -152,6 +148,21 @@ Deno.serve(async request => {
     body = JSON.parse(raw);
     if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new Error('invalid');
   } catch { return json({ error: 'Corpo da requisição inválido.' }, 400); }
+
+  // Non-billable readiness probe, allowed only after admin role + AAL2 checks.
+  if (body.operation === 'status') {
+    return json({
+      provider: 'nvidia',
+      model,
+      ready: enabled && Boolean(nvidiaKey) && NVIDIA_MODELS.has(model),
+      enabled,
+      configured: Boolean(nvidiaKey),
+    });
+  }
+  // Fail closed. Do not fall back to a different provider or a caller-provided model.
+  if (!enabled) return json({ error: 'Nexus AI está desativada no servidor.' }, 503);
+  if (!nvidiaKey) return json({ error: 'Provedor NVIDIA não configurado na Central.' }, 503);
+  if (!NVIDIA_MODELS.has(model)) return json({ error: 'Modelo NVIDIA não autorizado.' }, 503);
   const question = clean(body.question, 1200);
   const capability = clean(body.capability || 'platform_help', 80);
   if (question.length < 2) return json({ error: 'Informe uma pergunta.' }, 400);
