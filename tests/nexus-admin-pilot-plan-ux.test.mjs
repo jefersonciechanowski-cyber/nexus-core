@@ -33,7 +33,7 @@ test('15-day SST trial evaluates a selected tier, never becomes a paid contract'
 });
 
 test('Nexus Central new navigation is consistent while legacy CRM remains outside the menu',()=>{
-  const labels=['Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos','Nexus AI'];
+  const labels=['Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos'];
   for(const page of [html,accounts]){
     let last=-1;
     const nav=page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
@@ -43,6 +43,12 @@ test('Nexus Central new navigation is consistent while legacy CRM remains outsid
       const next=nav.indexOf(label);
       assert.ok(next>last,'Navigation item missing or out of order: '+label);
       last=next;
+    }
+    assert.ok(nav.includes('Nexus AI'));
+    if(page===html){
+      assert.match(nav,/data-view="accounts"/);
+      assert.match(nav,/data-view="courtesy"/);
+      assert.match(nav,/id="nexus-ai-preview-trigger" data-view="ai"/);
     }
     assert.ok(page.includes('href="admin-management.css"'));
     assert.ok(page.includes('href="central-nexus-v2.css"'));
