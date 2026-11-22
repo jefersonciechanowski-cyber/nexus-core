@@ -207,3 +207,44 @@ test('AI tab stays present from the start and remains protected by MFA', () => {
   assert.match(ai, /window\.dispatchEvent\(new CustomEvent\('nexus:central:view',\{detail:\{view:'ai'\}\}\)\)/);
   assert.match(ai, /if\(dialog\.open\)\{\s*stopVoice\(\);\s*svg\.pauseAnimations\?\.\(\)/);
 });
+
+test('AI actions use icon-only controls with accessible names and hover/keyboard tooltips', () => {
+  assert.doesNotThrow(() => new Function(ai), 'Nexus AI script should parse');
+  const sourceLines = ai.split('\n');
+  const encoded = name => {
+    const line = sourceLines.find(line => line.startsWith('  const ' + name + '='));
+    assert.ok(line, 'Missing Nexus AI ' + name);
+    return JSON.parse(line.slice(line.indexOf('=') + 1).replace(/;\s*$/, ''));
+  };
+  const markup = encoded('MARKUP');
+  const style = encoded('STYLE');
+  for (const [key,label,icon] of [
+    ['network','Conversa','◎'],['agents','Agentes','✧'],['integrations','Integrações','⬡']
+  ]) {
+    const expected = 'data-tab="' + key + '" aria-label="' + label +
+      '" data-tooltip="' + label + '"><span class="nexus-v3-icon" aria-hidden="true">' +
+      icon + '</span></button>';
+    assert.ok(markup.includes(expected), 'Button must contain only accessible icon for ' + label);
+  }
+  assert.match(style, /content:attr\(data-tooltip\)/);
+  assert.match(style, /nexus-v3-tab\[data-tooltip\]:is\(:hover,:focus-visible\)::after/);
+  assert.match(style, /nexus-v3-tab\[data-tooltip\] \.nexus-v3-icon\{/);
+  assert.doesNotMatch(style, /html:has\(dialog\.nexus-v3-dialog\[open\]\),body:has\(dialog\.nexus-v3-dialog\[open\]\)\{overflow:hidden!important\}/);
+  assert.match(ai, /voiceOrb\.addEventListener\('click',toggleVoice\)/);
+});
+
+test('ambient Nexus background is persistent across Central tabs and administrative pages', () => {
+  const ambient = file('central-nexus-ambient.css');
+  for (const html of [index,accounts,legacyLeads,crmAccess,pix]) {
+    assert.match(html, /href="central-nexus-ambient\.css"/);
+  }
+  assert.match(ambient, /body\.central-nexus-v2::before/);
+  assert.match(ambient, /body\.central-nexus-tools-v3::after/);
+  assert.match(ambient, /@keyframes nexus-ambient-orbit/);
+  assert.match(ambient, /@keyframes nexus-ambient-grid-breathe/);
+  assert.match(ambient, /prefers-reduced-motion:reduce/);
+  assert.match(ambient, /html\.nexus-embedded body\.central-nexus-v2::before/);
+  assert.match(ambient, /pointer-events:none/);
+  assert.match(ambient, /position:fixed/);
+  assert.doesNotMatch(ambient, /unsafe-inline/);
+});
