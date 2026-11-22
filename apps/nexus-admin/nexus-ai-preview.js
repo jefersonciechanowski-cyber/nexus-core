@@ -107,6 +107,7 @@
       const canListen=typeof VoiceRecognition==='function';
       const canSpeak=Boolean(window.speechSynthesis&&window.SpeechSynthesisUtterance);
       let voiceActive=false,autoSpeak=false,rec=null,recText='',speakEpoch=0,voiceState='idle';
+      let recConfidence=null;
       let neuralEnabled=true,neuralAudio=null,neuralAbort=null,neuralObjectUrl=null;
       function refreshVoice(state,message){
         voiceState=state;
@@ -265,7 +266,7 @@
         if(!voiceActive||!dialog.open||chatBusy||rec)return;
         if(!canListen){stopVoice('Seu navegador não oferece reconhecimento de voz.');return;}
         const engine=new VoiceRecognition();
-        rec=engine;recText='';
+        rec=engine;recText='';recConfidence=null;
         engine.lang='pt-BR';engine.continuous=false;
         engine.interimResults=true;engine.maxAlternatives=1;
         engine.onresult=event=>{
@@ -273,8 +274,11 @@
           let partial='',finished='';
           for(let i=0;i<event.results.length;i++){
             const transcript=event.results[i][0]?.transcript||'';
-            if(event.results[i].isFinal)finished+=transcript+' ';
-            else partial+=transcript+' ';
+            if(event.results[i].isFinal){
+              finished+=transcript+' ';
+              const confidence=Number(event.results[i][0]?.confidence);
+              if(confidence>0&&Number.isFinite(confidence))recConfidence=recConfidence===null?confidence:Math.min(recConfidence,confidence);
+            }else partial+=transcript+' ';
           }
           if(finished.trim())recText=finished.trim().slice(0,900);
           questionInput.value=(recText||partial.trim()).slice(0,900);
@@ -298,6 +302,11 @@
           if(!voiceActive||!dialog.open)return;
           if(recText.length>=2){
             questionInput.value=recText;
+            if(recConfidence!==null&&recConfidence<.72){
+              stopVoice('Transcrição com baixa confiança: revise o texto antes de enviar para não gastar uma consulta com erro.');
+              questionInput.focus();
+              return;
+            }
             refreshVoice('thinking','Pergunta reconhecida. Consultando a NVIDIA...');
             chatForm.requestSubmit();
           }else stopVoice('Não ouvi uma pergunta completa. Toque para falar novamente.');
