@@ -189,6 +189,16 @@ if (/rpc\(['"]is_nexus_admin['"]/.test(nexusAiCoreSource)) {
   fail('supabase/functions/nexus-ai-core/index.ts: checagem administrativa AAL1 não pode substituir AAL2.');
 }
 
+
+if (!nexusAiCoreSource.includes('https://integrate.api.nvidia.com/v1/chat/completions')
+  || !nexusAiCoreSource.includes("Deno.env.get('NVIDIA_API_KEY')")
+  || !nexusAiCoreSource.includes("body.operation === 'status'")) {
+  fail('Nexus AI Core: NVIDIA e verificação autenticada de disponibilidade obrigatórias.');
+}
+if (/api\.openai\.com|OPENAI_API_KEY|gpt-5\./.test(nexusAiCoreSource)) {
+  fail('Nexus AI Core: fallback OpenAI não autorizado.');
+}
+
 const adminAal2GuardMigration = migrationFiles.find(file => file.endsWith('20260923235000_enforce_admin_aal2_rpc_guards.sql'));
 if (!adminAal2GuardMigration) {
   fail('supabase/migrations: migration dos guards AAL2 administrativos ausente.');
