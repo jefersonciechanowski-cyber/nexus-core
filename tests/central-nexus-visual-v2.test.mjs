@@ -155,8 +155,11 @@ test('only the two administrative resources and their canonical aliases allow sa
   assert.match(headers, /X-Frame-Options: DENY/);
   assert.match(headers, /frame-ancestors 'none'/);
   for (const path of ['accounts.html', 'accounts', 'crm-access.html', 'crm-access']) {
-    const block = headers.split(/\n\n/).find(s => s.startsWith('/apps/nexus-admin/' + path + '\n')) || '';
-    assert.ok(block, 'Missing path-specific headers for ' + path);
+    const lines = headers.split('\n');
+    const start = lines.findIndex(line => line.trim() === '/apps/nexus-admin/' + path);
+    assert.ok(start >= 0, 'Missing path-specific headers for ' + path);
+    const nextBlank = lines.findIndex((line, i) => i > start && line.trim() === '');
+    const block = lines.slice(start, nextBlank > start ? nextBlank : undefined).join('\n');
     assert.match(block, /! X-Frame-Options/);
     assert.match(block, /X-Frame-Options: SAMEORIGIN/);
     assert.match(block, /! Content-Security-Policy/);
