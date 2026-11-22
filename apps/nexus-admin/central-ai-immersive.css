@@ -17,7 +17,8 @@ body.central-nexus-v2.central-ai-active .main {
   overflow:hidden!important;
 }
 body.central-nexus-v2.central-ai-active .main > #centralOverviewCards,
-body.central-nexus-v2.central-ai-active .main > #centralWorkQueue {
+body.central-nexus-v2.central-ai-active .main > #centralWorkQueue,
+body.central-nexus-v2.central-ai-active .main > .view:not(#view-ai) {
   display:none!important;
 }
 body.central-nexus-v2.central-ai-active #view-ai {
