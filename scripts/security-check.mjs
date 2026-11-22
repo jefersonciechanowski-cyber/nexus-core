@@ -169,6 +169,17 @@ for (const loginPage of [
 }
 
 const headers = await readFile(join(projectRoot, '_headers'), 'utf8');
+// Workers merges matching _headers. Override the site-wide microphone deny only in Admin.
+const rootHeaderBlock = headers.split('\n/apps/nexus-admin/*')[0];
+const adminHeaderBlock = headers.split('\n/apps/nexus-admin/*')[1]?.split('\n/apps/')[0] || '';
+const sitePolicy = 'Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()';
+const adminMicPolicy = 'Permissions-Policy: camera=(), microphone=(self), geolocation=(), usb=(), browsing-topics=()';
+if (!rootHeaderBlock.includes(sitePolicy)
+  || !adminHeaderBlock.includes('! Permissions-Policy\n  '+adminMicPolicy)
+  || (headers.match(/microphone=\(self\)/g) || []).length !== 1) {
+  fail('_headers: microfone precisa continuar bloqueado no site e liberado somente na Central Admin.');
+}
+
 for (const requiredHeader of ['Content-Security-Policy:', 'Strict-Transport-Security:', 'X-Content-Type-Options:']) {
   if (!headers.includes(requiredHeader)) fail(`_headers: cabeçalho ausente: ${requiredHeader}`);
 }
