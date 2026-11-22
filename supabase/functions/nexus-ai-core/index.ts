@@ -42,7 +42,7 @@ function responseHeaders(origin: string) {
 // Reservation remains conservative; estimated cost is returned as unavailable unless both prices are explicitly set.
 function ratePerMillion(name: string) {
   const raw = Deno.env.get(name);
-  if (!raw || !/^\\d+(?:\\.\\d{1,5})?$/.test(raw)) return null;
+  if (!raw || !/^\d+(?:\.\d{1,5})?$/.test(raw)) return null;
   const rate = Number(raw);
   return Number.isFinite(rate) && rate >= 0 && rate <= 1000 ? rate : null;
 }
@@ -57,7 +57,7 @@ function extractOutputText(payload: any) {
   if (typeof content === 'string') return content.trim();
   if (Array.isArray(content)) {
     return content.filter((part: any) => part?.type === 'text' && typeof part?.text === 'string')
-      .map((part: any) => part.text).join('\\n').trim();
+      .map((part: any) => part.text).join('\n').trim();
   }
   return '';
 }
