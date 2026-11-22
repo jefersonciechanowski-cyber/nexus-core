@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#071015">
+  <meta name="theme-color" content="#ffffff">
   <title>Central Nexus | Administração</title>
   <style>
     :root{--bg:#081014;--surface:#111a1f;--surface2:#172228;--line:#2f393f;--text:#f5eee0;--muted:#98a2a7;--gold:#e0b84a;--good:#72a875;--danger:#dc6c67}
@@ -13,27 +13,28 @@
     .admin-pix-shortcut{display:block;margin-top:18px;padding:13px 14px;border:1px solid rgba(224,184,74,.32);border-radius:9px;color:#e0b84a;background:rgba(224,184,74,.06);text-decoration:none;font:600 13px Inter,"Segoe UI",Arial,sans-serif}.admin-pix-shortcut:hover,.admin-pix-shortcut:focus{border-color:#e0b84a;background:rgba(224,184,74,.1)}.admin-pix-shortcut span{display:block;color:#98a2a7;font-size:11px;font-weight:400;margin-top:5px}
   </style>
   <link rel="stylesheet" href="admin-management.css">
+  <link rel="stylesheet" href="central-nexus-v2.css">
 </head>
-<body>
+<body class="central-nexus-v2">
   <div class="shell">
     <aside class="side">
       <img class="logo" src="../sst-controle/logo-nexus-core.png" alt="Nexus Core">
       <div class="product">CENTRAL NEXUS</div>
       <nav class="nav" aria-label="Navegação da Central Nexus">
         <button class="active" type="button" data-view="overview">Visão Geral</button>
-        <a href="leads.html">CRM Comercial</a>
         <a href="accounts.html">Contas e Consultorias</a>
         <button type="button" data-view="clients">Clientes e Acessos</button>
         <button type="button" data-view="products">Produtos e Planos</button>
         <button type="button" data-view="payments">Pagamentos</button>
+        <button type="button" id="nexus-ai-preview-trigger" data-view="ai" hidden>Nexus AI</button>
       </nav>
-      <details class="sidebar-tools"><summary>Ferramentas técnicas</summary><a class="admin-pix-shortcut" href="crm-live-pix-pilot.html" aria-label="Acessar diagnóstico privado Asaas">Teste Pix R$ 10 <span>Privado · diagnóstico Asaas</span></a></details>
+      <details class="sidebar-tools"><summary>Ferramentas</summary><div class="central-tools-menu"><a class="central-tool-link" href="crm-access.html">Acessos e cortesias CRM</a><a class="admin-pix-shortcut" href="crm-live-pix-pilot.html" aria-label="Acessar diagnóstico privado Asaas">Teste Pix R$ 10 <span>Privado · diagnóstico Asaas</span></a></div></details>
       <div class="side-footer">Administração interna da operação multi-app do Nexus Core.</div>
     </aside>
     <main class="main">
       <header class="top"><div><h1 id="pageTitle">Central Nexus</h1><p id="pageSubtitle">Empresas, apps contratados e situação de acesso em uma única visão.</p></div><div class="profile"><strong id="profileName">Carregando...</strong><span id="profileRole"></span><button id="logout" type="button">Sair</button></div></header>
-      <section class="cards"><article class="card"><span>Empresas</span><strong id="companyCount">—</strong></article><article class="card"><span>Acessos ativos</span><strong id="activeAccessCount">—</strong></article><article class="card"><span>Apps disponíveis</span><strong id="productCount">—</strong></article><article class="card"><span>MRR equivalente</span><strong id="mrrValue">—</strong></article></section>
-      <section class="work-queue" aria-label="Acompanhamento operacional">
+      <section class="cards" id="centralOverviewCards"><article class="card"><span>Empresas</span><strong id="companyCount">—</strong></article><article class="card"><span>Acessos ativos</span><strong id="activeAccessCount">—</strong></article><article class="card"><span>Apps disponíveis</span><strong id="productCount">—</strong></article><article class="card"><span>MRR equivalente</span><strong id="mrrValue">—</strong></article></section>
+      <section class="work-queue" id="centralWorkQueue" aria-label="Acompanhamento operacional">
         <div class="work-queue-main">
           <div class="queue-label"><strong>Acompanhamento</strong><span>Acessos que precisam de gestão</span></div>
           <div class="queue-stats">
@@ -43,7 +44,7 @@
           </div>
         </div>
         <div class="queue-actions">
-          <a class="action" href="leads.html">Gerir leads</a><a class="action" href="crm-access.html">Cortesias CRM</a>
+          <a class="action" href="crm-access.html">Gerir acessos CRM</a>
           <button class="action primary" type="button" id="newPilotShortcut">Novo piloto SST</button>
         </div>
       </section>
@@ -51,6 +52,10 @@
       <section class="view" id="view-clients" hidden><section class="panel"><div class="toolbar"><div><h2>Clientes e Acessos</h2><p>Plano, ciclo contratado, validade, situação financeira e acesso.</p></div><div class="filters"><input class="search" id="clientSearch" type="search" placeholder="Buscar empresa, e-mail ou app"><select class="select" id="clientStatus"><option value="all">Todos os acessos</option><option value="active">Liberados</option><option value="suspended">Suspensos</option><option value="trial">Pilotos ativos</option><option value="expired">Pilotos encerrados</option><option value="past_due">Em atraso</option><option value="archived">Arquivados</option></select></div></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>E-mail</th><th>App</th><th>Plano</th><th>Valor</th><th>Contrato</th><th>Validade / Renovação</th><th>Acesso</th><th>Ações</th></tr></thead><tbody id="clientRows"><tr><td colspan="9" class="empty">Carregando...</td></tr></tbody></table></div><div id="clientDetail" class="detail-card" hidden></div></section></section>
       <section class="view" id="view-products" hidden><section class="panel"><div class="toolbar"><div><h2>Produtos e Planos</h2><p>Cadastre planos comerciais reais por produto Nexus.</p></div><input class="search" id="productSearch" type="search" placeholder="Buscar produto ou plano"></div><form class="form-card" id="planForm"><h3>Novo plano</h3><div class="form-grid"><div class="form-group"><label>Produto</label><select class="field" id="planProduct" required></select></div><div class="form-group"><label>Nome</label><input class="field" id="planName" maxlength="120" placeholder="Ex.: Profissional" required></div><div class="form-group"><label>Código</label><input class="field" id="planCode" pattern="[a-z0-9-]+" placeholder="profissional" required></div><div class="form-group"><label>Preço do ciclo</label><input class="field" id="planPrice" inputmode="decimal" placeholder="299,90" required></div><div class="form-group"><label>Periodicidade</label><select class="field" id="planInterval"><option value="1">Mensal</option><option value="3">Trimestral</option><option value="6">Semestral</option><option value="12">Anual</option></select></div><button class="action primary" type="submit">Cadastrar</button></div></form><div class="products-grid" id="productGrid"><div class="empty">Carregando...</div></div><div class="muted-note">Os preços-base continuam no catálogo. A oferta pública também pode aplicar o anual à vista equivalente a 10 mensalidades por 12 meses de acesso.</div></section></section>
       <section class="view" id="view-payments" hidden><section class="panel"><div class="toolbar"><div><h2>Pagamentos</h2><p>Cobranças reconciliadas por Webhook. Falha de pagamento pode suspender o acesso, preservando empresa e histórico.</p></div><input class="search" id="paymentSearch" type="search" placeholder="Buscar empresa, app, provedor ou status"></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>App</th><th>Provedor</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Meio</th><th>Recebido em</th></tr></thead><tbody id="paymentRows"><tr><td colspan="8" class="empty">Nenhuma cobrança recebida ainda.</td></tr></tbody></table></div></section><section class="panel"><div class="toolbar"><div><h2>Checkouts recentes</h2><p>Links hospedados criados antes da confirmação financeira.</p></div></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>App</th><th>Provedor</th><th>Valor</th><th>Ambiente</th><th>Status</th><th>Expira em</th></tr></thead><tbody id="checkoutRows"><tr><td colspan="7" class="empty">Nenhum checkout criado ainda.</td></tr></tbody></table></div></section></section>
+      <section class="view central-ai-tab" id="view-ai" hidden aria-label="Nexus AI">
+        <div class="central-ai-intro"><p>Inteligência Nexus · voz e consultas administrativas, com as permissões já existentes.</p></div>
+        <div id="nexus-ai-workspace" class="central-ai-workspace" aria-label="Área da Nexus AI"><div class="central-ai-loading">Preparando Nexus AI...</div></div>
+      </section>
       <div id="message" class="error" hidden></div>
     </main>
   </div>
@@ -76,9 +81,9 @@
     const displayPlan=r=>r.subscription_status==='trial'&&r.product?.code==='sst'
       ?'Piloto · '+(plans.find(p=>p.id===r.pilot_target_plan_id)?.name||'Essencial').replace(/^Nexus SST\s*/,'')
       :(r.plan_name==='Acesso existente'?'Plano inicial Nexus':r.plan_name)||r.plan?.name||'Sem plano comercial';
-    const pageConfig={overview:['Central Nexus','Visão comercial dos apps, acessos e contratos.'],clients:['Clientes e Acessos','Controle de plano, preço, ciclo, validade e acesso por cliente.'],products:['Produtos e Planos','Catálogo comercial multi-app da plataforma Nexus.'],payments:['Pagamentos','Checkouts, cobranças e confirmação financeira dos provedores integrados.']};
+    const pageConfig={overview:['Central Nexus','Visão comercial dos apps, acessos e contratos.'],clients:['Clientes e Acessos','Controle de plano, preço, ciclo, validade e acesso por cliente.'],products:['Produtos e Planos','Catálogo comercial multi-app da plataforma Nexus.'],payments:['Pagamentos','Checkouts, cobranças e confirmação financeira dos provedores integrados.'],ai:['Nexus AI','Inteligência e assistência do ecossistema Nexus.']};
     let organizations=[],products=[],plans=[],accessRows=[],payments=[],checkouts=[],activeView='overview',selectedAccessId=null;
-    function setView(view){if(!pageConfig[view])return;activeView=view;document.querySelectorAll('.nav button').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('active',selected);b.setAttribute('aria-current',selected?'page':'false');});document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!==`view-${view}`);document.getElementById('pageTitle').textContent=pageConfig[view][0];document.getElementById('pageSubtitle').textContent=pageConfig[view][1];if(location.hash!=='#'+view)history.replaceState(null,'','#'+view);}
+    function setView(view){if(!pageConfig[view])return;if(view==='ai'&&document.getElementById('nexus-ai-preview-trigger')?.hidden)return;activeView=view;document.querySelectorAll('.nav button').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('active',selected);b.setAttribute('aria-current',selected?'page':'false');});document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!==`view-${view}`);document.getElementById('centralOverviewCards').hidden=view!=='overview';document.getElementById('centralWorkQueue').hidden=view!=='overview';document.getElementById('pageTitle').textContent=pageConfig[view][0];document.getElementById('pageSubtitle').textContent=pageConfig[view][1];if(location.hash!=='#'+view)history.replaceState(null,'','#'+view);window.dispatchEvent(new CustomEvent('nexus:central:view',{detail:{view}}));}
     function filteredOverview(){const q=document.getElementById('overviewSearch').value.trim().toLowerCase();return accessRows.filter(r=>r.organization?.status!=='archived'&&[r.organization?.name,r.organization?.email,r.product?.name,displayPlan(r),contractLabel(r)].join(' ').toLowerCase().includes(q));}
     function filteredClients(){const q=document.getElementById('clientSearch').value.trim().toLowerCase(),status=document.getElementById('clientStatus').value;return accessRows.filter(r=>{const archived=r.organization?.status==='archived';const match=status==='archived'?archived:!archived&&(status==='all'||(status==='active'&&effectiveActive(r))||(status==='suspended'&&!effectiveActive(r))||(status==='trial'&&r.subscription_status==='trial'&&effectiveActive(r))||(status==='expired'&&expiredPilot(r))||(status==='past_due'&&r.subscription_status==='past_due'));return match&&[r.organization?.name,r.organization?.email,r.product?.name,displayPlan(r)].join(' ').toLowerCase().includes(q);});}
     function accessButton(row){if(row.subscription_status==='trial'&&expiredPilot(row))return '<span class="badge warn">Prazo encerrado</span>';return `<button class="action" data-action="toggle" data-id="${esc(row.id)}" data-status="${esc(row.access_status)}">${row.access_status==='active'?'Suspender':'Liberar'}</button>`;}
