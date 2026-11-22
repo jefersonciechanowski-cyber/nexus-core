@@ -313,6 +313,30 @@ body.central-nexus-v2 {
   min-height:0!important;overflow-y:auto!important;
 }
 .central-nexus-v2 #view-ai .nexus-v3-dialog.nexus-ai-embedded .nexus-v5-chat-form{flex:0 0 auto!important}
+/* O funil comercial legado permanece funcional por URL direta, mas compartilha
+   a identidade da Central e não reaparece no menu principal. */
+.central-nexus-v2 .modebar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.central-nexus-v2 .column{
+  min-height:360px;border:1px solid rgba(131,205,183,.24);border-radius:12px;
+  background:rgba(5,37,34,.45);overflow:hidden;
+}
+.central-nexus-v2 .column-head{
+  background:rgba(24,75,66,.75);border-bottom:1px solid rgba(123,203,177,.23);
+  color:#edf8f0;
+}
+.central-nexus-v2 .column-head span{background:rgba(118,204,173,.14);color:#cdeee0}
+.central-nexus-v2 .lead-card{
+  background:rgba(31,85,76,.41);
+  border:1px solid rgba(133,211,184,.25);border-radius:10px;color:#edf8f0;
+  transition:border-color .14s ease,background .14s ease;
+}
+.central-nexus-v2 .lead-card:hover{border-color:rgba(176,226,202,.41);background:rgba(41,99,86,.49)}
+.central-nexus-v2 .lead-card p,.central-nexus-v2 .lead-card .lead-meta small{color:#aacbbc}
+.central-nexus-v2 .detail,.central-nexus-v2 .toast{
+  background:rgba(15,57,50,.94);border:1px solid rgba(130,205,183,.27);color:#effbf4;
+}
+.central-nexus-v2 .contact-links a{color:#e8c68e}
+.central-nexus-v2 .detail-item{background:rgba(4,37,32,.44);border-color:rgba(127,203,175,.23)}
 @media(max-width:1150px){
   .central-nexus-v2 .side{grid-template-columns:160px minmax(0,1fr) auto;column-gap:8px}
   .central-nexus-v2 .side .logo{width:155px}
