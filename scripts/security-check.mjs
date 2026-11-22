@@ -254,6 +254,21 @@ for(const required of [
 ]) {
   if (!voiceUiSource.includes(required)) fail('Nexus AI voice/read-only guard missing: '+required);
 }
+// Voice regressions: interim transcripts must remain visible when Chrome omits
+// a final result; uncertain speech must require review, not spend NVIDIA tokens.
+for(const required of [
+  'if(lastHeard)latestTranscript=lastHeard',
+  "const spoken=(recText||latestTranscript||'')",
+  'if(stopRequested||!hasFinal||recConfidence!==null&&recConfidence<.72)',
+  'finishRecognition=()=>{',
+  'engine.stop();',
+  'questionInput.value=spoken;',
+  'class=\\\"nexus-v15-advanced\\\"',
+  'Como posso ajudar? Pergunte ou use o microfone.',
+]) {
+  if(!voiceUiSource.includes(required))fail('Nexus AI chat/voice regression: '+required);
+}
+
 if (/\bMediaRecorder\b|\bgetUserMedia\b|\.innerHTML\s*=\s*(?:answer|body)/.test(voiceUiSource)) {
   fail('Nexus AI voice: raw audio capture/upload or unsafe answer HTML detected.');
 }
