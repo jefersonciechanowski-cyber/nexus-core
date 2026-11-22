@@ -114,3 +114,9 @@ A prova local melhora a confiança no método de reimportação, mas não consti
 A prova **supera os testes anteriores com arquivos fictícios**, mas **não** comprova restauração funcional hospedada da aplicação, autenticação completa, recuperação de credenciais/Asaas/SMTP/DNS/Edge Functions, segunda cópia fora do GitHub ou RTO/RPO de serviço. O teste com documentos reais foi limitado a ambiente local de laboratório. O workflow é mantido em execução manual somente na `main` e pinado por SHA.
 
 **Placar geral segue 17/18 (94,4%) após confirmação separada da conexão Google Search Console no OpenSEO**; o único critério restante é a recuperação integral, que exige os aceites adicionais documentados. Não converter resultado de laboratório em garantia contratual.
+
+## Evidência independente — cópia cifrada no Google Drive (22/11/2026 UTC)
+
+Foi confirmada **segunda cópia cifrada fora do GitHub**, com ZIP de **2.575.342 bytes** relido do Drive e SHA-256 completo **igual** ao artefato da origem: `49d42ed9b8063225939fb50b90115ced79df817c52740efbdfe63d50859e0663`. Metadados confirmam acesso privado do proprietário; o ZIP contém somente `.tar.gz.gpg` + checksum. Registro detalhado em [CENTRAL-DR-EXTERNAL-ENCRYPTED-BACKUP-2026-11-22.md](CENTRAL-DR-EXTERNAL-ENCRYPTED-BACKUP-2026-11-22.md).
+
+Tarefa diária de cópia externa criada (primeiro disparo ainda pendente de validação). **Senha GPG recuperável fora do GitHub ainda não verificada**; não incluir qualquer senha em documento. RTO/RPO da aplicação e testes hospedados de Auth/Asaas/SMTP/DNS/funções continuam pendentes. **17/18 — 94,4%**, sem aceite de DR integral.
