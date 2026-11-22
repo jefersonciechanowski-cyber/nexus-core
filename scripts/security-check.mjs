@@ -233,10 +233,41 @@ for (const required of [
   "admin.rpc('nexus_ai_central_snapshot')",
   "body.operation === 'snapshot'",
   "context = await buildAdminContext(admin)",
-  "evidence: { source: context.source",
+  "evidence: context ? { source: context.source",
 ]) {
   if (!nexusAiCoreSource.includes(required)) fail('Nexus AI: server evidence contract missing: ' + required);
+
 }
+// Engineering boundary is code-enforced: default mode has NO Central DB lookup,
+// and no customer/tenant tables or arbitrary tools exist in this function.
+for (const required of [
+  "const needsCentralSnapshot = capability === 'admin_analysis';",
+  "if (needsCentralSnapshot) {",
+  "const coreEngineeringInstructions = [",
+  "const centralAdminInstructions = [",
+  "scope: needsCentralSnapshot ? 'nexus-core-central-administration' : 'nexus-core-engineering'",
+  "FORA DO ESCOPO: leads, conversas",
+  "Você NÃO tem ferramentas para ler repositórios",
+]) {
+  if (!nexusAiCoreSource.includes(required)) fail('Nexus AI engineering scope boundary missing: ' + required);
+}
+const engineeringZone = nexusAiCoreSource.slice(
+  nexusAiCoreSource.indexOf("const needsCentralSnapshot"),
+  nexusAiCoreSource.indexOf("const { data: reservation")
+);
+if (!engineeringZone.includes("if (needsCentralSnapshot) {\n    try {\n      context = await buildAdminContext(admin);")) {
+  fail('Nexus AI: default engineering mode must not load the Central DB snapshot.');
+}
+if (/\.(?:from|rpc)\(['"](?:leads|contacts|conversations|messages|sales|crm_leads|sst_records|agency_clients)['"]/.test(nexusAiCoreSource)){
+  fail('Nexus AI: access to tenant-operational tables is forbidden.');
+}
+const engineeringUi = await readFile(join(projectRoot, 'apps', 'nexus-admin', 'nexus-ai-preview.js'), 'utf8');
+if (!engineeringUi.includes('value=\\\"platform_help\\\" selected')
+  || !engineeringUi.includes('value=\\\"admin_analysis\\\">Administração da Central')
+  || !engineeringUi.includes('nexus-core-engineering')) {
+  fail('Nexus AI: engineering is the required UI default and Central is optional.');
+}
+
 
 // Nexus AI microphone is opt-in and cannot bypass admin MFA or NVIDIA's read-only backend.
 const voiceUiSource = await readFile(join(projectRoot, 'apps', 'nexus-admin', 'nexus-ai-preview.js'), 'utf8');
@@ -264,7 +295,7 @@ for(const required of [
   'engine.stop();',
   'questionInput.value=spoken;',
   'class=\\\"nexus-v15-advanced\\\"',
-  'Como posso ajudar? Pergunte ou use o microfone.',
+  'Sou sua IA de engenharia da Nexus Core. Vamos evoluir nossas plataformas?',
   "engine.continuous=true",
   "engine.onsoundstart=()=>",
   "engine.onspeechstart=()=>",
