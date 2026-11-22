@@ -56,7 +56,7 @@ jobs:
         run: node --check apps/nexus-admin/central-tabs.js && node --check apps/nexus-admin/central-embed.js && node --test tests/nexus-admin-pilot-plan-ux.test.mjs tests/central-nexus-visual-v2.test.mjs
 
       - name: Verify institutional Nexus tracking stays consent-only and revocable
-        run: node --test tests/nexus-institutional-consent.test.mjs
+        run: node --test tests/nexus-institutional-consent.test.mjs tests/nexus-ga4-consent.test.mjs
       - name: Verify compact WhatsApp CTA accessibility and privacy-banner avoidance
         run: node --test tests/nexus-whatsapp-icon-cta.test.mjs
 
