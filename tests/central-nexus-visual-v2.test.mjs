@@ -134,8 +134,8 @@ test('Contas e Cortesias are inside one persistent shell and not external naviga
   const tabs = file('central-tabs.js');
   const embed = file('central-embed.js');
   const css = file('central-embedded.css');
-  assert.match(index, /data-view="accounts">Contas e Consultorias/);
-  assert.match(index, /data-view="courtesy">Cortesias CRM/);
+  assert.match(index, /data-view="accounts" aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
+  assert.match(index, /data-view="courtesy" aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
   assert.match(index, /id="view-accounts" hidden/);
   assert.match(index, /id="view-courtesy" hidden/);
   assert.equal((index.match(/data-central-embedded title=/g) || []).length, 2);
@@ -150,20 +150,42 @@ test('Contas e Cortesias are inside one persistent shell and not external naviga
   assert.match(css, /html\.nexus-embedded/);
 });
 
-test('only the two admin subpages allow same-origin embedding, preserving clickjacking protection elsewhere', () => {
+test('only the two administrative resources and their canonical aliases allow same-origin embedding', () => {
   const headers = readFileSync(new URL('../_headers', import.meta.url), 'utf8');
   assert.match(headers, /X-Frame-Options: DENY/);
   assert.match(headers, /frame-ancestors 'none'/);
-  for (const name of ['accounts.html', 'crm-access.html']) {
-    const section = headers.split('/apps/nexus-admin/' + name)[1]?.split('\n\n')[0] || '';
-    assert.match(section, /! X-Frame-Options/);
-    assert.match(section, /X-Frame-Options: SAMEORIGIN/);
-    assert.match(section, /! Content-Security-Policy/);
-    assert.match(section, /frame-ancestors 'self'/);
+  for (const path of ['accounts.html', 'accounts', 'crm-access.html', 'crm-access']) {
+    const block = headers.split(/\n\n/).find(s => s.startsWith('/apps/nexus-admin/' + path + '\n')) || '';
+    assert.ok(block, 'Missing path-specific headers for ' + path);
+    assert.match(block, /! X-Frame-Options/);
+    assert.match(block, /X-Frame-Options: SAMEORIGIN/);
+    assert.match(block, /! Content-Security-Policy/);
+    assert.match(block, /frame-ancestors 'self'/);
   }
-  assert.equal((headers.match(/X-Frame-Options: SAMEORIGIN/g) || []).length, 2);
-  assert.equal((headers.match(/frame-ancestors 'self'/g) || []).length, 2);
+  assert.equal((headers.match(/X-Frame-Options: SAMEORIGIN/g) || []).length, 4);
+  assert.equal((headers.match(/frame-ancestors 'self'/g) || []).length, 4);
   assert.doesNotMatch(headers, /script-src 'unsafe-inline'/);
+});
+
+test('seven compact tabs fit the main header without a horizontal scrollbar', () => {
+  const tabs = file('central-tabs.js');
+  assert.match(index, /data-view="accounts" aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
+  assert.match(index, /data-view="clients" aria-label="Clientes e Acessos"[^>]*>Clientes<\/button>/);
+  assert.match(index, /data-view="products" aria-label="Produtos e Planos"[^>]*>Planos<\/button>/);
+  assert.match(index, /data-view="courtesy" aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
+  assert.match(theme, /grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+  assert.match(theme, /overflow:visible;scrollbar-width:none/);
+  assert.match(theme, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(tabs, /nav\.replaceChildren\(\.\.\.selected\)/);
+  assert.match(tabs, /button\.setAttribute\('aria-label',label\)/);
+});
+
+test('canonical same-origin routes are recognized after Cloudflare omits .html', () => {
+  const tabs = file('central-tabs.js');
+  assert.match(tabs, /canonicalPath\.endsWith\('\/' \+ target\)/);
+  assert.match(tabs, /canonicalPath\.endsWith\('\/' \+ target \+ '\.html'\)/);
+  assert.match(tabs, /doc\?\.getElementById\(requiredForm\)/);
+  assert.match(tabs, /view === 'accounts' \? 'accountForm' : 'courtesyForm'/);
 });
 
 test('AI tab stays present from the start and remains protected by MFA', () => {
