@@ -510,9 +510,13 @@
       dialog.addEventListener('close',()=>{
         clearChat();
         svg.pauseAnimations?.();
+        document.body.classList.remove('central-ai-active');
         if(location.hash==='#ai')document.querySelector('.nav [data-view="overview"]')?.click();
       });
       window.addEventListener('nexus:central:view',async event=>{
+        // Only the AI section uses the full-height workspace; no CSS :has()
+        // or page-wide layout mutation is needed on other tabs.
+        document.body.classList.toggle('central-ai-active',event.detail?.view==='ai');
         if(event.detail?.view!=='ai'){
           if(dialog.open)dialog.close();
           return;

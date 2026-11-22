@@ -1,3 +1,4 @@
+/* CENTRAL_NAV_STABILITY_RELEASE_20261122 */
 /* Central Nexus · identidade contínua do núcleo Nexus AI.
    Visual apenas; todos os fluxos, handlers, auth e permissões originais permanecem. */
 :root {scroll-behavior:auto;scrollbar-gutter:stable}
@@ -51,6 +52,7 @@ body.central-nexus-v2 {
   color:#b3cfc8;background:transparent;border:1px solid transparent;
   border-radius:9px;text-decoration:none;font-size:12px;font-weight:530;
   line-height:1.2;text-align:center;
+  font-variant-numeric:tabular-nums;
   transition:color .14s ease,border-color .14s ease,background .14s ease;
   transform:none!important;
 }
@@ -61,7 +63,7 @@ body.central-nexus-v2 {
   color:#fff8e8;background:rgba(125,195,172,.13);
   border:1px solid rgba(211,172,104,.42);
   box-shadow:inset 0 -2px rgba(216,179,106,.9);
-  font-weight:620;
+  font-weight:530;
 }
 .central-nexus-v2 .nav a:focus-visible,.central-nexus-v2 .nav button:focus-visible,
 .central-nexus-v2 .action:focus-visible,.central-nexus-v2 button:focus-visible,
@@ -117,10 +119,10 @@ body.central-nexus-v2 {
 }
 .central-nexus-v2 .top p{max-width:780px;margin:4px 0 0;color:#a5c5bb;font-size:12px}
 .central-nexus-v2 .profile{
-  display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;
-  gap:8px 12px;text-align:right;
+  display:flex;align-items:center;justify-content:flex-end;flex-wrap:nowrap;
+  gap:8px 12px;text-align:right;min-width:260px;max-width:42%;
 }
-.central-nexus-v2 .profile strong{display:block;color:#e7f9f2;font-size:12px;font-weight:620}
+.central-nexus-v2 .profile strong{display:block;color:#e7f9f2;font-size:12px;font-weight:620;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .central-nexus-v2 .profile span{display:block;margin:0;color:#9cbdb3;font-size:10px}
 .central-nexus-v2 .profile button{
   margin:0;padding:8px 13px;color:#e1f6ed;
@@ -375,4 +377,57 @@ body.central-nexus-v2 {
 }
 @media(prefers-reduced-motion:reduce){
   .central-nexus-v2 *{transition:none!important;animation-duration:.01ms!important;scroll-behavior:auto!important}
+}
+
+/* Older published HTML can retain a legacy CRM item in the menu.
+   Hide navigation only; CRM contracts and product integrations remain untouched. */
+.central-nexus-v2 .nav a[href="leads.html"],
+.central-nexus-v2 .nav a[href$="/leads.html"],
+.central-nexus-v2 .nav [data-nexus-leads-link]{display:none!important}
+
+/* Nexus AI: a scoped viewport layout, without moving unrelated tabs. */
+@media (min-width:901px) {
+  body.central-nexus-v2.central-ai-active{height:100dvh;overflow:hidden}
+  .central-nexus-v2.central-ai-active .shell{
+    display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden;
+  }
+  .central-nexus-v2.central-ai-active .side{flex:0 0 73px}
+  .central-nexus-v2.central-ai-active .main{
+    flex:1 1 0;display:flex;flex-direction:column;min-height:0;min-width:0;
+    width:100%;max-width:none;margin:0;overflow:hidden;
+    padding:10px clamp(12px,1.6vw,24px) 12px;
+  }
+  .central-nexus-v2.central-ai-active .main > .top{
+    flex:0 0 56px;min-height:56px;height:56px;
+    margin:0 0 8px;padding:0 0 8px;overflow:hidden;
+  }
+  .central-nexus-v2.central-ai-active .main > .top p,
+  .central-nexus-v2.central-ai-active .central-ai-intro{display:none}
+  .central-nexus-v2.central-ai-active #view-ai{
+    display:flex;flex:1 1 0;flex-direction:column;
+    width:100%;min-width:0;min-height:0;overflow:hidden;
+  }
+  .central-nexus-v2.central-ai-active #view-ai .central-ai-workspace{
+    flex:1 1 0;min-height:0;height:auto;max-height:none;
+    width:100%;overflow:hidden;
+  }
+  .central-nexus-v2.central-ai-active #view-ai .nexus-v3-dialog.nexus-ai-embedded {
+    height:100%!important;max-height:100%!important;min-height:0!important;
+  }
+  .central-nexus-v2.central-ai-active #view-ai .nexus-v3-dialog.nexus-ai-embedded .nexus-v6-chat-column{
+    top:8px!important;bottom:8px!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+  }
+  .central-nexus-v2.central-ai-active #view-ai .nexus-v3-dialog.nexus-ai-embedded .nexus-v5-chat-log {
+    min-height:0!important;overflow-y:auto!important;
+  }
+}
+@media (min-width:901px) and (max-height:700px){
+  .central-nexus-v2.central-ai-active #view-ai .nexus-v3-hub{
+    width:min(280px,48dvh)!important;height:min(280px,48dvh)!important;
+  }
+}
+@media (max-width:900px){
+  .central-nexus-v2 .profile{min-width:0;max-width:100%;flex-wrap:wrap}
+  .central-nexus-v2 .nav a,.central-nexus-v2 .nav button{font-weight:530}
 }

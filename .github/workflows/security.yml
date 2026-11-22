@@ -53,7 +53,7 @@ jobs:
         run: node --test tests/sst-central-security-boundaries.test.mjs
 
       - name: Validate Nexus Admin pilot tier, stable sidebar and CSP navigation
-        run: node --test tests/nexus-admin-pilot-plan-ux.test.mjs
+        run: node --test tests/nexus-admin-pilot-plan-ux.test.mjs tests/central-nexus-visual-v2.test.mjs
 
       - name: Verify institutional Nexus tracking stays consent-only and revocable
         run: node --test tests/nexus-institutional-consent.test.mjs
