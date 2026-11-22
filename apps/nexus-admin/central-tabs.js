@@ -1,93 +1,124 @@
-/* Nexus Central — retains administrative pages as same-origin, one-time-loaded tabs.
-   Only existing authenticated documents handle account and courtesy changes. */
+/* Central Nexus: persistent single-page navigation and same-origin admin tabs.
+   No privileged action is executed here: embedded pages keep their own auth/RLS. */
 (() => {
   'use strict';
-  const paths = {accounts:'accounts.html?embedded=1',courtesy:'crm-access.html?embedded=1'};
+  const paths = {accounts:'accounts?embedded=1',courtesy:'crm-access?embedded=1'};
   const loaded = new Set();
-  // Compact, stable navigation: exactly one tab per view, no horizontal scrolling.
-  // The full label remains available to screen readers and on hover.
   const navigation = [
-    ['ai','Nexus AI','Nexus AI'],
-    ['overview','Visão Geral','Visão geral'],
-    ['accounts','Contas e Consultorias','Contas'],
-    ['clients','Clientes e Acessos','Clientes'],
-    ['products','Produtos e Planos','Planos'],
-    ['payments','Pagamentos','Pagamentos'],
-    ['courtesy','Cortesias CRM','Cortesias']
+    ['ai','Nexus AI','Nexus AI','IA'],
+    ['overview','Visão Geral','Visão geral','Geral'],
+    ['accounts','Contas e Consultorias','Contas','Contas'],
+    ['clients','Clientes e Acessos','Clientes','Clientes'],
+    ['products','Produtos e Planos','Planos','Planos'],
+    ['payments','Pagamentos','Pagamentos','Pag.'],
+    ['courtesy','Cortesias CRM','Cortesias','Cort.']
   ];
+  const nav = document.querySelector('.side .nav');
   function normalizeNavigation() {
-    const nav = document.querySelector('.side .nav');
     if (!nav) return;
-    const selected = [];
-    for (const [view,label,short] of navigation) {
+    const selected = navigation.map(([view,label,text,short]) => {
       const button = Array.from(nav.querySelectorAll('button[data-view]'))
         .find(item => item.dataset.view === view);
-      if (!button) continue;
-      button.textContent = short;
-      button.setAttribute('aria-label',label);
-      button.title = label;
-      selected.push(button);
+      if (!button) return null;
+      if (button.textContent !== text) button.textContent = text;
+      if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label',label);
+      if (button.title !== label) button.title = label;
+      if (button.dataset.short !== short) button.dataset.short = short;
+      return button;
+    });
+    if (selected.some(item => !item)) return;
+    const current = Array.from(nav.children);
+    if (current.length !== selected.length || current.some((node,i) => node !== selected[i])) {
+      // Clean up extra/legacy links introduced after initial render without
+      // replacing the actual seven button nodes or their event listeners.
+      nav.replaceChildren(...selected);
     }
-    // Preserve unexpected navigation links inside the existing Tools menu.
-    const tools = document.querySelector('.central-tools-menu');
-    for (const link of nav.querySelectorAll('a[href]')) {
-      if (!tools) continue;
-      link.classList.add('central-tool-link');
-      tools.appendChild(link);
-    }
-    if (selected.length === navigation.length) nav.replaceChildren(...selected);
   }
   normalizeNavigation();
-  function mount(view) {
+  if (nav && typeof MutationObserver !== 'undefined') {
+    new MutationObserver(normalizeNavigation).observe(nav,{childList:true});
+  }
+
+  function openTab(view) {
+    document.querySelector('.side .nav button[data-view="' + view + '"]')?.click();
+  }
+  function updateFrameHeight(frame) {
+    try {
+      if (frame.hidden) return;
+      const doc = frame.contentDocument;
+      if (!doc || doc.location?.origin !== location.origin) return;
+      const desired = Math.ceil(Math.max(
+        doc.documentElement?.scrollHeight || 0,
+        doc.body?.scrollHeight || 0
+      )) + 12;
+      if (desired > 100 && desired < 12000) frame.style.height = Math.max(540,desired) + 'px';
+    } catch {}
+  }
+  const observers = new Map();
+  function mount(view,refresh=false) {
     if (!Object.hasOwn(paths,view)) return;
     const panel = document.getElementById('view-' + view);
     const frame = panel?.querySelector('iframe[data-central-embedded]');
     const status = panel?.querySelector('[data-central-embedded-status]');
-    if (!frame || loaded.has(view)) return;
+    if (!frame || (loaded.has(view) && !refresh)) return;
     loaded.add(view);
-    if (status) status.hidden = false;
-    frame.addEventListener('load', () => {
-      // A blocked frame must not appear as an empty success state.
-      let sameOriginReady = false;
-      try {
-        const inner = frame.contentWindow;
-        const doc = inner?.document;
-        const canonicalPath = (inner?.location?.pathname || '').replace(/\/$/, '');
-        const target = paths[view].split('?')[0].replace(/\.html$/, '');
-        const canonicalAllowed = canonicalPath.endsWith('/' + target) ||
-          canonicalPath.endsWith('/' + target + '.html');
-        const requiredForm = view === 'accounts' ? 'accountForm' : 'courtesyForm';
-        sameOriginReady = Boolean(inner && inner.location.origin === location.origin &&
-          canonicalAllowed && doc?.getElementById(requiredForm));
-      } catch {}
-      if (sameOriginReady) {
-        // A canonical redirect may drop ?embedded=1; presentation is still
-        // safe because the document and parent have the same checked origin.
-        frame.contentDocument.documentElement.classList.add('nexus-embedded');
-        if (status) status.hidden = true;
-        frame.hidden = false;
-      } else {
-        if (status) {
-          status.firstChild.textContent = 'A incorporação não foi autorizada pela hospedagem. ';
-          status.hidden = false;
-        }
-        frame.hidden = true;
-      }
-      panel.setAttribute('aria-busy','false');
-    }, {once:true});
-    frame.src = paths[view];
+    if (status) {
+      if (status.firstChild?.nodeType === 3) status.firstChild.textContent = 'Carregando ' + (view === 'accounts' ? 'Contas e Consultorias' : 'Cortesias CRM') + '… ';
+      status.hidden = false;
+    }
     panel.setAttribute('aria-busy','true');
+    frame.hidden = true;
+    if (observers.has(view)) {
+      observers.get(view).disconnect();
+      observers.delete(view);
+    }
+    if (!frame.dataset.loadBound) {
+      frame.dataset.loadBound='true';
+      frame.addEventListener('load',() => {
+        let valid = false;
+        try {
+          const inner = frame.contentWindow,doc = inner?.document;
+          const canonical = (inner?.location?.pathname || '').replace(/\/$/, '');
+          const target = view === 'accounts' ? 'accounts' : 'crm-access';
+          valid = Boolean(inner && inner.location.origin === location.origin &&
+            (canonical.endsWith('/' + target) || canonical.endsWith('/' + target + '.html')) &&
+            doc?.getElementById(view === 'accounts' ? 'accountForm' : 'courtesyForm'));
+          if (valid) {
+            // Cloudflare may strip ?embedded=1 during canonical redirects.
+            doc.documentElement.classList.add('nexus-embedded');
+            frame.hidden = false;
+            if (status) status.hidden = true;
+            if (typeof ResizeObserver !== 'undefined') {
+              const observer = new ResizeObserver(() => updateFrameHeight(frame));
+              observer.observe(doc.body);
+              observers.set(view,observer);
+            }
+            requestAnimationFrame(() => updateFrameHeight(frame));
+          }
+        } catch {}
+        if (!valid) {
+          frame.hidden = true;
+          loaded.delete(view); // Allow a retry if this route was not ready.
+          if (status) {
+            if (status.firstChild?.nodeType === 3) status.firstChild.textContent = 'Não foi possível abrir esta aba dentro da Central. ';
+            status.hidden = false;
+          }
+        }
+        panel.setAttribute('aria-busy','false');
+      });
+    }
+    frame.src = paths[view];
   }
-  function openTab(view) {
-    const button = document.querySelector('.nav [data-view="' + view + '"]');
-    if (button) button.click();
-  }
-  window.addEventListener('nexus:central:view',event => mount(event.detail?.view));
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-central-open]').forEach(control => {
-      control.addEventListener('click', () => openTab(control.dataset.centralOpen));
-    });
-    const selected = location.hash.slice(1);
-    if (Object.hasOwn(paths,selected)) mount(selected);
+  window.addEventListener('nexus:central:view',event => {
+    mount(event.detail?.view);
+    const frame = document.querySelector('#view-' + event.detail?.view + ' iframe[data-central-embedded]');
+    if (frame && !frame.hidden) requestAnimationFrame(() => updateFrameHeight(frame));
+  });
+  document.addEventListener('DOMContentLoaded',() => {
+    document.querySelectorAll('[data-central-open]').forEach(control =>
+      control.addEventListener('click',() => openTab(control.dataset.centralOpen)));
+    document.querySelectorAll('[data-central-retry]').forEach(control =>
+      control.addEventListener('click',() => mount(control.dataset.centralRetry,true)));
+    if (Object.hasOwn(paths,location.hash.slice(1))) mount(location.hash.slice(1));
   });
 })();
