@@ -20,7 +20,7 @@ function render({ mobile = false, context = "nexus", consentOpen = false } = {})
   const document = {
     readyState: "complete",
     currentScript: { dataset: { context } },
-    querySelector: selector => selector === ".nexus-whatsapp-contact" ? link : selector === ".nexus-consent" ? notice : null,
+    querySelector: selector => selector === ".nexus-whatsapp-contact" ? link : selector.includes(".nexus-consent") ? notice : null,
     createElement: type => {
       if (type === "style") return { textContent: "" };
       const anchor = {
@@ -90,4 +90,7 @@ test("same visible CTA behavior is available on SST marketing context", () => {
   const page = render({ mobile: true, context: "sst" });
   assert.equal(page.link.dataset.context, "sst");
   assert.match(page.link.attrs["aria-label"], /SST Controle/);
+  assert.match(script, /\.nexus-whatsapp-contact\[data-context="sst"\]\{right:auto;left:20px;bottom:24px\}/);
+  assert.match(script, /left:12px;bottom:96px/);
+  assert.match(script, /\.nexus-cookie\.visible/);
 });

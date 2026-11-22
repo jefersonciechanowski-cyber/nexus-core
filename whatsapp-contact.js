@@ -20,10 +20,12 @@
     const style = document.createElement("style");
     style.textContent = `
       .nexus-whatsapp-contact{position:fixed;right:20px;bottom:24px;z-index:110;display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;min-width:56px;min-height:56px;padding:0;border-radius:50%;border:1px solid #3eb579;background:#147d4d;color:#fff!important;text-decoration:none!important;box-shadow:0 12px 32px rgba(0,0,0,.25);transition:transform .18s ease,background .18s ease}
+      /* SST uses the opposite corner so its CTA never hides beneath the support bubble. */
+      .nexus-whatsapp-contact[data-context="sst"]{right:auto;left:20px;bottom:24px}
       .nexus-whatsapp-contact:hover{background:#0f6c42;transform:translateY(-2px)}
       .nexus-whatsapp-contact:focus-visible{outline:3px solid #f4d47d;outline-offset:3px}
       .nexus-whatsapp-contact-icon{display:block;width:30px;height:30px;flex:none;fill:currentColor}
-      @media(max-width:680px){.nexus-whatsapp-contact{right:12px;bottom:18px;width:52px;height:52px;min-width:52px;min-height:52px}.nexus-whatsapp-contact[data-context="sst"]{bottom:96px}}
+      @media(max-width:680px){.nexus-whatsapp-contact{right:12px;bottom:18px;width:52px;height:52px;min-width:52px;min-height:52px}.nexus-whatsapp-contact[data-context="sst"]{right:auto;left:12px;bottom:96px}}
       @media(prefers-reduced-motion:reduce){.nexus-whatsapp-contact{transition:none}.nexus-whatsapp-contact:hover{transform:none}}
     `;
     document.head.appendChild(style);
@@ -44,7 +46,7 @@
     // Keep the CTA in its usual corner; lift it only if a privacy notice would overlap.
     function avoidConsentOverlap() {
       link.style.removeProperty("bottom");
-      const notice = document.querySelector(".nexus-consent");
+      const notice = document.querySelector(".nexus-consent, .nexus-cookie.visible");
       if (!notice) return;
       const button = link.getBoundingClientRect();
       const banner = notice.getBoundingClientRect();
