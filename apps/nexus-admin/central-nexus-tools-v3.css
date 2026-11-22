@@ -1,0 +1,95 @@
+/* Nexus Central · complementary admin tools, same green translucent shell. */
+:root { scroll-behavior:auto;scrollbar-gutter:stable; }
+body.central-nexus-tools-v3{
+ --bg:#061e1d;--surface:rgba(23,72,64,.58);--line:rgba(132,205,184,.23);
+ --text:#edf8f1;--muted:#a8c8bc;--gold:#e0bd80;--good:#88dbb5;--danger:#f0ada7;
+ min-height:100vh;color:var(--text);
+ background:
+  radial-gradient(ellipse at 9% 9%,rgba(23,136,119,.24),transparent 55%),
+  radial-gradient(ellipse at 91% 12%,rgba(24,112,102,.23),transparent 53%),
+  linear-gradient(146deg,#051816,#0d312b 56%,#061a1a);
+ background-attachment:fixed;
+}
+.central-nexus-tools-v3 *,.central-nexus-tools-v3 *::before,.central-nexus-tools-v3 *::after{box-sizing:border-box}
+.central-nexus-tools-v3 .shell{max-width:1430px;padding:25px clamp(18px,3vw,40px) 55px;margin:0 auto}
+.central-nexus-tools-v3 main:not(.shell){max-width:920px}
+.central-nexus-tools-v3 .top{
+ display:flex;align-items:center;gap:16px;justify-content:space-between;
+ min-height:92px;margin-bottom:19px;padding-bottom:14px;
+ border-bottom:1px solid rgba(133,204,184,.19);
+}
+.central-nexus-tools-v3 .top h1,.central-nexus-tools-v3 h1{color:#f4fff9;letter-spacing:-.025em}
+.central-nexus-tools-v3 .top p,.central-nexus-tools-v3 p{color:#accbc0}
+.central-nexus-tools-v3 .back{
+ color:#c9ebd9!important;text-decoration:none;display:inline-block;
+ margin-bottom:7px;border-radius:7px;
+}
+.central-nexus-tools-v3 .back:hover{color:#fff5d9!important}
+.central-nexus-tools-v3 .panel,.central-nexus-tools-v3 .notice{
+ background:linear-gradient(148deg,rgba(31,87,77,.51),rgba(10,47,44,.68));
+ border:1px solid rgba(131,204,182,.24);border-radius:14px;
+ color:#e9f6ef;box-shadow:0 14px 30px rgba(0,17,17,.11),inset 0 1px rgba(192,245,220,.06);
+ backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px);
+}
+.central-nexus-tools-v3 .panel{padding:22px;margin-bottom:16px}
+.central-nexus-tools-v3 .panel h2,.central-nexus-tools-v3 .panel strong{color:#f2fff8}
+.central-nexus-tools-v3 .notice strong{color:#f4ddae}
+.central-nexus-tools-v3 .note,.central-nexus-tools-v3 small{color:#b4d1c6}
+.central-nexus-tools-v3 .search,.central-nexus-tools-v3 input:not([type=checkbox]),
+.central-nexus-tools-v3 select,.central-nexus-tools-v3 textarea{
+ min-height:39px;background:rgba(3,32,29,.48)!important;
+ color:#f0fff8!important;border:1px solid rgba(131,205,184,.32)!important;
+ border-radius:9px!important;box-shadow:none!important;font:inherit;
+}
+.central-nexus-tools-v3 input::placeholder,.central-nexus-tools-v3 textarea::placeholder{
+ color:#91b7a9!important;opacity:1;
+}
+.central-nexus-tools-v3 select option{background:#10382f;color:#fff}
+.central-nexus-tools-v3 input:focus-visible,.central-nexus-tools-v3 select:focus-visible,
+.central-nexus-tools-v3 button:focus-visible,.central-nexus-tools-v3 a:focus-visible{
+ outline:2px solid #d9bd83;outline-offset:2px;
+}
+.central-nexus-tools-v3 .action,.central-nexus-tools-v3 button.secondary{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-height:36px;padding:8px 12px;border-radius:9px;
+ border:1px solid rgba(141,209,192,.31);
+ background:rgba(87,166,143,.12);color:#e8f8f0;font:inherit;font-weight:550;
+ box-shadow:none;transform:none!important;transition:background .14s,border-color .14s;
+}
+.central-nexus-tools-v3 .action:hover,.central-nexus-tools-v3 button.secondary:hover{
+ border-color:rgba(162,222,198,.44);background:rgba(112,195,167,.2);
+}
+.central-nexus-tools-v3 .action.primary,
+.central-nexus-tools-v3 button:not(.secondary):not([disabled]):not(.action){
+ background:linear-gradient(135deg,#ead3a2,#d0a966);
+ border:1px solid rgba(218,181,111,.8);color:#123329;
+}
+.central-nexus-tools-v3 button[disabled]{opacity:.55;cursor:not-allowed}
+.central-nexus-tools-v3 .table-wrap{
+ border:1px solid rgba(124,201,183,.22);border-radius:10px;background:rgba(3,35,32,.36);
+ overflow:auto;
+}
+.central-nexus-tools-v3 table{width:100%;border-collapse:collapse}
+.central-nexus-tools-v3 th{
+ color:#b9d8cd;background:#153c35;border-bottom:1px solid rgba(122,197,177,.22);
+}
+.central-nexus-tools-v3 td{color:#e3f3ea;border-bottom:1px solid rgba(133,202,185,.14)}
+.central-nexus-tools-v3 tbody tr:hover{background:rgba(102,182,160,.08)}
+.central-nexus-tools-v3 .badge{border-radius:99px;border:1px solid transparent}
+.central-nexus-tools-v3 .badge.good{color:#a1e9c2;background:rgba(58,166,114,.19)}
+.central-nexus-tools-v3 .badge.warn{color:#f0d39e;background:rgba(201,159,89,.18)}
+.central-nexus-tools-v3 .badge.bad{color:#f3b5b0;background:rgba(198,109,104,.19)}
+.central-nexus-tools-v3 .status,.central-nexus-tools-v3 .result{
+ background:rgba(5,45,40,.36);border-color:rgba(121,202,180,.22);
+ color:#e5f4ec;border-radius:10px;
+}
+.central-nexus-tools-v3 .error{color:#ffc2bc}
+.central-nexus-tools-v3 .courtesy-grid,.central-nexus-tools-v3 .grid{gap:13px}
+.central-nexus-tools-v3 .field{color:#bfdace}
+@media(max-width:720px){
+ .central-nexus-tools-v3 .top{flex-wrap:wrap;align-items:flex-start}
+ .central-nexus-tools-v3 .shell{padding:17px 12px 35px}
+ .central-nexus-tools-v3 .panel{padding:16px}
+ .central-nexus-tools-v3 .courtesy-grid,.central-nexus-tools-v3 .grid{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){.central-nexus-tools-v3 *{transition:none!important}}
