@@ -2,66 +2,97 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(new URL('../apps/nexus-admin/index.html', import.meta.url), 'utf8');
-const accounts = readFileSync(new URL('../apps/nexus-admin/accounts.html', import.meta.url), 'utf8');
-const ai = readFileSync(new URL('../apps/nexus-admin/nexus-ai-preview.js', import.meta.url), 'utf8');
-const theme = readFileSync(new URL('../apps/nexus-admin/central-nexus-v2.css', import.meta.url), 'utf8');
+const file = name => readFileSync(new URL('../apps/nexus-admin/' + name, import.meta.url), 'utf8');
+const index = file('index.html');
+const accounts = file('accounts.html');
+const legacyLeads = file('leads.html');
+const crmAccess = file('crm-access.html');
+const pix = file('crm-live-pix-pilot.html');
+const theme = file('central-nexus-v2.css');
+const toolsTheme = file('central-nexus-tools-v3.css');
+const ai = file('nexus-ai-preview.js');
+const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
-test('navegação da Central mantém recursos e oculta somente CRM Comercial legado', () => {
-  assert.doesNotMatch(html, /href="leads.html"/);
-  assert.doesNotMatch(accounts, /href="leads.html"/);
-  assert.match(html, /href="crm-access.html"/);
-  assert.match(html, /nexus-admin-crm-access/);
-  assert.match(html, /data-view="payments"/);
-  assert.match(html, /data-view="clients"/);
-  assert.match(html, /data-view="products"/);
-  assert.match(html, /logo-nexus-core.png/);
+test('same primary navigation in all shell pages; commercial CRM is not reintroduced', () => {
+  const labels = ['Visão Geral', 'Contas e Consultorias', 'Clientes e Acessos', 'Produtos e Planos', 'Pagamentos', 'Nexus AI'];
+  for (const page of [index, accounts, legacyLeads]) {
+    const mainNav = nav(page);
+    assert.ok(mainNav);
+    assert.doesNotMatch(mainNav, /CRM Comercial|href="leads\.html"/);
+    let previous = -1;
+    for (const label of labels) {
+      const next = mainNav.indexOf(label);
+      assert.ok(next > previous, 'Out of order: ' + label);
+      previous = next;
+    }
+    assert.match(page, /href="central-nexus-v2\.css"/);
+    assert.match(page, /class="central-nexus-v2"/);
+    assert.match(page, /logo-nexus-core\.png/);
+    assert.match(page, /class="sidebar-tools"/);
+    assert.match(page, /class="central-tools-menu"/);
+  }
 });
 
-test('abas da Central incluem Nexus AI sem modal separado', () => {
-  assert.match(html, /data-view="ai" hidden/);
-  assert.match(html, /id="view-ai" hidden/);
-  assert.match(html, /id="nexus-ai-workspace"/);
-  assert.match(html, /nexus:central:view/);
+test('contracts, payments and old direct-link workflows retain their elements', () => {
+  assert.match(index, /nexus-admin-crm-access/);
+  assert.match(index, /href="crm-access\.html"/);
+  assert.match(index, /id="planForm"/);
+  assert.match(index, /id="paymentRows"/);
+  assert.match(accounts, /id="accountForm"/);
+  assert.match(legacyLeads, /id="newLeadForm"/);
+  assert.match(legacyLeads, /CRM Comercial/);
+  assert.match(crmAccess, /id="courtesyForm"/);
+  assert.match(pix, /id="asaasCheck"/);
+});
+
+test('all supplementary admin screens reuse the same dark-green palette', () => {
+  for (const page of [crmAccess, pix]) {
+    assert.match(page, /class="central-nexus-tools-v3"/);
+    assert.match(page, /href="central-nexus-tools-v3\.css"/);
+  }
+  assert.match(toolsTheme, /--surface:rgba\(23,72,64,\.58\)/);
+  assert.match(toolsTheme, /backdrop-filter:blur\(13px\)/);
+});
+
+test('Nexus AI remains authenticated, embedded and voice-enabled', () => {
+  assert.match(index, /data-view="ai" hidden/);
+  assert.match(index, /id="view-ai" hidden/);
   assert.match(ai, /host\.replaceChildren\(dialog\)/);
   assert.match(ai, /dialog\.show\(\)/);
   assert.doesNotMatch(ai, /dialog\.showModal\(\)/);
-  assert.match(theme, /\.nav button\[hidden\]\{display:none!important\}/);
-  assert.match(theme, /\.nexus-ai-embedded:not\(\[open\]\)/);
-});
-
-test('voz, autorização MFA, integrações e backend da IA permanecem preservados', () => {
   assert.match(ai, /session\?\.role !== 'nexus_admin'/);
   assert.match(ai, /currentLevel === 'aal2'/);
   assert.match(ai, /if \(!await sessionAllowed\(\)\)/);
   assert.match(ai, /functions\.invoke\('nexus-ai-core'/);
-  assert.match(ai, /body:\{question,capability\}/);
   assert.match(ai, /voiceOrb\.addEventListener\('click',toggleVoice\)/);
 });
 
-test('novo tema compartilha visual Nexus entre páginas administrativas', () => {
-  assert.match(html, /central-nexus-v2\.css/);
-  assert.match(accounts, /central-nexus-v2\.css/);
-  assert.match(html, /centralOverviewCards/);
-  assert.match(html, /centralWorkQueue/);
-  assert.match(theme, /#f5f7f8/);
+test('theme has one stable base instead of conflicting screen-dependent layout overrides', () => {
+  assert.match(theme, /--bg:#061c1c/);
+  assert.match(theme, /background-attachment:fixed/);
+  assert.match(theme, /scrollbar-gutter:stable/);
+  assert.match(theme, /\.side\s*\{/);
+  assert.match(theme, /\.card\s*\{/);
+  assert.match(theme, /\.table-wrap\s*\{/);
+  assert.doesNotMatch(theme, /:has\(/);
+  assert.doesNotMatch(theme, /translateY\(/);
+  assert.doesNotMatch(theme, /scroll-behavior:smooth/);
 });
 
-
-test('Nexus AI uses remaining screen height rather than the old minimum size that clipped content', () => {
-  assert.match(theme, /:has\(#view-ai:not\(\[hidden\]\)\) \.main/);
-  assert.match(theme, /:has\(#view-ai:not\(\[hidden\]\)\) \.central-ai-workspace/);
-  assert.match(theme, /#view-ai \.nexus-v3-dialog\.nexus-ai-embedded/);
-  assert.match(theme, /height:100%!important;block-size:100%!important;max-height:100%!important/);
-  assert.match(theme, /\.nexus-v5-chat-log\s*\{\s*min-height:0!important;overflow-y:auto!important/);
-  assert.match(theme, /@media\(max-width:900px\)/);
-});
-
-test('translucent Nexus styling preserves readable cards and keyboard accessibility', () => {
-  assert.match(theme, /backdrop-filter:blur\(22px\)/);
-  assert.match(theme, /background:linear-gradient\(145deg,rgba\(255,255,255,\.87\)/);
-  assert.match(theme, /\.card:hover\s*\{/);
-  assert.match(theme, /prefers-reduced-motion:reduce/);
+test('translucent panels remain readable and respect reduced motion and keyboard', () => {
+  assert.match(theme, /background:linear-gradient\(145deg,rgba\(35,89,80,\.48\)/);
+  assert.match(theme, /backdrop-filter:blur\(13px\)/);
   assert.match(theme, /focus-visible/);
-  assert.doesNotMatch(theme, /script-src|unsafe-inline/);
+  assert.match(theme, /prefers-reduced-motion:reduce/);
+  assert.match(theme, /\.badge\.good/);
+  assert.match(theme, /\.badge\.bad/);
+});
+
+test('AI viewport and chat scroll stay within their container without clipping', () => {
+  assert.match(theme, /height:max\(570px,calc\(100dvh - 222px\)\)/);
+  assert.match(theme, /#view-ai \.nexus-v3-dialog\.nexus-ai-embedded/);
+  assert.match(theme, /\.nexus-v6-chat-column\s*\{/);
+  assert.match(theme, /\.nexus-v5-chat-log\s*\{/);
+  assert.match(theme, /overflow-y:auto!important/);
+  assert.match(theme, /@media\(max-width:900px\)/);
 });

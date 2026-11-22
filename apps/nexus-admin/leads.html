@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#071015">
+  <meta name="theme-color" content="#071d1c">
   <title>CRM Comercial | Central Nexus</title>
   <style>
     :root{--bg:#081014;--surface:#111a1f;--surface2:#172228;--line:#2f393f;--text:#f5eee0;--muted:#98a2a7;--gold:#e0b84a;--good:#72a875;--danger:#dc6c67;--blue:#70a8c3}
@@ -20,20 +20,22 @@
     @media(max-width:820px){.shell{grid-template-columns:1fr}.side{padding:18px 20px;border-right:0;border-bottom:1px solid rgba(224,184,74,.13)}.side-footer{display:none}.logo{width:165px}.product{margin-bottom:14px}.nav{grid-template-columns:repeat(2,1fr)}.nav a{text-align:center;padding:10px 8px}.main{padding:20px}.cards{grid-template-columns:repeat(2,1fr)}.top,.toolbar,.modebar{flex-direction:column;align-items:stretch}.profile{text-align:left}.filters{display:grid;grid-template-columns:1fr}.search,.select{width:100%}.detail-grid,.edit-grid,.new-grid{grid-template-columns:1fr}.group.span2,.new-grid .span2,.new-grid .span3{grid-column:auto}.modes{display:grid;grid-template-columns:1fr 1fr}.mode{text-align:center}.form-actions,.modal-actions{justify-content:stretch}.form-actions button,.modal-actions button{flex:1}}
   </style>
   <link rel="stylesheet" href="admin-management.css">
+<link rel="stylesheet" href="central-nexus-v2.css">
 </head>
-<body>
+<body class="central-nexus-v2">
 <div class="shell">
   <aside class="side">
     <img class="logo" src="../sst-controle/logo-nexus-core.png" alt="Nexus Core">
     <div class="product">CENTRAL NEXUS</div>
     <nav class="nav" aria-label="Navegação da Central Nexus">
       <a href="index.html#overview">Visão Geral</a>
-      <a class="active" href="leads.html" data-nexus-leads-link="true">CRM Comercial</a>
       <a href="accounts.html">Contas e Consultorias</a>
       <a href="index.html#clients">Clientes e Acessos</a>
       <a href="index.html#products">Produtos e Planos</a>
       <a href="index.html#payments">Pagamentos</a>
+      <a href="index.html#ai">Nexus AI</a>
     </nav>
+    <details class="sidebar-tools"><summary>Ferramentas</summary><div class="central-tools-menu"><a class="central-tool-link" href="crm-access.html">Acessos e cortesias CRM</a><a class="admin-pix-shortcut" href="crm-live-pix-pilot.html" aria-label="Acessar diagnóstico privado Asaas">Teste Pix R$ 10 <span>Privado · diagnóstico Asaas</span></a></div></details>
     <div class="side-footer">Prospecção, demonstrações e vendas em uma única base.</div>
   </aside>
   <main class="main">
