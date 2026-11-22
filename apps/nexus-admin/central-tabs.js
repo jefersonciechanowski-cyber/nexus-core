@@ -2,6 +2,12 @@
    No privileged action is executed here: embedded pages keep their own auth/RLS. */
 (() => {
   'use strict';
+  // Marca o layout imersivo antes da primeira pintura quando a URL é #ai.
+  // A classe é revertida em toda troca de aba, sem recriar o shell.
+  document.body.classList.toggle('central-ai-active',location.hash === '#ai');
+  window.addEventListener('nexus:central:view',event => {
+    document.body.classList.toggle('central-ai-active',event.detail?.view === 'ai');
+  });
   const paths = {accounts:'accounts?embedded=1',courtesy:'crm-access?embedded=1'};
   const alternatePaths = {accounts:'accounts.html?embedded=1',courtesy:'crm-access.html?embedded=1'};
   const triedAlternate = new Set();

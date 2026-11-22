@@ -1,0 +1,107 @@
+/* CENTRAL NEXUS · IA imersiva v18.
+   Somente apresentação, sem mudanças em controles, dados ou permissões. */
+
+/* O cabeçalho administrativo duplicava os controles na aba IA.
+   Nas outras seis abas ele permanece acessível, inclusive o botão Sair. */
+body.central-nexus-v2.central-ai-active .main > .top,
+body.central-nexus-v2.central-ai-active .main > .central-ai-intro,
+body.central-nexus-v2.central-ai-active #view-ai .central-ai-intro {
+  display:none!important;
+}
+body.central-nexus-v2.central-ai-active .main {
+  padding:0!important;
+  margin:0!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  overflow:hidden!important;
+}
+body.central-nexus-v2.central-ai-active .main > #centralOverviewCards,
+body.central-nexus-v2.central-ai-active .main > #centralWorkQueue,
+body.central-nexus-v2.central-ai-active .main > .view:not(#view-ai) {
+  display:none!important;
+}
+body.central-nexus-v2.central-ai-active #view-ai {
+  flex:1 1 0%!important;
+  min-height:0!important;
+  min-width:0!important;
+  width:100%!important;
+  padding:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+body.central-nexus-v2.central-ai-active #view-ai .central-ai-workspace {
+  position:relative;
+  flex:1 1 0%!important;
+  min-height:0!important;
+  min-width:0!important;
+  width:100%!important;
+  height:100%!important;
+  max-height:none!important;
+  padding:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+body.central-nexus-v2.central-ai-active #view-ai .nexus-v3-dialog.nexus-ai-embedded {
+  position:relative!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:hidden!important;
+}
+@media (min-width:901px) {
+  body.central-nexus-v2.central-ai-active {
+    height:100dvh!important;
+    overflow:hidden!important;
+  }
+  body.central-nexus-v2.central-ai-active > .shell {
+    height:100dvh!important;
+    min-height:0!important;
+    display:flex!important;
+    flex-direction:column!important;
+    overflow:hidden!important;
+  }
+  body.central-nexus-v2.central-ai-active .side {
+    flex:0 0 73px!important;
+  }
+  body.central-nexus-v2.central-ai-active .main {
+    flex:1 1 0%!important;
+    display:flex!important;
+    flex-direction:column!important;
+    min-height:0!important;
+  }
+}
+@media (max-width:900px) {
+  body.central-nexus-v2.central-ai-active .main {
+    padding:0!important;
+    overflow:visible!important;
+  }
+  body.central-nexus-v2.central-ai-active #view-ai {
+    display:block!important;
+    overflow:visible!important;
+  }
+  body.central-nexus-v2.central-ai-active #view-ai .central-ai-workspace {
+    height:max(660px,calc(100dvh - 128px))!important;
+    min-height:660px!important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  body.central-nexus-v2.central-ai-active #view-ai *,
+  body.central-nexus-v2.central-ai-active #view-ai *::before,
+  body.central-nexus-v2.central-ai-active #view-ai *::after {
+    scroll-behavior:auto!important;
+  }
+}
