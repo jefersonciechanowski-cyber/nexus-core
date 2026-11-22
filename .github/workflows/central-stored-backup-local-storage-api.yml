@@ -82,7 +82,7 @@ jobs:
           python3 scripts/central-stored-storage-extract.py "$work/package.tar.gz" "$work/recovered/storage"
           echo "source_stored_backup_run=$run_id"
 
-      - name: Upload restored private bytes to REAL local Supabase API and verify RLS-denial
+      - name: Upload restored private bytes to REAL local Supabase API and verify anonymous denial
         shell: bash
         run: |
           set -euo pipefail
