@@ -36,3 +36,21 @@ jobs:
           grep -q 'profissional' /tmp/pilot.js
           grep -q '.work-queue' /tmp/admin-management.css
           echo 'Nexus Admin management shell and SST tier picker are live; no login or payments used.'
+          # Distinguish an updated repository from a stale official-domain deployment.
+          # This probe never authenticates and only reads public static assets.
+          STYLE_CODE="$(curl --silent --show-error --location --max-time 20 --output /tmp/central-nexus-style.css --write-out '%{http_code}' "${ORIGIN}/central-nexus-v2.css?release=${GITHUB_SHA}")"
+          if [ "$STYLE_CODE" = '200' ] && grep -q 'CENTRAL_NAV_STABILITY_RELEASE_20261122' /tmp/central-nexus-style.css; then
+            echo 'Official Central CSS includes the latest stability release marker.'
+          else
+            echo '::warning::Official Central CSS has not yet synchronized with this GitHub release.'
+          fi
+          python3 - <<'PY'
+          import re
+          with open('/tmp/index.html', encoding='utf-8') as source:
+              html = source.read()
+          nav = re.search(r'<nav class="nav"[^>]*>(.*?)</nav>', html, re.S)
+          if nav and 'CRM Comercial' in nav.group(1):
+              print('::warning::Legacy CRM Comercial navigation is still served on the official domain.')
+          else:
+              print('Official Central HTML has no CRM Comercial navigation entry.')
+          PY
