@@ -31,6 +31,7 @@ body.central-nexus-v2 {
   border:1px solid transparent;border-radius:8px;background:transparent;color:#475b68;
   transition:background .16s,border-color .16s,color .16s;
 }
+.central-nexus-v2 .nav button[hidden]{display:none!important}
 .central-nexus-v2 .nav a:hover,.central-nexus-v2 .nav button:hover {
   color:#22313b;background:#f4f7f8;border-color:#e4e9eb;
 }
