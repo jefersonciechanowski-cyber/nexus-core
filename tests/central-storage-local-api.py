@@ -66,7 +66,7 @@ def fake_archive(root):
     )
     entries = []
     for name, data in examples:
-        blob = hashlib.sha256(("sst-documents\\0" + name).encode()).hexdigest()
+        blob = hashlib.sha256(("sst-documents\0" + name).encode()).hexdigest()
         (base / "blobs" / blob).write_bytes(data)
         entries.append({
             "name": name, "blob": blob, "bytes": len(data),
