@@ -1,0 +1,50 @@
+name: Central Storage local API recovery (synthetic; no production)
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/central-storage-local-api.yml
+      - tests/central-storage-local-api.py
+      - scripts/central-storage-api-restore.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-local-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CENTRAL_DR_LOCAL_ONLY: "1"
+      SUPABASE_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Start isolated Supabase local Docker stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/central-dr-supabase-local"
+          cd "$RUNNER_TEMP/central-dr-supabase-local"
+          supabase init
+          supabase start --exclude studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
+          echo "CENTRAL_DR_LOCAL_WORKDIR=$RUNNER_TEMP/central-dr-supabase-local" >> "$GITHUB_ENV"
+
+      - name: Prove real Storage HTTP upload, readback, isolation and no-upsert
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/central-storage-local-api.py
+
+      - name: Delete isolated local stack
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/central-dr-supabase-local/supabase/config.toml" ]; then
+            cd "$RUNNER_TEMP/central-dr-supabase-local"
+            supabase stop --no-backup || true
+          fi
