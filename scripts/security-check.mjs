@@ -295,7 +295,7 @@ for(const required of [
   'engine.stop();',
   'questionInput.value=spoken;',
   'class=\\\"nexus-v15-advanced\\\"',
-  'Como posso ajudar? Pergunte ou use o microfone.',
+  'Sou sua IA de engenharia da Nexus Core. Vamos evoluir nossas plataformas?',
   "engine.continuous=true",
   "engine.onsoundstart=()=>",
   "engine.onspeechstart=()=>",
