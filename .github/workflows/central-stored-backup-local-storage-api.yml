@@ -1,0 +1,102 @@
+name: Central stored encrypted backup to local Storage API (real private files)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/central-stored-backup-local-storage-api.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: central-stored-local-storage-api
+  cancel-in-progress: false
+
+jobs:
+  local_private_storage_recovery:
+    if: github.ref == 'refs/heads/main' && github.repository == 'jefersonciechanowski-cyber/nexus-core'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      CENTRAL_DR_REAL_LOCAL_ONLY: "1"
+    steps:
+      - name: Checkout reviewed scripts without saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup local Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Start disposable local-only Storage stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          sandbox="$RUNNER_TEMP/central-dr-stored-local"
+          network="central-dr-local-$GITHUB_RUN_ID"
+          mkdir -p "$sandbox"
+          docker network create -o 'com.docker.network.bridge.host_binding_ipv4=127.0.0.1' "$network" >/dev/null
+          cd "$sandbox"
+          supabase init >/dev/null
+          supabase start --network-id "$network" --exclude studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit >/dev/null
+          echo "CENTRAL_DR_LOCAL_WORKDIR=$sandbox" >> "$GITHUB_ENV"
+
+      - name: Download and independently decrypt already stored Central backup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CENTRAL_BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.CENTRAL_BACKUP_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          test "${#CENTRAL_BACKUP_ENCRYPTION_PASSWORD}" -ge 24 || {
+            echo 'BLOCKED: encrypted backup secret unavailable'; exit 1;
+          }
+          work="$RUNNER_TEMP/central-dr-plaintext"
+          mkdir -p "$work/artifact" "$work/recovered/storage"
+          echo "CENTRAL_DR_RECOVERED_STORAGE_DIR=$work/recovered/storage" >> "$GITHUB_ENV"
+          run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/central-real-restore-drill.yml/runs?branch=main&status=success&per_page=10" --jq '.workflow_runs[0].id // empty')"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo 'FAIL: no eligible backup run'; exit 1; }
+          if ! gh run download "$run_id" -R "$GITHUB_REPOSITORY" --name "central-validated-encrypted-backup-$run_id" --dir "$work/artifact" > "$work/download.log" 2>&1; then
+            echo 'FAIL: stored encrypted artifact inaccessible or expired'; exit 1;
+          fi
+          encrypted="$work/artifact/central-verified-$run_id.tar.gz.gpg"
+          test -s "$encrypted" || { echo 'FAIL: encrypted backup missing'; exit 1; }
+          ( cd "$work/artifact" && sha256sum -c "$(basename "$encrypted").sha256" >/dev/null ) || {
+            echo 'FAIL: encrypted archive SHA-256 mismatch'; exit 1;
+          }
+          printf '%s' "$CENTRAL_BACKUP_ENCRYPTION_PASSWORD" > "$work/passphrase"
+          chmod 600 "$work/passphrase"
+          unset CENTRAL_BACKUP_ENCRYPTION_PASSWORD
+          if ! gpg --batch --yes --pinentry-mode loopback --passphrase-file "$work/passphrase" --decrypt --output "$work/package.tar.gz" "$encrypted" > "$work/decrypt.log" 2>&1; then
+            echo 'FAIL: approved backup decryption rejected'; exit 1;
+          fi
+          rm -f "$work/passphrase"
+          python3 scripts/central-stored-storage-extract.py "$work/package.tar.gz" "$work/recovered/storage"
+          echo "source_stored_backup_run=$run_id"
+
+      - name: Upload restored private bytes to REAL local Supabase API and verify RLS-denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          python3 scripts/central-private-storage-local-api-drill.py
+
+      - name: Destroy disposable containers, volumes and decrypted file workspace
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f "$RUNNER_TEMP/central-dr-stored-local/supabase/config.toml" ]; then
+            ( cd "$RUNNER_TEMP/central-dr-stored-local" && supabase stop --no-backup ) >/dev/null 2>&1
+          fi
+          docker network rm "central-dr-local-$GITHUB_RUN_ID" >/dev/null 2>&1
+          rm -rf "$RUNNER_TEMP/central-dr-plaintext" "$RUNNER_TEMP/central-dr-stored-local"
+          echo "disposable_recovery_workspace_cleanup=completed"
