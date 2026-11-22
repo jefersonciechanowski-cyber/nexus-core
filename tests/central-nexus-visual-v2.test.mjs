@@ -208,7 +208,7 @@ test('AI tab stays present from the start and remains protected by MFA', () => {
   assert.match(ai, /if\(dialog\.open\)\{\s*stopVoice\(\);\s*svg\.pauseAnimations\?\.\(\)/);
 });
 
-test('AI actions use icon-only controls with accessible names and hover/keyboard tooltips', () => {
+test('AI controls use lightweight labeled tabs without changing handlers', () => {
   assert.doesNotThrow(() => new Function(ai), 'Nexus AI script should parse');
   const sourceLines = ai.split('\n');
   const encoded = name => {
@@ -223,8 +223,8 @@ test('AI actions use icon-only controls with accessible names and hover/keyboard
   ]) {
     const expected = 'data-tab="' + key + '" aria-label="' + label +
       '" data-tooltip="' + label + '"><span class="nexus-v3-icon" aria-hidden="true">' +
-      icon + '</span></button>';
-    assert.ok(markup.includes(expected), 'Button must contain only accessible icon for ' + label);
+      icon + '</span><span class="nexus-v18-tab-label" aria-hidden="true">' + label + '</span></button>';
+    assert.ok(markup.includes(expected), 'Accessible lightweight tab required for ' + label);
   }
   assert.match(style, /content:attr\(data-tooltip\)/);
   assert.match(style, /nexus-v3-tab\[data-tooltip\]:is\(:hover,:focus-visible\)::after/);
@@ -247,4 +247,46 @@ test('ambient Nexus background is persistent across Central tabs and administrat
   assert.match(ambient, /pointer-events:none/);
   assert.match(ambient, /position:fixed/);
   assert.doesNotMatch(ambient, /unsafe-inline/);
+});
+
+test('Nexus AI full-bleed mode removes double headers and isolated cards without changing business functions', () => {
+  const immersive = file('central-ai-immersive.css');
+  const tabs = file('central-tabs.js');
+  const ambient = file('central-nexus-ambient.css');
+  const lines = ai.split('\n');
+  const decoded = name => JSON.parse(
+    lines.find(line => line.startsWith('  const ' + name + '='))
+      .split('=').slice(1).join('=').replace(/;\s*$/, '')
+  );
+  const style = decoded('STYLE');
+  const markup = decoded('MARKUP');
+  assert.match(index, /href="central-ai-immersive\.css"/);
+  assert.match(tabs, /classList\.toggle\('central-ai-active',location\.hash === '#ai'\)/);
+  assert.match(immersive, /central-ai-active \.main > \.top/);
+  assert.match(immersive, /central-ai-active #view-ai \.central-ai-workspace/);
+  assert.match(immersive, /background:transparent!important/);
+  assert.match(style, /Nexus AI v18: open immersion/);
+  assert.match(style, /\.nexus-v7-header-identity,/);
+  assert.match(style, /\.nexus-v3-top-right\{display:none!important\}/);
+  assert.match(style, /\.nexus-v3-details,/);
+  assert.match(style, /\.nexus-v3-map-bottom \{display:none!important\}/);
+  assert.match(style, /\.nexus-v3-hub \.nexus-v12-voice-core\{display:none!important\}/);
+  assert.match(style, /nexus-v18-tab-label/);
+  assert.match(markup, /class="nexus-v12-microphone"/);
+  assert.match(ai, /voiceOrb\.addEventListener\('click',toggleVoice\)/);
+  assert.match(ai, /functions\.invoke\('nexus-ai-core'/);
+  assert.match(ambient, /central-nexus-wave\.svg/);
+  const wave = file('central-nexus-wave.svg');
+  assert.match(wave, /<svg[^>]+viewBox="0 0 1440 290"/);
+  assert.match(wave, /<polyline/);
+  assert.doesNotMatch(wave, /<script|https?:\/\//);
+});
+
+test('full-bleed is exclusive to Nexus AI and other tabs retain administrative header', () => {
+  const immersive = file('central-ai-immersive.css');
+  assert.match(immersive, /body\.central-nexus-v2\.central-ai-active/);
+  assert.doesNotMatch(immersive, /body\.central-nexus-v2\s+\.main\s*>\s*\.top/);
+  assert.match(index, /id="logout"/);
+  assert.match(index, /id="view-accounts"/);
+  assert.match(index, /id="view-courtesy"/);
 });
