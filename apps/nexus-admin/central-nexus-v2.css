@@ -464,52 +464,73 @@ body.central-nexus-v2 {
   }
 }
 
-/* Nexus Central: seven equal-width tabs, no clipped labels or horizontal bar.
-   Alias labels are compact in visual text, full titles are kept in aria-label/title. */
-@media(min-width:901px){
-  body.central-nexus-v2 .side{
-    grid-template-columns:176px minmax(0,1fr) 116px;
-    column-gap:10px;
-  }
-  body.central-nexus-v2 .nav{
-    display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
-    gap:3px;align-content:center;justify-items:stretch;
-    min-width:0;width:100%;max-width:none;
-    overflow:visible;scrollbar-width:none;
-  }
-  body.central-nexus-v2 .nav > button[data-view] {
-    display:flex;min-width:0;width:100%;min-height:36px;
-    align-items:center;justify-content:center;
-    padding:7px 3px;font-size:clamp(10px,.82vw,12px);
-    font-weight:540;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    border-width:1px;transition:color .12s,background .12s,border-color .12s;
-  }
-  body.central-nexus-v2 .nav > button[data-view].active {font-weight:540}
-  body.central-nexus-v2 .sidebar-tools{width:116px;min-width:116px}
+/* CENTRAL SHELL V4 — one predictable navigation row across every admin view.
+   Only 7 primary views; no Tools menu, no separate Pix pilot navigation. */
+body.central-nexus-v2 .side {
+  display:grid;grid-template-columns:176px minmax(0,1fr);
+  grid-template-rows:45px 10px;align-items:center;
+  column-gap:16px;row-gap:0;
+  width:100%;height:73px;min-height:73px;max-height:73px;
+  padding:9px clamp(12px,1.6vw,26px);overflow:hidden;
 }
-@media(min-width:901px) and (max-width:1120px){
-  body.central-nexus-v2 .side{grid-template-columns:148px minmax(0,1fr) 108px;column-gap:5px}
+body.central-nexus-v2 .side .logo{grid-column:1;grid-row:1;width:172px;max-width:100%}
+body.central-nexus-v2 .side .product{grid-column:1;grid-row:2;margin:0 0 0 4px}
+body.central-nexus-v2 .side .sidebar-tools{display:none!important}
+body.central-nexus-v2 .side .nav{
+  grid-column:2;grid-row:1/3;
+  display:grid!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  grid-template-rows:42px!important;grid-auto-rows:0!important;
+  grid-auto-flow:row!important;align-items:center;justify-items:stretch;
+  gap:4px;width:100%;min-width:0;max-width:100%;
+  height:42px;min-height:42px;max-height:42px;
+  padding:0;margin:0;overflow:hidden!important;
+  white-space:nowrap;scrollbar-width:none!important;
+}
+body.central-nexus-v2 .side .nav > :not([data-view]){display:none!important}
+body.central-nexus-v2 .side .nav > [data-view]{
+  grid-row:1;display:flex;align-items:center;justify-content:center;
+  min-width:0;width:100%;min-height:38px;height:38px;
+  padding:6px 3px;margin:0;border-width:1px;border-radius:9px;
+  font-size:clamp(10px,.82vw,12px);font-weight:540!important;
+  color:#b4d3c9;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;
+  transition:background .13s,color .13s,border-color .13s;
+  transform:none!important;flex:0 1 auto;
+}
+body.central-nexus-v2 .side .nav > [data-view].active,
+body.central-nexus-v2 .side .nav > [data-view][aria-current="page"]{
+  font-weight:540!important;color:#fff3da;
+  background:rgba(125,195,172,.14);
+  border-color:rgba(211,172,104,.45);
+  box-shadow:inset 0 -2px rgba(216,179,106,.88);
+}
+body.central-nexus-v2 .side .nav > [data-view]:hover{
+  border-color:rgba(133,210,184,.3);background:rgba(91,184,154,.11);
+}
+@media(min-width:760px) and (max-width:1100px){
+  body.central-nexus-v2 .side {grid-template-columns:148px minmax(0,1fr);column-gap:7px;padding-inline:11px}
   body.central-nexus-v2 .side .logo{width:145px}
-  body.central-nexus-v2 .sidebar-tools{min-width:108px;width:108px}
-  body.central-nexus-v2 .nav > button[data-view]{font-size:10px;letter-spacing:-.025em;padding-inline:1px}
+  body.central-nexus-v2 .side .nav{gap:2px}
+  body.central-nexus-v2 .side .nav > [data-view]{font-size:10px;letter-spacing:-.025em;padding-inline:1px}
 }
-@media(max-width:900px){
+@media(max-width:759px){
   body.central-nexus-v2 .side{
-    grid-template-rows:43px 15px auto;
-    height:auto;min-height:0;
+    grid-template-columns:minmax(0,1fr);grid-template-rows:38px 9px 40px;
+    height:102px;min-height:102px;max-height:102px;
+    padding:6px 10px 8px;column-gap:0;row-gap:0;
   }
-  body.central-nexus-v2 .nav{
-    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
-    gap:4px;width:100%;max-width:none;min-width:0;
-    overflow:visible;align-content:stretch;
+  body.central-nexus-v2 .side .logo{grid-column:1;grid-row:1;width:155px;height:38px}
+  body.central-nexus-v2 .side .product{grid-column:1;grid-row:2}
+  body.central-nexus-v2 .side .nav{
+    grid-column:1;grid-row:3;
+    grid-template-columns:repeat(7,minmax(0,1fr))!important;
+    grid-template-rows:36px!important;height:36px;min-height:36px;max-height:36px;
+    gap:2px;
   }
-  body.central-nexus-v2 .nav > button[data-view]{
-    display:flex;width:100%;min-width:0;min-height:34px;
-    justify-content:center;padding:6px 4px;font-size:11px;
-    font-weight:540;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  body.central-nexus-v2 .side .nav > [data-view]{
+    height:34px;min-height:34px;padding:5px 1px;
+    font-size:0!important;letter-spacing:0;
   }
-  body.central-nexus-v2 .nav > button[data-view].active{font-weight:540}
-}
-@media(max-width:490px){
-  body.central-nexus-v2 .nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.central-nexus-v2 .side .nav > [data-view]::after{
+    content:attr(data-short);font-size:clamp(8px,2.2vw,11px);line-height:1;
+  }
 }
