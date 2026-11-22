@@ -140,6 +140,7 @@
         stopListening();
         stopSpeech();
         refreshVoice('idle',message||'Voz desativada');
+        if(message&&dialog.open)chatStatus.textContent=message;
       }
       function hearAgain(){
         if(voiceActive&&!chatBusy&&dialog.open){
@@ -231,14 +232,20 @@
       }
       function toggleVoice(){
         if(voiceActive){stopVoice();return;}
-        if(chatBusy){voiceSignal.textContent='Aguarde a resposta atual.';return;}
+        selectTab('network');
+        if(chatBusy){voiceSignal.textContent='Aguarde a resposta atual.';chatStatus.textContent=voiceSignal.textContent;return;}
+        const permissions=document.permissionsPolicy||document.featurePolicy;
+        if(permissions?.allowsFeature&&permissions.allowsFeature('microphone')===false){
+          const message='O microfone foi bloqueado pela política de segurança do site. Atualize a Central com Ctrl+F5.';
+          voiceSignal.textContent=message;chatStatus.textContent=message;return;
+        }
         if(!canListen||!canSpeak){
-          voiceSignal.textContent='A voz não está disponível neste navegador. Use Chrome atualizado.';
-          return;
+          const message='A voz não está disponível neste navegador. Use Chrome atualizado e autorize o microfone.';
+          voiceSignal.textContent=message;chatStatus.textContent=message;return;
         }
         stopSpeech();
         voiceActive=true;autoSpeak=true;
-        selectTab('network');
+        chatStatus.textContent='Autorize o microfone quando o navegador solicitar.';
         startListening();
       }
       voiceOrb.addEventListener('click',toggleVoice);
