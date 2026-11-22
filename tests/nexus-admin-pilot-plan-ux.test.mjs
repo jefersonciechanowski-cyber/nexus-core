@@ -32,22 +32,28 @@ test('15-day SST trial evaluates a selected tier, never becomes a paid contract'
   assert.match(api,/p_days: days/);
 });
 
-test('Nexus Central navigation order is identical across commercial sections',()=>{
-  for(const page of [html,leads,accounts]){
-    const labels=['Visão Geral','CRM Comercial','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos'];
+test('Nexus Central new navigation is consistent while legacy CRM remains outside the menu',()=>{
+  const labels=['Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos','Nexus AI'];
+  for(const page of [html,accounts]){
     let last=-1;
     const nav=page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
-    assert.ok(nav,'Missing sidebar navigation');
+    assert.ok(nav,'Missing Nexus primary navigation');
+    assert.doesNotMatch(nav,/CRM Comercial|href="leads\.html"/);
     for(const label of labels){
       const next=nav.indexOf(label);
-      assert.ok(next>last,'Sidebar item missing or out of order: '+label);
+      assert.ok(next>last,'Navigation item missing or out of order: '+label);
       last=next;
     }
     assert.ok(page.includes('href="admin-management.css"'));
+    assert.ok(page.includes('href="central-nexus-v2.css"'));
   }
-  for(const page of [leads,accounts]){
-    for(const hash of ['clients','products','payments'])assert.ok(page.includes('href="index.html#'+hash+'"'));
+  for(const hash of ['clients','products','payments']){
+    assert.ok(accounts.includes('href="index.html#'+hash+'"'));
+    // The former commercial page remains accessible by direct legacy URL;
+    // only its presence in the main Central navigation was removed.
+    assert.ok(leads.includes('href="index.html#'+hash+'"'));
   }
+  assert.match(leads, /CRM Comercial/);
 });
 
 test('changing section preserves rows and existing scroll positions',()=>{
