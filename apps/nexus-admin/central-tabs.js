@@ -52,7 +52,7 @@
       try {
         const inner = frame.contentWindow;
         const doc = inner?.document;
-        const canonicalPath = inner?.location?.pathname || '';
+        const canonicalPath = (inner?.location?.pathname || '').replace(/\/$/, '');
         const target = paths[view].split('?')[0].replace(/\.html$/, '');
         const canonicalAllowed = canonicalPath.endsWith('/' + target) ||
           canonicalPath.endsWith('/' + target + '.html');
@@ -61,6 +61,9 @@
           canonicalAllowed && doc?.getElementById(requiredForm));
       } catch {}
       if (sameOriginReady) {
+        // A canonical redirect may drop ?embedded=1; presentation is still
+        // safe because the document and parent have the same checked origin.
+        frame.contentDocument.documentElement.classList.add('nexus-embedded');
         if (status) status.hidden = true;
         frame.hidden = false;
       } else {
