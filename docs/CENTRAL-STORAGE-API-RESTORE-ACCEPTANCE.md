@@ -34,3 +34,13 @@ O teste `tests/central-storage-api-restore-safety.py` é **sintético**, com doc
 - Nenhum arquivo real do cliente, segredo de produção ou projeto Supabase hospedado foi usado. O teste anterior com mocks continua útil para falhas negativas; o novo ensaio comprova que o código consegue falar com uma API Storage Supabase real, mas **somente local e com dados fictícios**.
 
 **Não homologado ainda:** reimportar os 3 arquivos privados reais num **projeto Supabase temporário hospedado**, verificar acesso funcional de usuários de teste com regras RLS correspondentes às da Central e completar Auth/Asaas/SMTP/DNS/Edge Functions, cofre/segunda cópia e RTO/RPO total. O critério formal 17 continua pendente; placa geral permanece 16/18.
+
+## Prova real adicional sem projeto hospedado — 22/11/2026 (UTC)
+
+- [PR #247](https://github.com/jefersonciechanowski-cyber/nexus-core/pull/247) aprovado e mesclado; [execução GitHub Actions 44966078715](https://github.com/jefersonciechanowski-cyber/nexus-core/actions/runs/44966078715) concluída com **success**.
+- O runner fez download do artefato cifrado **já armazenado** da Central (backup de origem 44924143771), validou o SHA-256, decifrou em diretório efêmero, extraiu somente os membros privados autorizados e aplicou a mesma rotina de upload/readback à API Storage **Supabase local real**.
+- Resultado do teste: **3/3 arquivos privados reais**, **2.378.927 bytes**, integridade validada após readback autenticado; acesso sem autenticação e com chave anon negado. Limpeza da stack, volumes e arquivos de trabalho concluída no job.
+- O workflow usa runner padrão público do GitHub, não cria projeto pago e não acessa Central/CRM/Agency de produção. Após a aprovação, a rotina passa a exigir **execução manual em main**, com ação Supabase CLI fixada por SHA, para reduzir risco de execução desnecessária com documentos reais.
+- **Limites:** a prova é de serviço Storage em `localhost` no GitHub Actions. Não confirma implantação hospedada de backup num projeto novo, login de usuários reais no Auth reconstruído, RLS entre empresas na API da aplicação, nem recuperação DNS/SMTP/Asaas/Edge Functions. Não representa RTO/RPO integral.
+
+**Aceite formal do DR integral continua pendente**; não avançar 17/18 apenas com a prova local. Buscar cópia criptografada independente do GitHub e acesso ao segredo fora dele antes de prometer continuidade de serviço.
