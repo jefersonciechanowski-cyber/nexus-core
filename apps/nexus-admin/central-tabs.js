@@ -3,6 +3,8 @@
 (() => {
   'use strict';
   const paths = {accounts:'accounts?embedded=1',courtesy:'crm-access?embedded=1'};
+  const alternatePaths = {accounts:'accounts.html?embedded=1',courtesy:'crm-access.html?embedded=1'};
+  const triedAlternate = new Set();
   const loaded = new Set();
   const navigation = [
     ['ai','Nexus AI','Nexus AI','IA'],
@@ -62,6 +64,7 @@
     const status = panel?.querySelector('[data-central-embedded-status]');
     if (!frame || (loaded.has(view) && !refresh)) return;
     loaded.add(view);
+    triedAlternate.delete(view);
     if (status) {
       if (status.firstChild?.nodeType === 3) status.firstChild.textContent = 'Carregando ' + (view === 'accounts' ? 'Contas e Consultorias' : 'Cortesias CRM') + '… ';
       status.hidden = false;
@@ -97,6 +100,11 @@
           }
         } catch {}
         if (!valid) {
+          if (!triedAlternate.has(view)) {
+            triedAlternate.add(view);
+            frame.src = alternatePaths[view]; // Retry only once with the .html alias.
+            return;
+          }
           frame.hidden = true;
           loaded.delete(view); // Allow a retry if this route was not ready.
           if (status) {
