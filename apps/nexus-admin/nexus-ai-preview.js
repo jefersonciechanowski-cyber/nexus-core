@@ -547,7 +547,7 @@
           if(statusError||statusData?.provider!=='nvidia')throw new Error('A integração NVIDIA da Central ainda não foi publicada no servidor.');
           if(!statusData.ready)throw new Error('A NVIDIA está selecionada, mas sua credencial ou ativação na Central ainda está pendente.');
           const {data,error}=await client.functions.invoke('nexus-ai-core',{
-            body:{question,capability}
+            body:{question,capability,voice:voiceActive}
           });
           if(epoch!==requestEpoch||!dialog.open)return;
           if(error){
