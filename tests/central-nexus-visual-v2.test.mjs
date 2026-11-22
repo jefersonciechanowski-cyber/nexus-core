@@ -14,25 +14,26 @@ const ai = file('nexus-ai-preview.js');
 const pilot = file('pilot.js');
 const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
-test('same primary navigation in all shell pages; commercial CRM is not reintroduced', () => {
-  const coreLabels = ['Visão Geral', 'Contas e Consultorias', 'Clientes e Acessos', 'Produtos e Planos', 'Pagamentos'];
-  const indexLabels = ['Nexus AI', ...coreLabels, 'Cortesias CRM'];
+test('one aligned set of seven navigation entries across all Central pages', () => {
+  const labels = ['Nexus AI','Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos','Cortesias CRM'];
   for (const page of [index, accounts, legacyLeads]) {
     const mainNav = nav(page);
     assert.ok(mainNav);
-    assert.doesNotMatch(mainNav, /CRM Comercial|href="leads\.html"/);
+    assert.doesNotMatch(mainNav,/CRM Comercial|href="leads\.html"/);
     let previous = -1;
-    for (const label of (page === index ? indexLabels : [...coreLabels, 'Nexus AI'])) {
+    for (const label of labels) {
       const next = mainNav.indexOf(label);
-      assert.ok(next > previous, 'Out of order: ' + label);
+      assert.ok(next > previous, 'Missing or out-of-order nav: ' + label);
       previous = next;
     }
+    assert.equal((mainNav.match(/data-view="/g) || []).length, 7);
+    assert.doesNotMatch(page, /<summary>Ferramentas<\/summary>/);
+    assert.doesNotMatch(page, /Teste Pix R\$ 10/);
     assert.match(page, /href="central-nexus-v2\.css"/);
     assert.match(page, /class="central-nexus-v2"/);
     assert.match(page, /logo-nexus-core\.png/);
-    assert.match(page, /class="sidebar-tools"/);
-    assert.match(page, /class="central-tools-menu"/);
   }
+  assert.doesNotMatch(crmAccess, /Pix real R\$ 10/);
 });
 
 test('contracts, payments and old direct-link workflows retain their elements', () => {
@@ -57,7 +58,7 @@ test('all supplementary admin screens reuse the same dark-green palette', () => 
 });
 
 test('Nexus AI remains authenticated, embedded and voice-enabled', () => {
-  assert.match(index, /id="nexus-ai-preview-trigger" data-view="ai">Nexus AI<\/button>/);
+  assert.match(index, /id="nexus-ai-preview-trigger" data-view="ai"[^>]*>Nexus AI<\/button>/);
   assert.match(index, /id="view-ai" hidden/);
   assert.match(ai, /host\.replaceChildren\(dialog\)/);
   assert.match(ai, /dialog\.show\(\)/);
@@ -134,14 +135,14 @@ test('Contas e Cortesias are inside one persistent shell and not external naviga
   const tabs = file('central-tabs.js');
   const embed = file('central-embed.js');
   const css = file('central-embedded.css');
-  assert.match(index, /data-view="accounts" aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
-  assert.match(index, /data-view="courtesy" aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
+  assert.match(index, /data-view="accounts"[^>]*aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
+  assert.match(index, /data-view="courtesy"[^>]*aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
   assert.match(index, /id="view-accounts" hidden/);
   assert.match(index, /id="view-courtesy" hidden/);
   assert.equal((index.match(/data-central-embedded title=/g) || []).length, 2);
   assert.match(index, /src="central-tabs.js"/);
   assert.match(index, /data-central-open="courtesy"/);
-  assert.match(tabs, /const paths = \{accounts:'accounts\.html\?embedded=1',courtesy:'crm-access\.html\?embedded=1'\}/);
+  assert.match(tabs, /const paths = \{accounts:'accounts\?embedded=1',courtesy:'crm-access\?embedded=1'\}/);
   assert.match(tabs, /loaded\.add\(view\)/);
   assert.match(tabs, /window\.addEventListener\('nexus:central:view'/);
   assert.match(embed, /window\.parent\.location\.origin !== location\.origin/);
@@ -170,29 +171,37 @@ test('only the two administrative resources and their canonical aliases allow sa
   assert.doesNotMatch(headers, /script-src 'unsafe-inline'/);
 });
 
-test('seven compact tabs fit the main header without a horizontal scrollbar', () => {
+test('seven accessible tabs occupy exactly one header row without Ferramentas', () => {
   const tabs = file('central-tabs.js');
-  assert.match(index, /data-view="accounts" aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
-  assert.match(index, /data-view="clients" aria-label="Clientes e Acessos"[^>]*>Clientes<\/button>/);
-  assert.match(index, /data-view="products" aria-label="Produtos e Planos"[^>]*>Planos<\/button>/);
-  assert.match(index, /data-view="courtesy" aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
-  assert.match(theme, /grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
-  assert.match(theme, /overflow:visible;scrollbar-width:none/);
-  assert.match(theme, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(tabs, /nav\.replaceChildren\(\.\.\.selected\)/);
-  assert.match(tabs, /button\.setAttribute\('aria-label',label\)/);
+  for (const view of ['ai','overview','accounts','clients','products','payments','courtesy']) {
+    assert.match(nav(index),new RegExp('data-view="' + view + '"[^>]*data-short="'));
+  }
+  assert.match(theme,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)!important/);
+  assert.match(theme,/grid-template-rows:42px!important;grid-auto-rows:0!important/);
+  assert.match(theme,/overflow:hidden!important/);
+  assert.match(theme,/body\.central-nexus-v2 \.side \.sidebar-tools\{display:none!important\}/);
+  assert.match(tabs,/new MutationObserver\(normalizeNavigation\)/);
+  assert.match(tabs,/nav\.replaceChildren\(\.\.\.selected\)/);
+  assert.match(tabs,/current\.some\(\(node,i\) => node !== selected\[i\]\)/);
+  assert.doesNotMatch(index,/href="crm-live-pix-pilot\.html"/);
+  assert.doesNotMatch(index,/<details class="sidebar-tools"/);
 });
 
-test('canonical same-origin routes are recognized after Cloudflare omits .html', () => {
+test('canonical iframe routes are checked against origin and existing forms', () => {
   const tabs = file('central-tabs.js');
-  assert.match(tabs, /canonicalPath\.endsWith\('\/' \+ target\)/);
-  assert.match(tabs, /canonicalPath\.endsWith\('\/' \+ target \+ '\.html'\)/);
-  assert.match(tabs, /doc\?\.getElementById\(requiredForm\)/);
-  assert.match(tabs, /view === 'accounts' \? 'accountForm' : 'courtesyForm'/);
+  assert.match(tabs,/const paths = \{accounts:'accounts\?embedded=1',courtesy:'crm-access\?embedded=1'\}/);
+  assert.match(tabs,/inner\.location\.origin === location\.origin/);
+  assert.match(tabs,/canonical\.endsWith\('\/' \+ target\)/);
+  assert.match(tabs,/canonical\.endsWith\('\/' \+ target \+ '\.html'\)/);
+  assert.match(tabs,/doc\?\.getElementById\(view === 'accounts' \? 'accountForm' : 'courtesyForm'\)/);
+  assert.match(tabs,/new ResizeObserver/);
+  assert.match(tabs,/data-central-retry/);
+  assert.match(index,/data-central-retry="accounts"/);
+  assert.match(index,/data-central-retry="courtesy"/);
 });
 
 test('AI tab stays present from the start and remains protected by MFA', () => {
-  assert.match(index, /data-view="ai">Nexus AI/);
+  assert.match(index, /data-view="ai"[^>]*>Nexus AI/);
   assert.doesNotMatch(index, /id="nexus-ai-preview-trigger" data-view="ai" hidden/);
   assert.match(ai, /if \(!await sessionAllowed\(\)\) return/);
   assert.match(ai, /window\.dispatchEvent\(new CustomEvent\('nexus:central:view',\{detail:\{view:'ai'\}\}\)\)/);
