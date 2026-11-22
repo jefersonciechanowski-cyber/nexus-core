@@ -28,6 +28,8 @@ test('same primary navigation in all shell pages; commercial CRM is not reintrod
     assert.match(page, /href="central-nexus-v2\.css"/);
     assert.match(page, /class="central-nexus-v2"/);
     assert.match(page, /logo-nexus-core\.png/);
+    assert.match(page, /class="sidebar-tools"/);
+    assert.match(page, /class="central-tools-menu"/);
   }
 });
 
