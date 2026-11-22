@@ -13,9 +13,23 @@
     loaded.add(view);
     if (status) status.hidden = false;
     frame.addEventListener('load', () => {
-      // The old page is loaded only inside this section and never replaces the Central shell.
-      if (status) status.hidden = true;
-      frame.hidden = false;
+      // A blocked frame must not appear as an empty success state.
+      let sameOriginReady = false;
+      try {
+        const inner = frame.contentWindow;
+        sameOriginReady = Boolean(inner && inner.location.origin === location.origin &&
+          inner.location.pathname.endsWith(paths[view].split('?')[0]));
+      } catch {}
+      if (sameOriginReady) {
+        if (status) status.hidden = true;
+        frame.hidden = false;
+      } else {
+        if (status) {
+          status.firstChild.textContent = 'A incorporação não foi autorizada pela hospedagem. ';
+          status.hidden = false;
+        }
+        frame.hidden = true;
+      }
       panel.setAttribute('aria-busy','false');
     }, {once:true});
     frame.src = paths[view];
