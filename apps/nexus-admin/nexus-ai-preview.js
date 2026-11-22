@@ -118,8 +118,8 @@
         );
         voiceOrb.setAttribute('aria-pressed',voiceActive?'true':'false');
         voiceMic.setAttribute('aria-pressed',voiceActive?'true':'false');
-        voiceOrb.querySelector('span').textContent=voiceActive?'Parar voz':'Conversar';
-        voiceMic.textContent=voiceActive?'■ Parar voz':'🎙 Falar';
+        voiceOrb.querySelector('span').textContent=voiceActive?'Concluir fala':'Conversar';
+        voiceMic.textContent=voiceActive?(rec?'■ Concluir':'■ Parar'):'🎙 Falar';
         voiceSpeaker.setAttribute('aria-pressed',autoSpeak?'true':'false');
         voiceSpeaker.textContent=autoSpeak?'🔊 Ouvir respostas: sim':'🔈 Ouvir respostas: não';
         stopAudioButton.hidden=state!=='speaking';
@@ -141,6 +141,7 @@
         }
       }
       function stopVoice(message){
+        questionInput.placeholder=questionInput.dataset.defaultPlaceholder||'Pergunte à Nexus AI...';
         voiceActive=false;
         autoSpeak=false;
         stopListening();
@@ -262,60 +263,104 @@
         if(!voiceActive)refreshVoice('idle',neuralEnabled?'Voz neural selecionada.':'Voz local selecionada.');
       });
 
+      // Web Speech may return interim text without a final result. Never discard
+      // heard words just because Chrome ends recognition before finalization.
       function startListening(){
         if(!voiceActive||!dialog.open||chatBusy||rec)return;
-        if(!canListen){stopVoice('Seu navegador não oferece reconhecimento de voz.');return;}
+        if(!canListen){stopVoice('Reconhecimento indisponível. Você pode digitar ou usar o ditado do Windows (Win + H).');return;}
         const engine=new VoiceRecognition();
         rec=engine;recText='';recConfidence=null;
+        let latestTranscript='',hasFinal=false,stopRequested=false;
+        const questionHint=questionInput.getAttribute('data-default-placeholder')||
+          questionInput.getAttribute('placeholder')||'Pergunte à Nexus AI...';
+        questionInput.dataset.defaultPlaceholder=questionHint;
         engine.lang='pt-BR';engine.continuous=false;
         engine.interimResults=true;engine.maxAlternatives=1;
         engine.onresult=event=>{
           if(engine!==rec||!voiceActive)return;
-          let partial='',finished='';
+          const finalParts=[],interimParts=[];
           for(let i=0;i<event.results.length;i++){
-            const transcript=event.results[i][0]?.transcript||'';
-            if(event.results[i].isFinal){
-              finished+=transcript+' ';
-              const confidence=Number(event.results[i][0]?.confidence);
-              if(confidence>0&&Number.isFinite(confidence))recConfidence=recConfidence===null?confidence:Math.min(recConfidence,confidence);
-            }else partial+=transcript+' ';
+            const result=event.results[i];
+            const spoken=typeof result?.[0]?.transcript==='string'
+              ?result[0].transcript.trim():'';
+            if(!spoken)continue;
+            if(result.isFinal){
+              finalParts.push(spoken);
+              hasFinal=true;
+              const confidence=Number(result[0]?.confidence);
+              if(confidence>0&&Number.isFinite(confidence)){
+                recConfidence=recConfidence===null?confidence:Math.min(recConfidence,confidence);
+              }
+            }else interimParts.push(spoken);
           }
-          if(finished.trim())recText=finished.trim().slice(0,900);
-          questionInput.value=(recText||partial.trim()).slice(0,900);
-          if(partial.trim())refreshVoice('listening','Ouvindo: '+partial.trim().slice(0,45));
+          const lastHeard=[...finalParts,...interimParts].join(' ').replace(/\s+/g,' ').trim().slice(0,900);
+          if(lastHeard)latestTranscript=lastHeard;
+          if(finalParts.length)recText=finalParts.join(' ').replace(/\s+/g,' ').trim().slice(0,900);
+          if(latestTranscript){
+            questionInput.value=latestTranscript;
+            chatStatus.textContent='Transcrição: '+latestTranscript.slice(0,90);
+            refreshVoice('listening',interimParts.length?'Transcrevendo...':'Pergunta capturada.');
+          }
         };
         engine.onerror=event=>{
           if(engine!==rec)return;
           const explanations={
-            'not-allowed':'Autorize o microfone no navegador.',
-            'service-not-allowed':'Serviço de reconhecimento indisponível.',
-            'audio-capture':'Microfone não encontrado.',
-            'network':'Falha no serviço de voz do navegador.',
-            'no-speech':'Não ouvi uma pergunta. Tente novamente.',
-            'language-not-supported':'Reconhecimento em português não disponível.'
+            'not-allowed':'Permita o microfone nas configurações do navegador.',
+            'service-not-allowed':'Serviço de transcrição do navegador indisponível. Use o ditado do Windows (Win + H).',
+            'audio-capture':'Não foi encontrado um microfone disponível.',
+            'network':'O navegador não conseguiu acessar o serviço de transcrição. Use o ditado do Windows (Win + H).',
+            'no-speech':'Não recebi palavras reconhecidas. Verifique o microfone ou digite sua pergunta.',
+            'language-not-supported':'O reconhecimento de português não está disponível neste navegador.'
           };
-          stopVoice(explanations[event.error]||'Não consegui reconhecer sua fala.');
+          const message=explanations[event.error]||'Não foi possível transcrever sua fala.';
+          if(latestTranscript.length>=2)questionInput.value=latestTranscript;
+          stopVoice(message+(latestTranscript?' Revise o texto capturado e clique em Enviar.':''));
         };
         engine.onend=()=>{
           if(engine!==rec)return;
           rec=null;
+          questionInput.placeholder=questionHint;
           if(!voiceActive||!dialog.open)return;
-          if(recText.length>=2){
-            questionInput.value=recText;
-            if(recConfidence!==null&&recConfidence<.72){
-              stopVoice('Transcrição com baixa confiança: revise o texto antes de enviar para não gastar uma consulta com erro.');
-              questionInput.focus();
-              return;
-            }
-            refreshVoice('thinking','Pergunta reconhecida. Consultando a NVIDIA...');
-            chatForm.requestSubmit();
-          }else stopVoice('Não ouvi uma pergunta completa. Toque para falar novamente.');
+          const spoken=(recText||latestTranscript||'').replace(/\s+/g,' ').trim().slice(0,900);
+          if(spoken.length<2){
+            stopVoice('Não recebi a transcrição. Use o teclado ou o ditado do Windows (Win + H).');
+            return;
+          }
+          questionInput.value=spoken;
+          if(stopRequested||!hasFinal||recConfidence!==null&&recConfidence<.72){
+            stopVoice('Texto capturado. Confira a pergunta e clique em Enviar.');
+            questionInput.focus();
+            return;
+          }
+          refreshVoice('thinking','Pergunta reconhecida. Consultando a Nexus...');
+          chatForm.requestSubmit();
         };
-        try{engine.start();refreshVoice('listening');}
-        catch{stopVoice('Não foi possível iniciar o microfone.');}
+        // Stop button must flush the recognizer (not abort and discard text).
+        engine.nexusFinish=()=>{
+          if(engine!==rec)return;
+          stopRequested=true;
+          try{engine.stop();refreshVoice('listening','Finalizando transcrição...');}
+          catch{
+            const text=(recText||latestTranscript||'').trim();
+            if(text)questionInput.value=text;
+            stopVoice('Revise a pergunta e clique em Enviar.');
+          }
+        };
+        try{
+          questionInput.placeholder='Ouvindo... fale sua pergunta';
+          engine.start();
+          refreshVoice('listening','Ouvindo... fale agora.');
+          chatStatus.textContent='Microfone ligado. Fale uma pergunta e aguarde a transcrição.';
+        }catch{
+          questionInput.placeholder=questionHint;
+          stopVoice('Não foi possível iniciar a transcrição. Use o ditado do Windows (Win + H).');
+        }
       }
       function toggleVoice(){
-        if(voiceActive){stopVoice();return;}
+        if(voiceActive){
+          if(rec&&typeof rec.nexusFinish==='function'){rec.nexusFinish();return;}
+          stopVoice();return;
+        }
         selectTab('network');
         if(chatBusy){voiceSignal.textContent='Aguarde a resposta atual.';chatStatus.textContent=voiceSignal.textContent;return;}
         const permissions=document.permissionsPolicy||document.featurePolicy;
