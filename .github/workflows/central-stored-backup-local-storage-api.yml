@@ -2,10 +2,6 @@ name: Central stored encrypted backup to local Storage API (real private files)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/central-stored-backup-local-storage-api.yml'
 
 permissions:
   contents: read
@@ -30,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup local Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # reviewed v1 branch commit
         with:
           version: 3.0.0
 
