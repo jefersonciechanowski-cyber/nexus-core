@@ -4,7 +4,7 @@
  */
 (() => {
   "use strict";
-  const preferenceKey = "nexus:institutional:analytics-consent:v1";
+  const preferenceKey = "nexus:institutional:analytics-consent:v2";
   const readChoice = () => {
     try { return localStorage.getItem(preferenceKey); } catch { return null; }
   };
@@ -49,7 +49,7 @@
         <div class="nexus-consent-body">
           <div>
             <strong>Cookies e privacidade</strong>
-            <p>Usamos tecnologias semelhantes a cookies para entender como o site é utilizado
+            <p>Usamos métricas próprias e cookies opcionais do Google Analytics para entender como o site é utilizado
               e melhorar sua experiência. A medição só começa com sua autorização.
               <a href="/privacidade.html">Saiba mais</a>.</p>
           </div>
