@@ -259,12 +259,20 @@ for(const required of [
 for(const required of [
   'if(lastHeard)latestTranscript=lastHeard',
   "const spoken=(recText||latestTranscript||'')",
-  'if(stopRequested||!hasFinal||recConfidence!==null&&recConfidence<.72)',
+  'if(stopRequested||!hasFinal||(recConfidence!==null&&recConfidence<.72))',
   'finishRecognition=()=>{',
   'engine.stop();',
   'questionInput.value=spoken;',
   'class=\\\"nexus-v15-advanced\\\"',
   'Como posso ajudar? Pergunte ou use o microfone.',
+  "engine.continuous=true",
+  "engine.onsoundstart=()=>",
+  "engine.onspeechstart=()=>",
+  "recognitionAttempt>=1",
+  "clearRecognitionTimers();",
+  "voicePreview.addEventListener('click'",
+  "Áudio: NVIDIA Magpie, voz Diego (pt-BR).",
+
 ]) {
   if(!voiceUiSource.includes(required))fail('Nexus AI chat/voice regression: '+required);
 }
