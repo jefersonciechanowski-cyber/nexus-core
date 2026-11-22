@@ -15,13 +15,14 @@ const pilot = file('pilot.js');
 const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
 test('same primary navigation in all shell pages; commercial CRM is not reintroduced', () => {
-  const labels = ['Visão Geral', 'Contas e Consultorias', 'Clientes e Acessos', 'Produtos e Planos', 'Pagamentos', 'Nexus AI'];
+  const coreLabels = ['Visão Geral', 'Contas e Consultorias', 'Clientes e Acessos', 'Produtos e Planos', 'Pagamentos'];
+  const indexLabels = ['Nexus AI', ...coreLabels, 'Cortesias CRM'];
   for (const page of [index, accounts, legacyLeads]) {
     const mainNav = nav(page);
     assert.ok(mainNav);
     assert.doesNotMatch(mainNav, /CRM Comercial|href="leads\.html"/);
     let previous = -1;
-    for (const label of labels) {
+    for (const label of (page === index ? indexLabels : [...coreLabels, 'Nexus AI'])) {
       const next = mainNav.indexOf(label);
       assert.ok(next > previous, 'Out of order: ' + label);
       previous = next;
@@ -56,7 +57,7 @@ test('all supplementary admin screens reuse the same dark-green palette', () => 
 });
 
 test('Nexus AI remains authenticated, embedded and voice-enabled', () => {
-  assert.match(index, /data-view="ai" hidden/);
+  assert.match(index, /id="nexus-ai-preview-trigger" data-view="ai">Nexus AI<\/button>/);
   assert.match(index, /id="view-ai" hidden/);
   assert.match(ai, /host\.replaceChildren\(dialog\)/);
   assert.match(ai, /dialog\.show\(\)/);
@@ -127,4 +128,48 @@ test('AI uses full available desktop viewport and leaves other tabs unchanged', 
 test('SST pilot scroll is immediate and minimizes movement', () => {
   assert.match(pilot, /scrollIntoView\(\{behavior:'auto',block:'nearest'\}\)/);
   assert.doesNotMatch(pilot, /scrollIntoView\(\{behavior:'smooth'/);
+});
+
+test('Contas e Cortesias are inside one persistent shell and not external navigation links', () => {
+  const tabs = file('central-tabs.js');
+  const embed = file('central-embed.js');
+  const css = file('central-embedded.css');
+  assert.match(index, /data-view="accounts">Contas e Consultorias/);
+  assert.match(index, /data-view="courtesy">Cortesias CRM/);
+  assert.match(index, /id="view-accounts" hidden/);
+  assert.match(index, /id="view-courtesy" hidden/);
+  assert.equal((index.match(/data-central-embedded title=/g) || []).length, 2);
+  assert.match(index, /src="central-tabs.js"/);
+  assert.match(index, /data-central-open="courtesy"/);
+  assert.match(tabs, /const paths = \{accounts:'accounts\.html\?embedded=1',courtesy:'crm-access\.html\?embedded=1'\}/);
+  assert.match(tabs, /loaded\.add\(view\)/);
+  assert.match(tabs, /window\.addEventListener\('nexus:central:view'/);
+  assert.match(embed, /window\.parent\.location\.origin !== location\.origin/);
+  assert.match(accounts, /src="central-embed.js"/);
+  assert.match(crmAccess, /src="central-embed.js"/);
+  assert.match(css, /html\.nexus-embedded/);
+});
+
+test('only the two admin subpages allow same-origin embedding, preserving clickjacking protection elsewhere', () => {
+  const headers = readFileSync(new URL('../_headers', import.meta.url), 'utf8');
+  assert.match(headers, /X-Frame-Options: DENY/);
+  assert.match(headers, /frame-ancestors 'none'/);
+  for (const name of ['accounts.html', 'crm-access.html']) {
+    const section = headers.split('/apps/nexus-admin/' + name)[1]?.split('\n\n')[0] || '';
+    assert.match(section, /! X-Frame-Options/);
+    assert.match(section, /X-Frame-Options: SAMEORIGIN/);
+    assert.match(section, /! Content-Security-Policy/);
+    assert.match(section, /frame-ancestors 'self'/);
+  }
+  assert.equal((headers.match(/X-Frame-Options: SAMEORIGIN/g) || []).length, 2);
+  assert.equal((headers.match(/frame-ancestors 'self'/g) || []).length, 2);
+  assert.doesNotMatch(headers, /script-src 'unsafe-inline'/);
+});
+
+test('AI tab stays present from the start and remains protected by MFA', () => {
+  assert.match(index, /data-view="ai">Nexus AI/);
+  assert.doesNotMatch(index, /id="nexus-ai-preview-trigger" data-view="ai" hidden/);
+  assert.match(ai, /if \(!await sessionAllowed\(\)\) return/);
+  assert.match(ai, /window\.dispatchEvent\(new CustomEvent\('nexus:central:view',\{detail:\{view:'ai'\}\}\)\)/);
+  assert.match(ai, /if\(dialog\.open\)\{\s*stopVoice\(\);\s*svg\.pauseAnimations\?\.\(\)/);
 });
