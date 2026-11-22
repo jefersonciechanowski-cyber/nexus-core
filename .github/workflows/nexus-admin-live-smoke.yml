@@ -67,3 +67,15 @@ jobs:
               grep -iE '^x-frame-options:|^content-security-policy:' "/tmp/nexus-${RESOURCE}-headers.txt" | cut -c 1-180 || true
             fi
           done
+
+          # Verify the canonical pages return actual existing form markup (no auth or writes).
+          for RESOURCE in accounts crm-access; do
+            CODE="$(curl --silent --show-error --location --max-time 25 --output "/tmp/nexus-${RESOURCE}-body.html" --write-out '%{http_code}' "${ORIGIN}/${RESOURCE}?embedded=1")"
+            FORM='accountForm'
+            [ "$RESOURCE" = "crm-access" ] && FORM='courtesyForm'
+            if [ "$CODE" = '200' ] && grep -q "id=\"$FORM\"" "/tmp/nexus-${RESOURCE}-body.html"; then
+              echo "Central embedded ${RESOURCE}: canonical HTML has expected form"
+            else
+              echo "::warning::Central embedded ${RESOURCE}: unexpected HTTP ${CODE} or form markup missing"
+            fi
+          done
