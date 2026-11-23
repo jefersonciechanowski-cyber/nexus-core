@@ -14,7 +14,7 @@ const ai = file('nexus-ai-preview.js');
 const pilot = file('pilot.js');
 const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
-test('one aligned set of seven navigation entries across all Central pages', () => {
+test('support tab appears in Central while legacy admin screens remain usable', () => {
   const labels = ['Nexus AI','Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos','Cortesias CRM'];
   for (const page of [index, accounts, legacyLeads]) {
     const mainNav = nav(page);
@@ -26,7 +26,7 @@ test('one aligned set of seven navigation entries across all Central pages', () 
       assert.ok(next > previous, 'Missing or out-of-order nav: ' + label);
       previous = next;
     }
-    assert.equal((mainNav.match(/data-view="/g) || []).length, 7);
+    assert.equal((mainNav.match(/data-view="/g) || []).length, page === index ? 8 : 7);
     assert.doesNotMatch(page, /<summary>Ferramentas<\/summary>/);
     assert.doesNotMatch(page, /Teste Pix R\$ 10/);
     assert.match(page, /href="central-nexus-v2\.css"/);
@@ -171,12 +171,12 @@ test('only the two administrative resources and their canonical aliases allow sa
   assert.doesNotMatch(headers, /script-src 'unsafe-inline'/);
 });
 
-test('seven accessible tabs occupy exactly one header row without Ferramentas', () => {
+test('eight accessible tabs occupy exactly one header row without Ferramentas', () => {
   const tabs = file('central-tabs.js');
-  for (const view of ['ai','overview','accounts','clients','products','payments','courtesy']) {
+  for (const view of ['ai','overview','accounts','clients','products','payments','courtesy','support']) {
     assert.match(nav(index),new RegExp('data-view="' + view + '"[^>]*data-short="'));
   }
-  assert.match(theme,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)!important/);
+  assert.match(theme,/grid-template-columns:repeat\(8,minmax\(0,1fr\)\)!important/);
   assert.match(theme,/grid-template-rows:42px!important;grid-auto-rows:0!important/);
   assert.match(theme,/overflow:hidden!important/);
   assert.match(theme,/body\.central-nexus-v2 \.side \.sidebar-tools\{display:none!important\}/);
