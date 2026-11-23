@@ -126,3 +126,43 @@ revoke all on function public.provision_nexus_sst_courtesy(
 grant execute on function public.provision_nexus_sst_courtesy(
   uuid,uuid,text,text,text,text,integer,text
 ) to service_role;
+
+-- O mesmo despacho diário de vencimentos SST também encerrará cortesias.
+-- Preserva integralmente organizações, usuários, documentos e histórico.
+create or replace function public.suspend_expired_nexus_sst_courtesies()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_count integer := 0;
+  v_local_date date := (now() at time zone 'America/Sao_Paulo')::date;
+begin
+  with expired as (
+    update public.organization_product_access a
+       set access_status='suspended', updated_at=now()
+      from public.nexus_products product
+     where a.product_id=product.id and product.code='sst'
+       and a.commercial_condition='courtesy'
+       and a.subscription_status='active'
+       and a.access_status='active'
+       and a.renews_at is not null
+       and a.renews_at < v_local_date
+    returning a.id,a.organization_id,a.renews_at
+  ), audit as (
+    insert into public.audit_logs(organization_id,user_id,action,entity,entity_id,metadata)
+    select e.organization_id,null,'NEXUS_SST_COURTESY_EXPIRED',
+      'organization_product_access',e.id::text,
+      jsonb_build_object('expired_on',e.renews_at,'checked_on',v_local_date)
+    from expired e returning 1
+  )
+  select count(*) into v_count from audit;
+  return jsonb_build_object('suspended',v_count,'checkedOn',v_local_date);
+end;
+$function$;
+
+revoke all on function public.suspend_expired_nexus_sst_courtesies()
+  from PUBLIC, anon, authenticated;
+grant execute on function public.suspend_expired_nexus_sst_courtesies()
+  to service_role;
