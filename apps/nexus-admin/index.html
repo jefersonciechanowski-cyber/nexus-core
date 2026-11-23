@@ -29,7 +29,7 @@
         <button type="button" data-view="clients" aria-label="Clientes e Acessos" title="Clientes e Acessos" data-short="Clientes">Clientes</button>
         <button type="button" data-view="products" aria-label="Produtos e Planos" title="Produtos e Planos" data-short="Planos">Planos</button>
         <button type="button" data-view="payments" data-short="Pag.">Pagamentos</button>
-        <button type="button" data-view="courtesy" aria-label="Cortesias CRM" title="Cortesias CRM" data-short="Cort.">Cortesias</button>
+        <button type="button" data-view="courtesy" aria-label="Cortesias CRM e SST" title="Cortesias CRM e SST" data-short="Cort.">Cortesias</button>
       </nav>
 
       <div class="side-footer">Administração interna da operação multi-app do Nexus Core.</div>
@@ -47,7 +47,7 @@
           </div>
         </div>
         <div class="queue-actions">
-          <button class="action" type="button" data-central-open="courtesy">Gerir acessos CRM</button>
+          <button class="action" type="button" data-central-open="courtesy">Gerir cortesias</button>
           <button class="action primary" type="button" id="newPilotShortcut">Novo piloto SST</button>
         </div>
       </section>
@@ -59,9 +59,9 @@
         <div class="central-embedded-status" data-central-embedded-status hidden>Carregando Contas e Consultorias… <button class="action" type="button" data-central-retry="accounts">Tentar novamente</button> <a href="accounts.html" target="_blank" rel="noopener noreferrer">Abrir diretamente</a></div>
         <iframe data-central-embedded title="Contas e Consultorias — administração Nexus" hidden></iframe>
       </section>
-      <section class="view central-embedded-tab" id="view-courtesy" hidden aria-label="Cortesias CRM" aria-busy="false">
-        <div class="central-embedded-status" data-central-embedded-status hidden>Carregando Cortesias CRM… <button class="action" type="button" data-central-retry="courtesy">Tentar novamente</button> <a href="crm-access.html" target="_blank" rel="noopener noreferrer">Abrir diretamente</a></div>
-        <iframe data-central-embedded title="Cortesias e acessos do Nexus CRM" hidden></iframe>
+      <section class="view central-embedded-tab" id="view-courtesy" hidden aria-label="Cortesias CRM e SST" aria-busy="false">
+        <div class="central-embedded-status" data-central-embedded-status hidden>Carregando Cortesias CRM e SST… <button class="action" type="button" data-central-retry="courtesy">Tentar novamente</button> <a href="crm-access.html" target="_blank" rel="noopener noreferrer">Abrir diretamente</a></div>
+        <iframe data-central-embedded title="Cortesias do Nexus CRM e SST Controle" hidden></iframe>
       </section>
       <section class="view central-ai-tab" id="view-ai" hidden aria-label="Nexus AI">
         <div class="central-ai-intro"><p>Inteligência Nexus · voz e consultas administrativas, com as permissões já existentes.</p></div>
@@ -93,7 +93,7 @@
     const displayPlan=r=>r.subscription_status==='trial'&&r.product?.code==='sst'
       ?'Piloto · '+(plans.find(p=>p.id===r.pilot_target_plan_id)?.name||'Essencial').replace(/^Nexus SST\s*/,'')
       :(r.plan_name==='Acesso existente'?'Plano inicial Nexus':r.plan_name)||r.plan?.name||'Sem plano comercial';
-    const pageConfig={overview:['Central Nexus','Visão comercial dos apps, acessos e contratos.'],clients:['Clientes e Acessos','Controle de plano, preço, ciclo, validade e acesso por cliente.'],products:['Produtos e Planos','Catálogo comercial multi-app da plataforma Nexus.'],payments:['Pagamentos','Checkouts, cobranças e confirmação financeira dos provedores integrados.'],accounts:['Contas e Consultorias','Administração de empresas, consultorias e limites.'],courtesy:['Cortesias CRM','Cortesias, liberações e acessos do Nexus CRM.'],ai:['Nexus AI','Inteligência e assistência do ecossistema Nexus.']};
+    const pageConfig={overview:['Central Nexus','Visão comercial dos apps, acessos e contratos.'],clients:['Clientes e Acessos','Controle de plano, preço, ciclo, validade e acesso por cliente.'],products:['Produtos e Planos','Catálogo comercial multi-app da plataforma Nexus.'],payments:['Pagamentos','Checkouts, cobranças e confirmação financeira dos provedores integrados.'],accounts:['Contas e Consultorias','Administração de empresas, consultorias e limites.'],courtesy:['Cortesias Nexus','Cortesias e acessos do CRM e do SST Controle.'],ai:['Nexus AI','Inteligência e assistência do ecossistema Nexus.']};
     let organizations=[],products=[],plans=[],accessRows=[],payments=[],checkouts=[],activeView='overview',selectedAccessId=null;
     function setView(view){if(!pageConfig[view])return;if(view===activeView&&location.hash==='#'+view)return;const changed=view!==activeView;activeView=view;document.querySelectorAll('.nav button').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('active',selected);b.setAttribute('aria-current',selected?'page':'false');});document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!==`view-${view}`);document.getElementById('centralOverviewCards').hidden=view!=='overview';document.getElementById('centralWorkQueue').hidden=view!=='overview';document.getElementById('pageTitle').textContent=pageConfig[view][0];document.getElementById('pageSubtitle').textContent=pageConfig[view][1];if(location.hash!=='#'+view)history.replaceState(null,'','#'+view);if(changed&&window.scrollY>0)window.scrollTo({top:0,behavior:'auto'});window.dispatchEvent(new CustomEvent('nexus:central:view',{detail:{view}}));}
     function filteredOverview(){const q=document.getElementById('overviewSearch').value.trim().toLowerCase();return accessRows.filter(r=>r.organization?.status!=='archived'&&[r.organization?.name,r.organization?.email,r.product?.name,displayPlan(r),contractLabel(r)].join(' ').toLowerCase().includes(q));}
