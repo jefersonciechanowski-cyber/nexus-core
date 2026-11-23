@@ -68,6 +68,23 @@ jobs:
             fi
           done
 
+          # Verify SST courtesy is actually served on the official Central domain.
+          # Status is observational: Cloudflare deployments can lag behind Git.
+          LIVE_COURTESY_CODE="$(curl --silent --show-error --location --max-time 20 --output /tmp/nexus-live-courtesy.html --write-out '%{http_code}' "${ORIGIN}/crm-access?embedded=1&release=${GITHUB_SHA}")"
+          if [ "$LIVE_COURTESY_CODE" = '200' ] && \
+             grep -q 'id="sstCourtesyForm"' /tmp/nexus-live-courtesy.html && \
+             grep -q 'data-courtesy-view="sst"' /tmp/nexus-live-courtesy.html; then
+            echo 'SST_COURTESY_OFFICIAL=LIVE'
+          else
+            echo '::warning::SST_COURTESY_OFFICIAL=STALE_OR_UNAVAILABLE'
+            echo "Official courtesy route HTTP ${LIVE_COURTESY_CODE}; deployment may need synchronization."
+          fi
+          LIVE_ADMIN_CODE="$(curl --silent --show-error --location --max-time 20 --output /tmp/nexus-live-index.html --write-out '%{http_code}' "${ORIGIN}/index.html?release=${GITHUB_SHA}")"
+          if [ "$LIVE_ADMIN_CODE" = '200' ] && grep -q 'Cortesias CRM e SST' /tmp/nexus-live-index.html; then
+            echo 'SST_COURTESY_NAV=LIVE'
+          else
+            echo '::warning::SST_COURTESY_NAV=STALE_OR_UNAVAILABLE'
+          fi
           # Verify the canonical pages return actual existing form markup (no auth or writes).
           for RESOURCE in accounts crm-access; do
             CODE="$(curl --silent --show-error --location --max-time 25 --output "/tmp/nexus-${RESOURCE}-body.html" --write-out '%{http_code}' "${ORIGIN}/${RESOURCE}?embedded=1")"
