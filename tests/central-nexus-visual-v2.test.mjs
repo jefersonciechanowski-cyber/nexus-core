@@ -14,7 +14,7 @@ const ai = file('nexus-ai-preview.js');
 const pilot = file('pilot.js');
 const nav = page => page.match(/<nav class="nav"[\s\S]*?<\/nav>/)?.[0];
 
-test('one aligned set of seven navigation entries across all Central pages', () => {
+test('support tab appears in Central while legacy admin screens remain usable', () => {
   const labels = ['Nexus AI','Visão Geral','Contas e Consultorias','Clientes e Acessos','Produtos e Planos','Pagamentos','Cortesias CRM'];
   for (const page of [index, accounts, legacyLeads]) {
     const mainNav = nav(page);
@@ -26,7 +26,7 @@ test('one aligned set of seven navigation entries across all Central pages', () 
       assert.ok(next > previous, 'Missing or out-of-order nav: ' + label);
       previous = next;
     }
-    assert.equal((mainNav.match(/data-view="/g) || []).length, 7);
+    assert.equal((mainNav.match(/data-view="/g) || []).length, page === index ? 8 : 7);
     assert.doesNotMatch(page, /<summary>Ferramentas<\/summary>/);
     assert.doesNotMatch(page, /Teste Pix R\$ 10/);
     assert.match(page, /href="central-nexus-v2\.css"/);
@@ -171,12 +171,12 @@ test('only the two administrative resources and their canonical aliases allow sa
   assert.doesNotMatch(headers, /script-src 'unsafe-inline'/);
 });
 
-test('seven accessible tabs occupy exactly one header row without Ferramentas', () => {
+test('eight accessible tabs occupy exactly one header row without Ferramentas', () => {
   const tabs = file('central-tabs.js');
-  for (const view of ['ai','overview','accounts','clients','products','payments','courtesy']) {
+  for (const view of ['ai','overview','accounts','clients','products','payments','courtesy','support']) {
     assert.match(nav(index),new RegExp('data-view="' + view + '"[^>]*data-short="'));
   }
-  assert.match(theme,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)!important/);
+  assert.match(theme,/grid-template-columns:repeat\(8,minmax\(0,1fr\)\)!important/);
   assert.match(theme,/grid-template-rows:42px!important;grid-auto-rows:0!important/);
   assert.match(theme,/overflow:hidden!important/);
   assert.match(theme,/body\.central-nexus-v2 \.side \.sidebar-tools\{display:none!important\}/);
@@ -289,4 +289,23 @@ test('full-bleed is exclusive to Nexus AI and other tabs retain administrative h
   assert.match(index, /id="logout"/);
   assert.match(index, /id="view-accounts"/);
   assert.match(index, /id="view-courtesy"/);
+});
+test('support has MFA gate, safe status update and no automatic AI execution', () => {
+  const support = file('central-support.js');
+  const intake = readFileSync(new URL('../apps/sst-controle/nexus-support.js', import.meta.url), 'utf8');
+  const publicPage = readFileSync(new URL('../apps/site-captacao/suporte.html', import.meta.url), 'utf8');
+  assert.match(index, /id="view-support" hidden/);
+  assert.match(index, /src="central-support.js"/);
+  assert.match(support, /aal\?\.currentLevel !== 'aal2'/);
+  assert.match(support, /from\('support_requests'\)/);
+  assert.match(support, /\.eq\('id',ticket\.id\)\.eq\('status',ticket\.status\)/);
+  assert.doesNotMatch(support, /service_role|eval\(|innerHTML/);
+  assert.match(intake, /const protocol = String\(data\.protocol/);
+  assert.match(intake, /whatsapp\.hidden = true/);
+  assert.match(intake, /whatsapp\.hidden = false/);
+  assert.match(intake, /5546999089058/);
+  assert.match(intake, /product === 'crm'/);
+  assert.match(publicPage, /supabase-config\.js/);
+  assert.match(publicPage, /noindex,nofollow,noarchive/);
+  assert.doesNotMatch(publicPage, /<script>\s*[^<]/);
 });
