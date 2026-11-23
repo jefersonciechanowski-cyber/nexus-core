@@ -44,7 +44,9 @@ jobs:
                grep -q 'Nexus Core Industrial Trust' /tmp/nexus-home.html &&
                grep -q 'data-nexus-site="15dd3a2e-422f-440b-b074-c4b7c8f2a489"' /tmp/nexus-home.html &&
                grep -q 'src="/crm/nexus-consent.js"' /tmp/nexus-home.html &&
-               grep -q 'nexus:institutional:analytics-consent:v1' /tmp/nexus-consent.js &&
+               grep -Eq 'nexus:institutional:analytics-consent:v[0-9]+' /tmp/nexus-consent.js &&
+               grep -Fq 'if (choice === "allow" && !gpc)' /tmp/nexus-consent.js &&
+               grep -Fq 'window.nexusTrackingConsent = allow;' /tmp/nexus-consent.js &&
                grep -q 'data-nexus-api' /tmp/nexus-tracker.js &&
                grep -q 'Privacidade no site institucional' /tmp/nexus-privacy.html &&
                grep -q 'width:56px;height:56px' /tmp/nexus-whatsapp.js &&
