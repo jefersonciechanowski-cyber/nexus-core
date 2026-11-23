@@ -19,7 +19,8 @@
     ['clients','Clientes e Acessos','Clientes','Clientes'],
     ['products','Produtos e Planos','Planos','Planos'],
     ['payments','Pagamentos','Pagamentos','Pag.'],
-    ['courtesy','Cortesias CRM e SST','Cortesias','Cort.']
+    ['courtesy','Cortesias CRM e SST','Cortesias','Cort.'],
+    ['support','Suporte','Suporte','Sup.']
   ];
   const nav = document.querySelector('.side .nav');
   function normalizeNavigation() {
@@ -38,7 +39,7 @@
     const current = Array.from(nav.children);
     if (current.length !== selected.length || current.some((node,i) => node !== selected[i])) {
       // Clean up extra/legacy links introduced after initial render without
-      // replacing the actual seven button nodes or their event listeners.
+      // replacing the actual eight button nodes or their event listeners.
       nav.replaceChildren(...selected);
     }
   }
