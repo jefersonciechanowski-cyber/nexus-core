@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#09211f">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Suporte Nexus Core | Atendimento</title>
+  <meta name="description" content="Abra um chamado de suporte para os produtos Nexus Core e continue pelo WhatsApp com seu protocolo.">
+  <style>
+    :root{color-scheme:dark;font-family:Inter,"Segoe UI",Arial,sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:26px;background:radial-gradient(circle at 40% 0,rgba(40,99,88,.43),transparent 50%),linear-gradient(155deg,#051312,#092620 75%,#061615);color:#eaf7f2}
+    main{max-width:660px;width:100%;border:1px solid rgba(126,192,169,.29);border-radius:22px;padding:clamp(24px,5vw,45px);background:rgba(6,28,26,.8);box-shadow:0 24px 90px rgba(0,0,0,.32)}
+    img{display:block;width:138px;max-width:100%;margin:0 0 27px}
+    .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:#cfbe84}
+    h1{font-size:clamp(26px,5vw,34px);line-height:1.2;margin:10px 0 14px;font-weight:600}
+    p{font-size:14px;line-height:1.75;color:#b8d1ca;margin:0 0 22px}
+    ol{padding-left:22px;line-height:1.85;font-size:13px;color:#d6e8e2}
+    button{font:600 14px Inter,"Segoe UI",Arial,sans-serif;cursor:pointer;padding:14px 22px;border-radius:11px;border:1px solid #cbb77e;background:#d3c18c;color:#09211f;margin:10px 0}
+    button:focus-visible,a:focus-visible{outline:2px solid #fff;outline-offset:4px}
+    small{display:block;margin-top:22px;font-size:11px;line-height:1.6;color:#9bb9ae}
+    a{color:#decf9e}
+  </style>
+</head>
+<body>
+  <main>
+    <img src="../sst-controle/logo-nexus-core.png" alt="Nexus Core">
+    <span class="eyebrow">Atendimento oficial</span>
+    <h1>Suporte Nexus Core</h1>
+    <p>Registre sua dúvida ou problema. Após a confirmação do protocolo, você poderá continuar o atendimento com a equipe pelo WhatsApp.</p>
+    <ol>
+      <li>Descreva sua solicitação no formulário de suporte.</li>
+      <li>Receba o protocolo da Nexus Central.</li>
+      <li>Escolha continuar pelo WhatsApp com o protocolo pronto.</li>
+    </ol>
+    <button id="nexusOpenSupport" type="button">Abrir chamado</button>
+    <small>O agente de suporte por IA ainda não está habilitado. Seus dados serão usados para tratar a solicitação, com acesso restrito à equipe autorizada da Nexus.</small>
+    <small>Alternativa: <a href="mailto:suporte@nexuscore.app.br">suporte@nexuscore.app.br</a></small>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
+  <script src="../sst-controle/supabase-config.js"></script>
+</body>
+</html>
