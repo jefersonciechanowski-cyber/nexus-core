@@ -1,0 +1,47 @@
+.central-support-view{width:100%;min-width:0}
+.central-support-view .support-panel{padding:20px;background:linear-gradient(145deg,rgba(21,64,57,.68),rgba(8,32,31,.72));border:1px solid rgba(119,197,178,.22);border-radius:16px}
+.central-support-view .support-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.central-support-view .support-toolbar h2{font-size:18px;font-weight:600;color:#edf8f4;margin:0 0 3px}
+.central-support-view .support-toolbar p{font-size:12px;color:#a8c7bf;margin:0}
+.central-support-view .support-counters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.central-support-view .support-counter{border:1px solid rgba(119,197,178,.19);border-radius:12px;padding:12px 14px;background:rgba(9,35,33,.6)}
+.central-support-view .support-counter span{display:block;font-size:11px;color:#a8c7bf}
+.central-support-view .support-counter strong{display:block;margin-top:3px;font-size:23px;font-variant-numeric:tabular-nums;color:#edf8f4;font-weight:620}
+.central-support-view .support-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 6px}
+.central-support-view .support-filters input{flex:1 1 190px;min-width:0}
+.central-support-view .support-filters select{flex:0 1 180px}
+.central-support-view .support-filters input,.central-support-view .support-filters select,.central-support-view .support-status-select{background:#0b2524;border:1px solid rgba(118,199,181,.27);border-radius:9px;color:#edf8f4;min-height:40px;padding:9px 11px;font-size:12px}
+.central-support-view #supportTicketNotice{font-size:11px;color:#a8c7bf;min-height:19px;margin:9px 0}
+.central-support-view #supportTicketNotice.bad{color:#ffb1ac}
+.central-support-view #supportTicketTotal{font-size:11px;color:#a8c7bf}
+.central-support-view .support-layout{display:grid;grid-template-columns:minmax(250px,.95fr) minmax(0,1.55fr);gap:14px;margin-top:12px;align-items:start}
+.central-support-view #supportTicketList{display:grid;gap:7px;max-height:min(68vh,860px);overflow:auto;padding:3px}
+.central-support-view .support-ticket-item{width:100%;text-align:left;padding:13px 14px;border-radius:11px;background:rgba(7,28,27,.58);border:1px solid rgba(118,199,181,.18);color:#edf8f4}
+.central-support-view .support-ticket-item:hover,.central-support-view .support-ticket-item:focus-visible,.central-support-view .support-ticket-item.selected{border-color:#d7c185;background:rgba(33,79,70,.54)}
+.central-support-view .support-ticket-top,.central-support-view .support-detail-head{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.central-support-view .support-ticket-top strong{font-size:11px;font-weight:650;letter-spacing:.025em}
+.central-support-view .support-ticket-name{font-size:13px;font-weight:600;margin-top:8px}
+.central-support-view .support-ticket-meta{font-size:10px;color:#a8c7bf;margin-top:3px}
+.central-support-view .support-ticket-preview{font-size:11px;line-height:1.5;color:#c6dbd5;margin:9px 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.central-support-view .support-status{flex-shrink:0;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:600;border:1px solid rgba(118,199,181,.16);background:rgba(118,199,181,.09);color:#c9e5dc}
+.central-support-view .support-status-open{color:#f6cc86;background:rgba(239,183,89,.10)}
+.central-support-view .support-status-in_progress{color:#a6d8ed;background:rgba(110,186,218,.11)}
+.central-support-view .support-status-resolved{color:#b2e3c0;background:rgba(110,186,130,.12)}
+.central-support-view .support-status-closed{color:#c0c9c6;background:rgba(188,197,191,.09)}
+.central-support-view #supportTicketDetail{padding:18px;background:rgba(8,32,31,.65);border:1px solid rgba(118,199,181,.22);border-radius:12px;min-width:0;min-height:210px}
+.central-support-view .support-overline{display:block;font-size:10px;color:#9fbeb6;text-transform:uppercase;letter-spacing:.055em}
+.central-support-view .support-detail-head h3{font-size:17px;letter-spacing:.015em;overflow-wrap:anywhere;margin:4px 0 0}
+.central-support-view .support-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:17px 0}
+.central-support-view .support-info-item{border:1px solid rgba(118,199,181,.15);border-radius:9px;padding:9px;background:rgba(9,36,33,.6);min-width:0}
+.central-support-view .support-info-item span{display:block;font-size:10px;color:#9fbeb6}
+.central-support-view .support-info-item strong{display:block;margin-top:4px;font-size:12px;font-weight:550;overflow-wrap:anywhere}
+.central-support-view .support-ticket-description{border-top:1px solid rgba(118,199,181,.16);padding-top:15px}
+.central-support-view .support-ticket-description p{font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.central-support-view .support-safe-link{font-size:11px;color:#d7c185;text-decoration:underline}
+.central-support-view .support-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:16px}
+.central-support-view .support-detail-actions .action{display:inline-flex;min-height:39px;align-items:center;text-decoration:none;font-size:11px}
+.central-support-view .support-status-select{min-width:145px}
+.central-support-view .support-detail-note,.central-support-view .support-footer-note{margin:14px 0 0;font-size:11px;line-height:1.5;color:#9fbeb6}
+.central-support-view .support-empty{padding:26px;text-align:center;color:#a8c7bf;font-size:12px}
+@media(max-width:980px){.central-support-view .support-layout{grid-template-columns:1fr}.central-support-view #supportTicketList{max-height:360px}.central-support-view .support-counters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:530px){.central-support-view .support-filters>*{flex:1 1 100%!important}.central-support-view .support-info-grid{grid-template-columns:1fr}.central-support-view .support-panel{padding:12px}.central-support-view .support-detail-actions>*{flex:1 1 100%;justify-content:center}}
