@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="central-nexus-v2.css">
   <link rel="stylesheet" href="central-nexus-ambient.css">
   <link rel="stylesheet" href="central-ai-immersive.css">
+  <link rel="stylesheet" href="central-support.css">
 </head>
 <body class="central-nexus-v2">
   <div class="shell">
@@ -30,6 +31,7 @@
         <button type="button" data-view="products" aria-label="Produtos e Planos" title="Produtos e Planos" data-short="Planos">Planos</button>
         <button type="button" data-view="payments" data-short="Pag.">Pagamentos</button>
         <button type="button" data-view="courtesy" aria-label="Cortesias CRM e SST" title="Cortesias CRM e SST" data-short="Cort.">Cortesias</button>
+        <button type="button" data-view="support" aria-label="Suporte" title="Suporte" data-short="Sup.">Suporte</button>
       </nav>
 
       <div class="side-footer">Administração interna da operação multi-app do Nexus Core.</div>
@@ -62,6 +64,40 @@
       <section class="view central-embedded-tab" id="view-courtesy" hidden aria-label="Cortesias CRM e SST" aria-busy="false">
         <div class="central-embedded-status" data-central-embedded-status hidden>Carregando Cortesias CRM e SST… <button class="action" type="button" data-central-retry="courtesy">Tentar novamente</button> <a href="crm-access.html" target="_blank" rel="noopener noreferrer">Abrir diretamente</a></div>
         <iframe data-central-embedded title="Cortesias do Nexus CRM e SST Controle" hidden></iframe>
+      </section>
+
+      <section class="view central-support-view" id="view-support" hidden aria-label="Suporte">
+        <div class="support-panel">
+          <div class="support-toolbar">
+            <div><h2>Fila de suporte</h2><p>CRM, SST e demais produtos no mesmo atendimento.</p></div>
+            <button class="action" id="supportRefresh" type="button">Atualizar</button>
+          </div>
+          <div class="support-counters" aria-label="Situação dos chamados recentes">
+            <div class="support-counter"><span>Abertos</span><strong id="supportCountOpen">—</strong></div>
+            <div class="support-counter"><span>Em atendimento</span><strong id="supportCountProgress">—</strong></div>
+            <div class="support-counter"><span>Resolvidos</span><strong id="supportCountResolved">—</strong></div>
+            <div class="support-counter"><span>Encerrados</span><strong id="supportCountClosed">—</strong></div>
+          </div>
+          <div class="support-filters">
+            <input id="supportSearch" type="search" aria-label="Pesquisar chamados" placeholder="Buscar nome, protocolo ou assunto" maxlength="180">
+            <select id="supportStatusFilter" aria-label="Filtrar pela situação">
+              <option value="all">Todas as situações</option><option value="open">Abertos</option>
+              <option value="in_progress">Em atendimento</option><option value="resolved">Resolvidos</option>
+              <option value="closed">Encerrados</option>
+            </select>
+            <select id="supportProductFilter" aria-label="Filtrar por produto">
+              <option value="all">Todos os produtos</option><option value="nexus_crm">Nexus CRM</option>
+              <option value="sst">SST Controle</option><option value="estetica">Nexus Estética</option>
+            </select>
+          </div>
+          <div id="supportTicketNotice" role="status" aria-live="polite"></div>
+          <span id="supportTicketTotal">Chamados recentes</span>
+          <div class="support-layout">
+            <div id="supportTicketList" role="group" aria-label="Chamados recentes"><p class="support-empty">Abra a aba para consultar os chamados.</p></div>
+            <article id="supportTicketDetail" aria-label="Detalhes do chamado"><p class="support-empty">Selecione um chamado para consultar os detalhes.</p></article>
+          </div>
+          <p class="support-footer-note">O agente interno de desenvolvimento permanece separado do futuro agente de suporte. Atendimento humano inicial: WhatsApp Nexus, mediante abertura do protocolo.</p>
+        </div>
       </section>
       <section class="view central-ai-tab" id="view-ai" hidden aria-label="Nexus AI">
         <div class="central-ai-intro"><p>Inteligência Nexus · voz e consultas administrativas, com as permissões já existentes.</p></div>
@@ -155,6 +191,7 @@
     window.addEventListener('hashchange',()=>{const view=location.hash.slice(1);if(pageConfig[view])setView(view);});
     const firstView=location.hash.slice(1);if(pageConfig[firstView])setView(firstView);document.getElementById('overviewSearch').addEventListener('input',renderOverview);document.getElementById('clientSearch').addEventListener('input',renderClients);document.getElementById('clientStatus').addEventListener('change',renderClients);document.getElementById('productSearch').addEventListener('input',renderProducts);document.getElementById('paymentSearch').addEventListener('input',renderPayments);document.getElementById('logout').onclick=async()=>{await window.NexusAuth.logout();location.replace('login.html');};start();
   </script>
+  <script src="central-support.js"></script>
   <script defer src="pilot.js"></script>
 </body>
 </html>
