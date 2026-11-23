@@ -290,3 +290,22 @@ test('full-bleed is exclusive to Nexus AI and other tabs retain administrative h
   assert.match(index, /id="view-accounts"/);
   assert.match(index, /id="view-courtesy"/);
 });
+test('support has MFA gate, safe status update and no automatic AI execution', () => {
+  const support = file('central-support.js');
+  const intake = readFileSync(new URL('../apps/sst-controle/nexus-support.js', import.meta.url), 'utf8');
+  const publicPage = readFileSync(new URL('../apps/site-captacao/suporte.html', import.meta.url), 'utf8');
+  assert.match(index, /id="view-support" hidden/);
+  assert.match(index, /src="central-support.js"/);
+  assert.match(support, /aal\?\.currentLevel !== 'aal2'/);
+  assert.match(support, /from\('support_requests'\)/);
+  assert.match(support, /\.eq\('id',ticket\.id\)\.eq\('status',ticket\.status\)/);
+  assert.doesNotMatch(support, /service_role|eval\(|innerHTML/);
+  assert.match(intake, /const protocol = String\(data\.protocol/);
+  assert.match(intake, /whatsapp\.hidden = true/);
+  assert.match(intake, /whatsapp\.hidden = false/);
+  assert.match(intake, /5546999089058/);
+  assert.match(intake, /product === 'crm'/);
+  assert.match(publicPage, /supabase-config\.js/);
+  assert.match(publicPage, /noindex,nofollow,noarchive/);
+  assert.doesNotMatch(publicPage, /<script>\s*[^<]/);
+});
