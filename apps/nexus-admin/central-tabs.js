@@ -19,7 +19,7 @@
     ['clients','Clientes e Acessos','Clientes','Clientes'],
     ['products','Produtos e Planos','Planos','Planos'],
     ['payments','Pagamentos','Pagamentos','Pag.'],
-    ['courtesy','Cortesias CRM','Cortesias','Cort.']
+    ['courtesy','Cortesias CRM e SST','Cortesias','Cort.']
   ];
   const nav = document.querySelector('.side .nav');
   function normalizeNavigation() {
@@ -72,7 +72,7 @@
     loaded.add(view);
     triedAlternate.delete(view);
     if (status) {
-      if (status.firstChild?.nodeType === 3) status.firstChild.textContent = 'Carregando ' + (view === 'accounts' ? 'Contas e Consultorias' : 'Cortesias CRM') + '… ';
+      if (status.firstChild?.nodeType === 3) status.firstChild.textContent = 'Carregando ' + (view === 'accounts' ? 'Contas e Consultorias' : 'Cortesias CRM e SST') + '… ';
       status.hidden = false;
     }
     panel.setAttribute('aria-busy','true');

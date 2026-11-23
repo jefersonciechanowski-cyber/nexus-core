@@ -18,7 +18,7 @@ function allowedOrigin(request: Request) {
   if (!raw) return 'https://nexuscore.app.br';
   try {
     const url = new URL(raw);
-    const isOfficial = url.protocol === 'https:' && ['nexuscore.app.br', 'www.nexuscore.app.br'].includes(url.hostname);
+    const isOfficial = url.protocol === 'https:' && ['nexuscore.app.br', 'www.nexuscore.app.br', 'central.nexuscore.app.br'].includes(url.hostname);
     const isPreview = url.protocol === 'https:' && url.hostname.endsWith('.jefersonciechanowski.workers.dev');
     const isLocal = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
     return isOfficial || isPreview || isLocal ? url.origin : null;
@@ -72,7 +72,7 @@ async function sendBrevoEmail(email: string, responsibleName: string, subject: s
   return { sent: true, reason: null };
 }
 
-async function sendFirstAccessEmail(admin: any, email: string, responsibleName: string, companyName: string, validUntil: string) {
+async function sendFirstAccessEmail(admin: any, email: string, responsibleName: string, companyName: string, validUntil: string, isCourtesy = false) {
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email });
   const tokenHash = clean(linkData?.properties?.hashed_token, 1000);
   if (linkError || !tokenHash) return { sent: false, reason: linkError?.message || 'Não foi possível gerar o primeiro acesso.' };
@@ -82,10 +82,10 @@ async function sendFirstAccessEmail(admin: any, email: string, responsibleName: 
   const validDate = new Date(`${validUntil}T12:00:00`).toLocaleDateString('pt-BR');
   const html = `
     <div style="font-family:Arial,sans-serif;color:#182126;line-height:1.6;max-width:620px;margin:auto">
-      <h2 style="margin-bottom:8px">Seu acesso piloto ao Nexus SST está pronto</h2>
+      <h2 style="margin-bottom:8px">${isCourtesy ? 'Sua cortesia do SST Controle está pronta' : 'Seu acesso piloto ao Nexus SST está pronto'}</h2>
       <p>Olá, ${escapeHtml(responsibleName)}.</p>
-      <p>A empresa <strong>${escapeHtml(companyName)}</strong> recebeu um acesso de cortesia ao <strong>Nexus SST</strong> para validação técnica.</p>
-      <p>O piloto fica disponível até <strong>${escapeHtml(validDate)}</strong>. Você terá acesso aos módulos do sistema dentro de uma empresa exclusiva e isolada.</p>
+      <p>A empresa <strong>${escapeHtml(companyName)}</strong> recebeu ${isCourtesy ? 'uma cortesia administrativa' : 'um acesso piloto'} ao <strong>Nexus SST</strong>.</p>
+      <p>${isCourtesy ? 'A cortesia' : 'O piloto'} fica disponível até <strong>${escapeHtml(validDate)}</strong>, sem cobrança automática. Sua empresa possui ambiente exclusivo e isolado.</p>
       <p>Para começar, defina sua senha pessoal:</p>
       <p style="margin:28px 0"><a href="${firstAccessLink}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Definir minha senha</a></p>
       <p style="font-size:13px;color:#68757b">Você também receberá um segundo e-mail separado com o endereço permanente da sua Central Nexus. Guarde esse e-mail para os próximos acessos.</p>
@@ -93,10 +93,10 @@ async function sendFirstAccessEmail(admin: any, email: string, responsibleName: 
       <p style="font-size:12px;color:#7b858a">Nexus Core · suporte@nexuscore.app.br</p>
     </div>`;
 
-  return sendBrevoEmail(email, responsibleName, 'Seu acesso piloto ao Nexus SST está pronto', html);
+  return sendBrevoEmail(email, responsibleName, isCourtesy ? 'Sua cortesia do SST Controle está pronta' : 'Seu acesso piloto ao Nexus SST está pronto', html);
 }
 
-async function sendPermanentAccessEmail(email: string, responsibleName: string, companyName: string, validUntil: string) {
+async function sendPermanentAccessEmail(email: string, responsibleName: string, companyName: string, validUntil: string, isCourtesy = false) {
   const publicUrl = (Deno.env.get('NEXUS_PUBLIC_URL') || 'https://nexuscore.app.br').replace(/\/$/, '');
   const portalUrl = `${publicUrl}/apps/portal-cliente/login.html`;
   const validDate = new Date(`${validUntil}T12:00:00`).toLocaleDateString('pt-BR');
@@ -104,7 +104,7 @@ async function sendPermanentAccessEmail(email: string, responsibleName: string, 
     <div style="font-family:Arial,sans-serif;color:#182126;line-height:1.6;max-width:620px;margin:auto">
       <h2 style="margin-bottom:8px">Seu endereço de acesso ao Nexus SST</h2>
       <p>Olá, ${escapeHtml(responsibleName)}.</p>
-      <p>Seu acesso da empresa <strong>${escapeHtml(companyName)}</strong> está liberado até <strong>${escapeHtml(validDate)}</strong>.</p>
+      <p>Seu acesso da empresa <strong>${escapeHtml(companyName)}</strong> está liberado até <strong>${escapeHtml(validDate)}</strong>${isCourtesy ? ' como cortesia, sem cobrança automática' : ''}.</p>
       <p>Use sempre a <strong>Minha Central Nexus</strong> para entrar no Nexus SST. Recomendamos guardar este e-mail ou adicionar a página aos favoritos do navegador.</p>
       <p style="margin:28px 0"><a href="${portalUrl}" style="display:inline-block;background:#d9a62d;color:#181207;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:700">Acessar Minha Central Nexus</a></p>
       <p style="font-size:13px;color:#68757b">Endereço permanente: <a href="${portalUrl}" style="color:#a67b17">${portalUrl}</a></p>
@@ -127,6 +127,7 @@ Deno.serve(async request => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: responseHeaders(corsOrigin) });
   if (!origin) return json({ error: 'Origem não permitida.' }, 403);
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
+  if (Number(request.headers.get('content-length') || '0') > 24 * 1024) return json({ error: 'Requisição muito grande.' }, 413);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -139,7 +140,7 @@ Deno.serve(async request => {
   const { data: { user }, error: userError } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Sessão inválida.' }, 401);
 
-  const accessToken = authorization.replace(/^Bearer\\s+/i, '').trim();
+  const accessToken = authorization.replace(/^Bearer\s+/i, '').trim();
   const { data: aalData, error: aalError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel(accessToken);
   if (aalError || aalData?.currentLevel !== 'aal2') {
     return json({ error: 'Confirme a autenticação em duas etapas para executar esta ação administrativa.' }, 403);
@@ -151,7 +152,7 @@ Deno.serve(async request => {
     .eq('id', user.id)
     .maybeSingle();
   if (profileError || !adminProfile?.active || adminProfile.role !== 'nexus_admin') {
-    return json({ error: 'Apenas a administração Nexus pode criar acessos piloto.' }, 403);
+    return json({ error: 'Apenas a administração Nexus pode criar acessos.' }, 403);
   }
 
   let body: Record<string, unknown> = {};
@@ -161,15 +162,20 @@ Deno.serve(async request => {
   const responsibleName = clean(body.responsibleName, 160);
   const email = clean(body.email, 255).toLowerCase();
   const phone = digits(body.phone).slice(0, 15);
+  const isCourtesy = body.mode === 'courtesy';
+  if (body.mode != null && !['pilot', 'courtesy'].includes(String(body.mode))) return json({ error: 'Tipo de acesso inválido.' }, 400);
+  const durationMonths = Number(body.durationMonths ?? 3);
   const days = Math.trunc(Number(body.days ?? 15));
   const targetPlanCode = clean(body.targetPlanCode ?? 'essencial', 30).toLowerCase();
 
   if (companyName.length < 2) return json({ error: 'Informe o nome da empresa.' }, 400);
   if (responsibleName.length < 2) return json({ error: 'Informe o nome do responsável.' }, 400);
   if (!validEmail(email)) return json({ error: 'Informe um e-mail válido.' }, 400);
-  if (!Number.isInteger(days) || days < 1 || days > 90) return json({ error: 'A duração do piloto deve ficar entre 1 e 90 dias.' }, 400);
+  if (isCourtesy) {
+    if (!Number.isInteger(durationMonths) || ![1,2,3,6,12].includes(durationMonths)) return json({ error: 'Selecione um prazo válido para a cortesia SST.' }, 400);
+  } else if (!Number.isInteger(days) || days < 1 || days > 90) return json({ error: 'A duração do piloto deve ficar entre 1 e 90 dias.' }, 400);
   if (phone && phone.length < 10) return json({ error: 'Informe um telefone válido ou deixe o campo vazio.' }, 400);
-  if (!['essencial','profissional','empresarial'].includes(targetPlanCode)) return json({ error: 'Selecione um plano SST disponível para avaliação.' }, 400);
+  if (!['essencial','profissional','empresarial'].includes(targetPlanCode)) return json({ error: 'Selecione um plano SST válido.' }, 400);
 
   let pilotUser: any = null;
   let createdAuthUser = false;
@@ -178,38 +184,41 @@ Deno.serve(async request => {
     pilotUser = await findUserByEmail(admin, email);
     if (pilotUser?.id) {
       const { data: existingProfile } = await admin.from('profiles').select('id,organization_id').eq('id', pilotUser.id).maybeSingle();
-      if (existingProfile?.id) return json({ error: 'Este e-mail já possui acesso ao Nexus. Use outro e-mail para criar uma empresa piloto isolada.' }, 409);
+      if (existingProfile?.id) return json({ error: 'Este e-mail já possui acesso ao Nexus. Use outro e-mail para criar um novo acesso isolado.' }, 409);
     } else {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email,
         email_confirm: true,
-        user_metadata: { full_name: responsibleName, source: 'nexus-pilot' },
+        user_metadata: { full_name: responsibleName, source: isCourtesy ? 'nexus-sst-courtesy' : 'nexus-pilot' },
       });
       if (createError || !created?.user?.id) throw createError || new Error('Não foi possível criar o usuário do piloto.');
       pilotUser = created.user;
       createdAuthUser = true;
     }
 
-    const { data: provisioned, error: provisionError } = await admin.rpc('provision_nexus_pilot_with_plan', {
-      p_user_id: pilotUser.id,
-      p_created_by: user.id,
-      p_company_name: companyName,
-      p_responsible_name: responsibleName,
-      p_email: email,
-      p_phone: phone || null,
-      p_days: days,
-      p_target_plan_code: targetPlanCode,
-    });
+    const { data: provisioned, error: provisionError } = await admin.rpc(
+      isCourtesy ? 'provision_nexus_sst_courtesy' : 'provision_nexus_pilot_with_plan',
+      {
+        p_user_id: pilotUser.id,
+        p_created_by: user.id,
+        p_company_name: companyName,
+        p_responsible_name: responsibleName,
+        p_email: email,
+        p_phone: phone || null,
+        ...(isCourtesy ? { p_duration_months: durationMonths } : { p_days: days }),
+        p_target_plan_code: targetPlanCode,
+      },
+    );
 
     if (provisionError || !provisioned?.organizationId) {
       if (createdAuthUser) await admin.auth.admin.deleteUser(pilotUser.id).catch(() => undefined);
-      return json({ error: provisionError?.message || 'Não foi possível provisionar o acesso piloto.' }, 500);
+      return json({ error: provisionError?.message || 'Não foi possível provisionar o acesso SST.' }, 500);
     }
 
-    const firstEmail = await sendFirstAccessEmail(admin, email, responsibleName, companyName, provisioned.validUntil);
+    const firstEmail = await sendFirstAccessEmail(admin, email, responsibleName, companyName, provisioned.validUntil, isCourtesy);
     if (!firstEmail.sent) console.error('[Nexus pilot] Primeiro acesso não enviado:', firstEmail.reason);
 
-    const permanentEmail = await sendPermanentAccessEmail(email, responsibleName, companyName, provisioned.validUntil);
+    const permanentEmail = await sendPermanentAccessEmail(email, responsibleName, companyName, provisioned.validUntil, isCourtesy);
     if (!permanentEmail.sent) console.error('[Nexus pilot] E-mail permanente não enviado:', permanentEmail.reason);
 
     return json({
@@ -217,7 +226,9 @@ Deno.serve(async request => {
       organizationId: provisioned.organizationId,
       accessId: provisioned.accessId,
       validUntil: provisioned.validUntil,
-      targetPlanCode: provisioned.pilotTargetPlanCode,
+      targetPlanCode: provisioned.pilotTargetPlanCode || targetPlanCode,
+      courtesy: isCourtesy,
+      planName: provisioned.planName || null,
       email,
       emailSent: firstEmail.sent,
       emailError: firstEmail.sent ? null : firstEmail.reason,
@@ -227,6 +238,6 @@ Deno.serve(async request => {
   } catch (error) {
     if (createdAuthUser && pilotUser?.id) await admin.auth.admin.deleteUser(pilotUser.id).catch(() => undefined);
     console.error('[Nexus pilot]', error);
-    return json({ error: clean((error as any)?.message || 'Não foi possível criar o acesso piloto.', 700) }, 500);
+    return json({ error: clean((error as any)?.message || 'Não foi possível criar o acesso SST.', 700) }, 500);
   }
 });

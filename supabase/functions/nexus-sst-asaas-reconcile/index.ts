@@ -292,9 +292,14 @@ Deno.serve(async req=>{
  const {data:expired,error:expiryError}=await admin.rpc('suspend_expired_nexus_sst_trials');
  if(expiryError)return reply({error:'sst_trial_expiry_failed'},503);
  const expiredTrials=Number(expired?.suspended||0);
+ // Courtesy expiration is independent from the Asaas financial release switch.
+ // No invoices, users, records or organizations are deleted.
+ const {data:expiredCourtesy,error:courtesyError}=await admin.rpc('suspend_expired_nexus_sst_courtesies');
+ if(courtesyError)return reply({error:'sst_courtesy_expiry_failed'},503);
+ const expiredCourtesies=Number(expiredCourtesy?.suspended||0);
  if(!release.reconciliation_enabled){
    return reply({status:'disabled',readOnly:true,createdCharge:false,
-     accessGranted:false,expiredTrials});
+     accessGranted:false,expiredTrials,expiredCourtesies});
  }
  const hoursSince=(value:unknown)=>typeof value==='string'&&Number.isFinite(Date.parse(value))
    ?(Date.now()-Date.parse(value))/3600000:Infinity;

@@ -53,7 +53,7 @@ jobs:
         run: node --test tests/sst-central-security-boundaries.test.mjs
 
       - name: Validate Nexus Admin pilot tier, stable sidebar and CSP navigation
-        run: node --check apps/nexus-admin/central-tabs.js && node --check apps/nexus-admin/central-embed.js && node --test tests/nexus-admin-pilot-plan-ux.test.mjs tests/central-nexus-visual-v2.test.mjs
+        run: node --check apps/nexus-admin/central-tabs.js && node --check apps/nexus-admin/central-embed.js && node --test tests/nexus-admin-pilot-plan-ux.test.mjs tests/central-nexus-visual-v2.test.mjs tests/sst-admin-courtesy.test.mjs
 
       - name: Verify institutional Nexus tracking stays consent-only and revocable
         run: node --test tests/nexus-institutional-consent.test.mjs tests/nexus-ga4-consent.test.mjs
@@ -76,6 +76,11 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Typecheck SST administrative courtesy and expiry without customer changes
+        run: |
+          deno check --node-modules-dir=auto supabase/functions/nexus-admin-pilot/index.ts
+          deno check --node-modules-dir=auto supabase/functions/nexus-sst-asaas-reconcile/index.ts
 
       - name: Typecheck hard-off live Pix pilot without credentials or charges
         run: |

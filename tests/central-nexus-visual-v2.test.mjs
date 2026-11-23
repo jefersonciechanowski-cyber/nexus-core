@@ -136,7 +136,7 @@ test('Contas e Cortesias are inside one persistent shell and not external naviga
   const embed = file('central-embed.js');
   const css = file('central-embedded.css');
   assert.match(index, /data-view="accounts"[^>]*aria-label="Contas e Consultorias"[^>]*>Contas<\/button>/);
-  assert.match(index, /data-view="courtesy"[^>]*aria-label="Cortesias CRM"[^>]*>Cortesias<\/button>/);
+  assert.match(index, /data-view="courtesy"[^>]*aria-label="Cortesias CRM e SST"[^>]*>Cortesias<\/button>/);
   assert.match(index, /id="view-accounts" hidden/);
   assert.match(index, /id="view-courtesy" hidden/);
   assert.equal((index.match(/data-central-embedded title=/g) || []).length, 2);
