@@ -8,6 +8,7 @@
 
   const config = window.NEXUS_SUPABASE_CONFIG;
   const supportEmail = window.NEXUS_SUPPORT_EMAIL || 'suporte@nexuscore.app.br';
+  const whatsappNumber = '5546999089058';
 
   function readSession() {
     try {
@@ -19,6 +20,12 @@
   }
 
   function sourceContext() {
+    if (path.includes('/apps/site-captacao/suporte')) {
+      const product = new URLSearchParams(window.location.search).get('produto');
+      if (product === 'crm') return { source: 'nexus-crm', productCode: 'nexus_crm' };
+      if (product === 'estetica') return { source: 'nexus-estetica', productCode: 'estetica' };
+      return { source: 'sst-controle', productCode: 'sst' };
+    }
     if (path.includes('/apps/sst-controle/')) return { source: 'sst-controle', productCode: 'sst' };
     if (path.includes('/apps/portal-cliente/')) return { source: 'portal-cliente', productCode: 'central-nexus' };
     if (path.includes('/apps/site-captacao/')) return { source: 'site-captacao', productCode: 'sst' };
@@ -63,6 +70,8 @@
     .nexus-support-field{display:grid;gap:6px;margin-top:11px}.nexus-support-field label{color:#b7c0c4;font-size:11px;font-weight:700}.nexus-support-field input,.nexus-support-field textarea{width:100%;border:1px solid #39454b;border-radius:9px;background:#081116;color:#f5eee0;padding:10px 11px;font:13px/1.45 Inter,"Segoe UI",Arial,sans-serif;outline:none}
     .nexus-support-field textarea{min-height:118px;resize:vertical}.nexus-support-field input:focus,.nexus-support-field textarea:focus{border-color:#e0b84a;box-shadow:0 0 0 2px rgba(224,184,74,.09)}
     .nexus-support-actions{display:flex;gap:8px;align-items:center;margin-top:14px}.nexus-support-submit{flex:1;width:auto;min-height:41px;margin:0;padding:0 14px;border:1px solid #e0b84a;border-radius:9px;background:linear-gradient(180deg,#e2bb50,#c7962f);color:#17130a;font:800 12px/1 Inter,"Segoe UI",Arial,sans-serif;cursor:pointer}.nexus-support-submit:disabled{opacity:.58;cursor:wait}
+    .nexus-support-whatsapp{display:inline-flex;align-items:center;justify-content:center;margin-top:12px;min-height:42px;width:100%;border:1px solid #4ea976;border-radius:9px;background:rgba(43,129,84,.24);color:#dcf9e8;text-decoration:none;font-size:12px;font-weight:700}
+    .nexus-support-whatsapp[hidden]{display:none!important}.nexus-support-whatsapp:hover{background:rgba(43,129,84,.38)}
     .nexus-support-mail{color:#9ca7ac;font-size:10px;text-decoration:none}.nexus-support-mail:hover{color:#e0b84a}.nexus-support-message{min-height:18px;margin-top:10px;color:#9ca7ac;font-size:11px;line-height:1.45}.nexus-support-message.good{color:#8fc895}.nexus-support-message.bad{color:#ec8d88}
     .nexus-support-hp{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
     @media(max-width:760px){.nexus-support-root{right:14px;bottom:calc(14px + env(safe-area-inset-bottom))}.nexus-support-root.has-mobile-bar{bottom:calc(82px + env(safe-area-inset-bottom))}.nexus-support-panel{bottom:56px;width:min(390px,calc(100vw - 28px));max-height:min(640px,calc(100vh - 130px));overflow:auto}.nexus-support-trigger{min-height:44px;padding:0 14px}.nexus-support-body{padding:15px}.nexus-support-head{padding:16px 15px 13px}}
@@ -78,7 +87,7 @@
 
   const contextText = loggedIn
     ? `${session.organizationName || 'Sua empresa'} · ${session.name || session.email}`
-    : 'Envie sua dúvida e retornaremos pelo e-mail informado.';
+    : 'Registre seu chamado e, em seguida, escolha continuar pelo WhatsApp.';
 
   root.innerHTML = `
     <button class="nexus-support-trigger" type="button" aria-expanded="false" aria-controls="nexusSupportPanel"><strong>?</strong><span>Suporte</span></button>
@@ -91,6 +100,7 @@
         <div class="nexus-support-field"><label for="nexusSupportMessage">Sua dúvida</label><textarea id="nexusSupportMessage" maxlength="4000" required placeholder="Digite sua dúvida ou descreva o problema aqui..."></textarea></div>
         <div class="nexus-support-actions"><button class="nexus-support-submit" id="nexusSupportSubmit" type="submit">Enviar solicitação</button><a class="nexus-support-mail" href="mailto:${supportEmail}">E-mail</a></div>
         <div class="nexus-support-message" id="nexusSupportFeedback" role="status" aria-live="polite"></div>
+        <a class="nexus-support-whatsapp" id="nexusSupportWhatsApp" href="#" target="_blank" rel="noopener noreferrer" hidden>Continuar no WhatsApp com protocolo</a>
       </form>
     </section>`;
 
@@ -103,6 +113,7 @@
   const textarea = root.querySelector('#nexusSupportMessage');
   const submit = root.querySelector('#nexusSupportSubmit');
   const feedback = root.querySelector('#nexusSupportFeedback');
+  const whatsapp = root.querySelector('#nexusSupportWhatsApp');
 
   const setOpen = open => {
     panel.hidden = !open;
@@ -111,6 +122,10 @@
   };
 
   trigger.addEventListener('click', () => setOpen(panel.hidden));
+  if (path.includes('/apps/site-captacao/suporte')) {
+    setOpen(true);
+    document.getElementById('nexusOpenSupport')?.addEventListener('click', () => setOpen(true));
+  }
   closeButton.addEventListener('click', () => setOpen(false));
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && !panel.hidden) setOpen(false);
@@ -120,6 +135,8 @@
     event.preventDefault();
     feedback.className = 'nexus-support-message';
     feedback.textContent = '';
+    whatsapp.hidden = true;
+    whatsapp.removeAttribute('href');
 
     const name = loggedIn ? (session.name || session.email) : root.querySelector('#nexusSupportName').value.trim();
     const email = loggedIn ? session.email : root.querySelector('#nexusSupportEmail').value.trim();
@@ -158,10 +175,15 @@
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || 'Não foi possível registrar sua solicitação.');
+      const protocol = String(data.protocol || '');
+      if (!/^SUP-[A-Z0-9-]{8,40}$/.test(protocol)) throw new Error('A Central não confirmou o protocolo.');
 
       textarea.value = '';
       feedback.classList.add('good');
-      feedback.textContent = `Solicitação recebida. Protocolo ${data.protocol}.`;
+      feedback.textContent = 'Chamado registrado na Nexus Central. Protocolo ' + protocol + '.';
+      const whatsappText = 'Olá! Preciso de suporte Nexus. Meu protocolo é ' + protocol + '.';
+      whatsapp.href = 'https://wa.me/' + whatsappNumber + '?text=' + encodeURIComponent(whatsappText);
+      whatsapp.hidden = false;
     } catch (error) {
       feedback.classList.add('bad');
       feedback.textContent = await functionErrorMessage(error);
