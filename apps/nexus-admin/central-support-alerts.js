@@ -176,9 +176,8 @@
     if (!document.hidden) void check();
   });
   window.addEventListener('pagehide',() => { stopped = true; });
+  window.addEventListener('pageshow',() => { stopped = false; void check(); });
   // Allow the Central's asynchronous login restore to finish before the first check.
   window.setTimeout(() => void check(), 2500);
-  window.setInterval(() => {
-    if (!document.hidden) void check();
-  },POLL_INTERVAL_MS);
+  window.setInterval(() => void check(),POLL_INTERVAL_MS);
 })();
