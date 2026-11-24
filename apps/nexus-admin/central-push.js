@@ -30,10 +30,7 @@
     button.hidden=state.active;
     disableButton.hidden=!state.active;
     testButton.hidden=!state.active;
-    if(!state.working){
-      button.textContent='Ativar push no iPhone';
-      if(state.active) inform('Push ativo neste dispositivo. Você receberá avisos mesmo com a Central fechada.');
-    }
+    if(!state.working) button.textContent='Ativar push no iPhone';
   }
   function base64ToBytes(input){
     const normalized=input.replace(/-/g,'+').replace(/_/g,'/');
