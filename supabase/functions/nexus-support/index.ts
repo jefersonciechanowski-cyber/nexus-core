@@ -245,13 +245,6 @@ Deno.serve(async request => {
     return json(request, { error: 'Não foi possível registrar sua solicitação.' }, 500);
   }
 
-  try {
-    await sendSupportNotification({ ...ticket, organization_name: authContext?.organizationName || null });
-  } catch (error) {
-    console.error(JSON.stringify({ message: 'support email notification failed', protocol, error: clean((error as any)?.message, 300) }));
-  }
-
-
   // A successful ticket registration remains independent of push delivery.
   // The new worker only accepts this service-role-authenticated backend call.
   const pushDispatch = fetch(supabaseUrl.replace(/\/$/, '') + '/functions/v1/nexus-support-push', {
@@ -273,6 +266,13 @@ Deno.serve(async request => {
   const edgeRuntime = (globalThis as any).EdgeRuntime;
   if (typeof edgeRuntime?.waitUntil === 'function') edgeRuntime.waitUntil(pushDispatch);
   else await pushDispatch;
+
+  try {
+    await sendSupportNotification({ ...ticket, organization_name: authContext?.organizationName || null });
+  } catch (error) {
+    console.error(JSON.stringify({ message: 'support email notification failed', protocol, error: clean((error as any)?.message, 300) }));
+  }
+
 
   return json(request, { ok: true, protocol: ticket.protocol });
 });
