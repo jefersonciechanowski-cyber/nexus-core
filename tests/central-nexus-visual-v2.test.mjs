@@ -309,3 +309,20 @@ test('support has MFA gate, safe status update and no automatic AI execution', (
   assert.match(publicPage, /noindex,nofollow,noarchive/);
   assert.doesNotMatch(publicPage, /<script>\s*[^<]/);
 });
+
+test('support notifications use admin MFA and an explicit browser opt-in', () => {
+  const alerts = file('central-support-alerts.js');
+  const support = file('central-support.js');
+  const style = file('central-support.css');
+  assert.match(index,/id="supportEnableBrowserAlerts"/);
+  assert.match(index,/id="supportAlertSummary"/);
+  assert.match(index,/src="central-support-alerts.js"/);
+  assert.match(alerts,/\.eq\('status','open'\)/);
+  assert.match(alerts,/\.select\('id,protocol,created_at',\{count:'exact'\}\)/);
+  assert.match(alerts,/aal\?\.currentLevel !== 'aal2'/);
+  assert.match(alerts,/Notification\.requestPermission\(\)/);
+  assert.match(alerts,/const POLL_INTERVAL_MS = 60_000/);
+  assert.doesNotMatch(alerts,/service_role|requester_email|\.innerHTML|\.insert\(/);
+  assert.match(support,/nexus:support:changed/);
+  assert.match(style,/data-support-alert-count/);
+});
