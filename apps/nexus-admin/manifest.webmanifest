@@ -1,0 +1,26 @@
+{
+  "name": "Nexus Central",
+  "short_name": "Nexus Central",
+  "description": "Administração e suporte do ecossistema Nexus Core",
+  "id": "/apps/nexus-admin/",
+  "start_url": "/apps/nexus-admin/#support",
+  "scope": "/apps/nexus-admin/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#071d1c",
+  "theme_color": "#071d1c",
+  "icons": [
+    {
+      "src": "/apps/sst-controle/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apps/sst-controle/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
