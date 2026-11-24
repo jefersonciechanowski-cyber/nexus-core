@@ -326,3 +326,31 @@ test('support notifications use admin MFA and an explicit browser opt-in', () =>
   assert.match(support,/nexus:support:changed/);
   assert.match(style,/data-support-alert-count/);
 });
+
+test('iPhone web app and push lifecycle remain restricted to Central support', () => {
+  const pwa = file('central-push.js');
+  const sw = file('sw.js');
+  const manifest = JSON.parse(file('manifest.webmanifest'));
+  const support = file('central-support.css');
+  const receiver = readFileSync(new URL('../supabase/functions/nexus-support-push/index.ts', import.meta.url),'utf8');
+  assert.equal(manifest.display,'standalone');
+  assert.equal(manifest.scope,'/apps/nexus-admin/');
+  assert.equal(manifest.start_url,'/apps/nexus-admin/#support');
+  assert.match(index,/rel="manifest" href="manifest.webmanifest"/);
+  assert.match(index,/id="supportEnablePush"/);
+  assert.match(index,/id="supportTestPush"/);
+  assert.match(index,/id="supportDisablePush"/);
+  assert.match(index,/src="central-push.js"/);
+  assert.match(pwa,/Notification\.requestPermission\(\)/);
+  assert.match(pwa,/applicationServerKey:base64ToBytes\(PUBLIC_VAPID_KEY\)/);
+  assert.match(pwa,/async function credential\(\)/);
+  assert.match(receiver,/is_nexus_admin_aal2/);
+  assert.match(receiver,/action === 'dispatch'/);
+  assert.match(receiver,/action === 'test'/);
+  assert.match(receiver,/getVapid\(admin\)/);
+  assert.match(sw,/self\.addEventListener\('push'/);
+  assert.match(sw,/self\.addEventListener\('notificationclick'/);
+  assert.doesNotMatch(sw,/addEventListener\('fetch'/);
+  assert.doesNotMatch(receiver,/GP12o9r24|gp12o9r24CIR/);
+  assert.match(support,/#supportEnablePush/);
+});
