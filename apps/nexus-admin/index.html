@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#071d1c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nexus Central">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/apps/sst-controle/icon-192.png">
   <title>Central Nexus | Administração</title>
   <style>
     :root{--bg:#081014;--surface:#111a1f;--surface2:#172228;--line:#2f393f;--text:#f5eee0;--muted:#98a2a7;--gold:#e0b84a;--good:#72a875;--danger:#dc6c67}
@@ -73,6 +78,9 @@
             <div class="support-alert-actions">
               <span id="supportAlertSummary" role="status" aria-live="polite">Verificando chamados pendentes...</span>
               <button class="action" id="supportEnableBrowserAlerts" type="button">Ativar alertas do navegador</button>
+              <button class="action" id="supportEnablePush" type="button">Ativar push no iPhone</button>
+              <button class="action" id="supportTestPush" type="button" hidden>Enviar teste</button>
+              <button class="action" id="supportDisablePush" type="button" hidden>Desativar push</button>
               <button class="action" id="supportRefresh" type="button">Atualizar</button>
             </div>
           </div>
@@ -94,6 +102,7 @@
               <option value="sst">SST Controle</option><option value="estetica">Nexus Estética</option>
             </select>
           </div>
+          <p id="supportPushNote" role="status" aria-live="polite" class="support-push-note">Ative notificações push para receber chamados com a Central fechada.</p>
           <div id="supportTicketNotice" role="status" aria-live="polite"></div>
           <span id="supportTicketTotal">Chamados recentes</span>
           <div class="support-layout">
@@ -197,6 +206,7 @@
   </script>
   <script src="central-support.js"></script>
   <script src="central-support-alerts.js"></script>
+  <script src="central-push.js"></script>
   <script defer src="pilot.js"></script>
 </body>
 </html>
