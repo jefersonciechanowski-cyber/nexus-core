@@ -65,6 +65,9 @@
 
   function notifyNewTicket() {
     showToast();
+    // A registered Web Push device receives the same event via its Service Worker.
+    // Do not display a second local browser notification for the same ticket.
+    if (window.NexusCentralPush?.active) return;
     if (!browserSupported() || window.Notification.permission !== 'granted') return;
     try {
       const notification = new window.Notification('Nexus Central · suporte', {
