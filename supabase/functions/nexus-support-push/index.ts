@@ -107,7 +107,11 @@ Deno.serve(async(req:Request) => {
   const admin=createClient(url,adminKey,{auth:{persistSession:false,autoRefreshToken:false}});
 
   let body:any;
-  try {body=await req.json();} catch {return json({error:'JSON inválido.'},400);}
+  try {
+    const raw=await req.text();
+    if (raw.length > 10_000) return json({error:'Dados muito grandes.'},413);
+    body=JSON.parse(raw);
+  } catch {return json({error:'JSON inválido.'},400);}
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({error:'Dados inválidos.'},400);
   const action=String(body.action || '');
   const authorization=req.headers.get('authorization') || '';
