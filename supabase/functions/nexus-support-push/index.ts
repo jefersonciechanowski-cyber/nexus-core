@@ -138,6 +138,11 @@ Deno.serve(async(req:Request) => {
     const targets=subs.filter((s:any)=>eligible.has(s.user_id));
     if (!targets.length) return json({ok:true,skipped:'no-active-admins'});
 
+    let vapid:any;
+    try {vapid=await getVapid(admin);} catch {
+      console.error('support push: Vault key unavailable');
+      return json({error:'Push indisponível.'},503);
+    }
     // A single atomic claim prevents double delivery for concurrent requests.
     const {data:claimed,error:claimError}=await admin.from('support_requests')
       .update({push_dispatched_at:new Date().toISOString()})
@@ -145,11 +150,6 @@ Deno.serve(async(req:Request) => {
       .select('id').maybeSingle();
     if (claimError) return json({error:'Falha ao reservar a notificação.'},503);
     if (!claimed) return json({ok:true,skipped:'claimed'});
-    let vapid:any;
-    try {vapid=await getVapid(admin);} catch {
-      console.error('support push: Vault key unavailable');
-      return json({error:'Push indisponível.'},503);
-    }
     const outcomes=await Promise.allSettled(targets.map(async(s:any)=>{
       try {
         await deliver(s,vapid,'ticket');
