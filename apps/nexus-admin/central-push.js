@@ -176,9 +176,11 @@
       const sub=await localSubscription();
       state.active=Notification.permission==='granted' && !!sub && currentKeyMatches(sub);
       render();
-      if(!state.active && isiOS && !standalone)
+      if(state.active)
+        inform('Push ativo neste dispositivo. Você receberá avisos mesmo com a Central fechada.');
+      else if(isiOS && !standalone)
         inform('Abra a Central pelo ícone da Tela de Início do iPhone.');
-      else if(!state.active)
+      else
         inform('Ative o push para receber chamados mesmo com a Central fechada.');
     }catch{
       inform('Não foi possível consultar o status das notificações.',true);
