@@ -156,6 +156,7 @@
       tickets=tickets.map(item=>item.id===ticket.id?{...item,status:data.status,updated_at:data.updated_at}:item);
       notify('Situação do chamado atualizada.');
       renderList();renderDetail();
+      window.dispatchEvent(new Event('nexus:support:changed'));
     } catch(error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar a situação.',true);
       renderDetail();

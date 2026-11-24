@@ -70,7 +70,11 @@
         <div class="support-panel">
           <div class="support-toolbar">
             <div><h2>Fila de suporte</h2><p>CRM, SST e demais produtos no mesmo atendimento.</p></div>
-            <button class="action" id="supportRefresh" type="button">Atualizar</button>
+            <div class="support-alert-actions">
+              <span id="supportAlertSummary" role="status" aria-live="polite">Verificando chamados pendentes...</span>
+              <button class="action" id="supportEnableBrowserAlerts" type="button">Ativar alertas do navegador</button>
+              <button class="action" id="supportRefresh" type="button">Atualizar</button>
+            </div>
           </div>
           <div class="support-counters" aria-label="Situação dos chamados recentes">
             <div class="support-counter"><span>Abertos</span><strong id="supportCountOpen">—</strong></div>
@@ -192,6 +196,7 @@
     const firstView=location.hash.slice(1);if(pageConfig[firstView])setView(firstView);document.getElementById('overviewSearch').addEventListener('input',renderOverview);document.getElementById('clientSearch').addEventListener('input',renderClients);document.getElementById('clientStatus').addEventListener('change',renderClients);document.getElementById('productSearch').addEventListener('input',renderProducts);document.getElementById('paymentSearch').addEventListener('input',renderPayments);document.getElementById('logout').onclick=async()=>{await window.NexusAuth.logout();location.replace('login.html');};start();
   </script>
   <script src="central-support.js"></script>
+  <script src="central-support-alerts.js"></script>
   <script defer src="pilot.js"></script>
 </body>
 </html>

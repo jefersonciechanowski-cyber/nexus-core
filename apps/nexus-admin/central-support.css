@@ -45,3 +45,30 @@
 .central-support-view .support-empty{padding:26px;text-align:center;color:#a8c7bf;font-size:12px}
 @media(max-width:980px){.central-support-view .support-layout{grid-template-columns:1fr}.central-support-view #supportTicketList{max-height:360px}.central-support-view .support-counters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:530px){.central-support-view .support-filters>*{flex:1 1 100%!important}.central-support-view .support-info-grid{grid-template-columns:1fr}.central-support-view .support-panel{padding:12px}.central-support-view .support-detail-actions>*{flex:1 1 100%;justify-content:center}}
+
+/* Support alert indicator remains visible on every Central tab. */
+body.central-nexus-v2 .side .nav button[data-view="support"]{position:relative}
+body.central-nexus-v2 .side .nav button[data-view="support"][data-support-alert-count]::after{
+  content:attr(data-support-alert-count);position:absolute;right:3px;top:1px;display:grid;
+  place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
+  background:#bd4844;color:#fff;border:1px solid rgba(255,255,255,.21);
+  font-size:10px;font-weight:750;letter-spacing:0;line-height:1;
+}
+.central-support-view .support-alert-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.central-support-view #supportAlertSummary{font-size:11px;color:#d1e5de}
+.central-support-view #supportEnableBrowserAlerts{font-size:11px}
+.central-support-view #supportEnableBrowserAlerts[hidden]{display:none}
+.central-support-view #supportEnableBrowserAlerts:disabled{cursor:default;opacity:.7}
+.central-support-new-toast{
+  position:fixed;right:24px;top:92px;z-index:14000;display:flex;align-items:center;gap:12px;
+  flex-wrap:wrap;max-width:min(520px,calc(100vw - 30px));padding:12px 14px;border-radius:12px;
+  background:#0e322c;color:#fff;border:1px solid rgba(210,189,127,.55);
+  box-shadow:0 12px 32px rgba(0,0,0,.3);font:600 12px Inter,"Segoe UI",Arial,sans-serif;
+}
+.central-support-new-toast button{border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:6px 9px;color:#fff;background:rgba(255,255,255,.09);font-size:11px}
+.central-support-new-toast button:focus-visible{outline:2px solid #f4daa2;outline-offset:2px}
+@media(max-width:760px){
+  .central-support-view .support-alert-actions{align-items:stretch;width:100%}
+  .central-support-view .support-alert-actions>*{flex:1 1 auto}
+  .central-support-new-toast{top:auto;bottom:86px;right:15px}
+}
