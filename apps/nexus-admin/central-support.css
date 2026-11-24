@@ -72,3 +72,17 @@ body.central-nexus-v2 .side .nav button[data-view="support"][data-support-alert-
   .central-support-view .support-alert-actions>*{flex:1 1 auto}
   .central-support-new-toast{top:auto;bottom:86px;right:15px}
 }
+
+/* Nexus Central PWA: push controls are compact and keyboard accessible. */
+.central-support-view .support-push-note{margin:2px 0 10px;font-size:11px;color:#b9d4ca;line-height:1.5}
+.central-support-view .support-push-note[data-error="true"]{color:#ffc3bf}
+.central-support-view #supportEnablePush{border-color:rgba(98,189,145,.72);color:#d1ffe8;background:rgba(25,115,73,.18)}
+.central-support-view #supportEnablePush:hover{background:rgba(25,115,73,.28)}
+.central-support-view #supportTestPush{border-color:rgba(98,189,145,.6);color:#dcffe9}
+.central-support-view #supportDisablePush{color:#e0d7c4}
+.central-support-view [hidden]{display:none!important}
+@media(max-width:650px){
+  .central-support-view .support-alert-actions{justify-content:stretch}
+  .central-support-view .support-alert-actions button{flex:1 1 auto;min-height:40px}
+  .central-support-view .support-push-note{font-size:12px}
+}
